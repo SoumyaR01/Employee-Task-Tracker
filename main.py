@@ -186,7 +186,7 @@ def load_config():
             return json.load(f)
     return {
         'excel_file_path': EXCEL_FILE_PATH,
-        'logo_path': '/home/pinku/PTF Track/logo/PTF1.png',
+        'logo_path': '/home/pinku/PTF Track/logo/PTF.png',
         'reminder_time': '18:00',
         'reminder_days': [0, 1, 2, 3, 4, 5],  # Mon-Sat
         'admin_email': '',
@@ -625,7 +625,7 @@ def show_settings():
         
         logo_path = st.text_input(
             "Logo Path",
-            value=config.get('logo_path', '/home/pinku/PTF Track/logo/PTF1.png'),
+            value=config.get('logo_path', '/home/pinku/PTF Track/logo/PTF.png'),
             help="Path to the logo image file"
         )
 
@@ -792,18 +792,46 @@ def show_submit_report():
     config = load_config()
     
     # Logo Section - Centered at top
-    # Use relative path for Streamlit Cloud deployment
-    logo_path = Path(__file__).resolve().parent / "logo" / "PTF1.png"
+    # Try multiple path approaches for compatibility
+    logo_found = False
+    possible_paths = [
+        "logo/PTF.png",  # Simple relative path (usually works on Streamlit Cloud)
+        Path("logo/PTF.png"),  # Path object version
+        Path(__file__).parent / "logo" / "PTF.png",  # Relative to script
+    ]
     
-    if logo_path.exists():
-        # Use columns to center the logo with styling
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            st.markdown('<div class="logo-container">', unsafe_allow_html=True)
-            st.image(str(logo_path), use_column_width=True)
-            st.markdown('</div>', unsafe_allow_html=True)
-    else:
-        # Fallback if logo not found with better styling
+    # Debug: Show current working directory (comment out in production)
+    # st.caption(f"Debug - Current dir: {os.getcwd()}")
+    # st.caption(f"Debug - Script location: {Path(__file__).parent}")
+    
+    for logo_path in possible_paths:
+        try:
+            # Try to check if file exists and can be read
+            if isinstance(logo_path, str):
+                if os.path.exists(logo_path):
+                    # Use columns to center the logo with styling
+                    col1, col2, col3 = st.columns([1, 2, 1])
+                    with col2:
+                        st.markdown('<div class="logo-container">', unsafe_allow_html=True)
+                        st.image(logo_path, use_column_width=True)
+                        st.markdown('</div>', unsafe_allow_html=True)
+                    logo_found = True
+                    break
+            else:
+                if logo_path.exists():
+                    # Use columns to center the logo with styling
+                    col1, col2, col3 = st.columns([1, 2, 1])
+                    with col2:
+                        st.markdown('<div class="logo-container">', unsafe_allow_html=True)
+                        st.image(str(logo_path), use_column_width=True)
+                        st.markdown('</div>', unsafe_allow_html=True)
+                    logo_found = True
+                    break
+        except Exception as e:
+            continue
+    
+    if not logo_found:
+        # Fallback if logo not found - show styled placeholder
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
             st.markdown("""
@@ -811,11 +839,10 @@ def show_submit_report():
                 <div style="width: 100%; height: 100px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
                             display: flex; align-items: center; justify-content: center; 
                             border-radius: 10px; border: 2px solid #667eea;">
-                    <p style="color: white; font-size: 18px; font-weight: bold; margin: 0;">PTF Logo</p>
+                    <p style="color: white; font-size: 18px; font-weight: bold; margin: 0;">PTF</p>
                 </div>
-                <p style="color: #888; font-size: 12px; margin-top: 10px;">Logo not found at: {}</p>
             </div>
-            """.format(str(logo_path)), unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
     
     # Title Section - Centered below logo
     st.markdown("<h1 style='text-align: center; margin-top: 10px; color: #2c3e50;'>PTF Daily Work Progress Report</h1>", unsafe_allow_html=True)
