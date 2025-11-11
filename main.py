@@ -699,14 +699,16 @@ import streamlit as st
 import os
 
 # --- Logo Section ---
-current_dir = Path(__file__).parent if "__file__" in locals() else Path.cwd()
-logo_path = current_dir / "logo" / "PTF1.png"
+# Get the absolute path to the logo file inside your repo
+logo_path = Path(__file__).resolve().parent / "logo" / "PTF1.png"
 
+# Convert to string for Streamlit
 if logo_path.exists():
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.image(str(logo_path), width=250)
 else:
+    st.warning(f"Logo not found at: {logo_path}")
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.markdown(
