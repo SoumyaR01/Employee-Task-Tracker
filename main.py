@@ -811,27 +811,32 @@ def show_submit_report():
     # ]
 
     # --- Logo Section (Fixed for Streamlit Cloud) ---
-    st.markdown('<div class="logo-container" style="text-align:center;">', unsafe_allow_html=True)
-
-    # Use GitHub raw URL for guaranteed access
+    # Use a single HTML block to ensure the image is centered and constrained
     logo_url = "https://raw.githubusercontent.com/SoumyaR01/Employee-Task-Tracker/main/logo/ptf.png"
 
+    # Render using an HTML <img> so CSS sizing/centering is reliable inside Streamlit's layout
     try:
-        # Render a constrained image so it doesn't overflow the layout
-        st.image(logo_url, use_container_width=False, width=480)
+        st.markdown(
+            f'<div class="logo-container" style="text-align:center;">'
+            f'  <img src="{logo_url}" alt="PTF Logo" '
+            f'       style="max-width:360px; width:100%; height:auto; display:block; margin:0 auto; border-radius:8px;"/>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
     except Exception:
-        # Fallback if logo not loaded: show styled placeholder
-        st.markdown("""
+        # Fallback placeholder if remote image cannot be loaded
+        st.markdown(
+            """
         <div class="logo-container" style="text-align: center;">
-            <div style="width: 100%; max-width:480px; height: auto; padding: 18px 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            <div style="width: 100%; max-width:360px; height: auto; padding: 12px 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
                         display: flex; align-items: center; justify-content: center; 
                         border-radius: 10px; border: 2px solid #667eea; margin:0 auto;">
-                <p style="color: white; font-size: 22px; font-weight: bold; margin: 0;">PTF</p>
+                <p style="color: white; font-size: 18px; font-weight: bold; margin: 0;">PTF</p>
             </div>
         </div>
-        """, unsafe_allow_html=True)
-
-    st.markdown('</div>', unsafe_allow_html=True)
+        """,
+            unsafe_allow_html=True,
+        )
     
     # Title Section - Centered below logo
     st.markdown("<h1 style='text-align: center; margin-top: 10px; color: #2c3e50;'>PTF Daily Work Progress Report</h1>", unsafe_allow_html=True)
