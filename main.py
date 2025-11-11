@@ -675,13 +675,12 @@ def show_submit_report():
     #     with col2:
     #         st.image(logo_path, width=200)
 
-        # Logo Section - Centered at top
+    # Logo Section - Centered at top
     logo_path = "https://raw.githubusercontent.com/SoumyaR01/Employee-Task-Tracker/main/logo/PTF1.png"
-
-    # Center the logo
     col1, col2, col3 = st.columns([1, 1, 1])
     with col2:
-        st.image(logo_path, width=200)
+    st.image(logo_path, width=200)
+
 
     else:
         # Fallback if logo not found
