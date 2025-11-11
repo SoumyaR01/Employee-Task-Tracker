@@ -186,7 +186,7 @@ def load_config():
             return json.load(f)
     return {
         'excel_file_path': EXCEL_FILE_PATH,
-        'logo_path': '/home/pinku/PTF Track/logo/PTF.png',
+        'logo_path': '/home/pinku/PTF Track/logo/PTF1.png',
         'reminder_time': '18:00',
         'reminder_days': [0, 1, 2, 3, 4, 5],  # Mon-Sat
         'admin_email': '',
@@ -625,7 +625,7 @@ def show_settings():
         
         logo_path = st.text_input(
             "Logo Path",
-            value=config.get('logo_path', '/home/pinku/PTF Track/logo/PTF.png'),
+            value=config.get('logo_path', '/home/pinku/PTF Track/logo/PTF1.png'),
             help="Path to the logo image file"
         )
 
@@ -795,9 +795,9 @@ def show_submit_report():
     # Try multiple path approaches for compatibility
     logo_found = False
     possible_paths = [
-        "logo/PTF.png",  # Simple relative path (usually works on Streamlit Cloud)
-        Path("logo/PTF.png"),  # Path object version
-        Path(__file__).parent / "logo" / "PTF.png",  # Relative to script
+        "logo/PTF1.png",  # Simple relative path (usually works on Streamlit Cloud)
+        Path("logo/PTF1.png"),  # Path object version
+        Path(__file__).parent / "logo" / "PTF1.png",  # Relative to script
     ]
     
     # Debug: Show current working directory (comment out in production)
