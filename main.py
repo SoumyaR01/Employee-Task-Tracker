@@ -153,6 +153,14 @@ st.markdown("""
         text-align: center;
     }
 
+    /* Constrain logo image size so it doesn't take the entire viewport */
+    .logo-container img {
+        max-width: 480px;
+        width: 100%;
+        height: auto;
+        display: inline-block;
+    }
+
     /* Expander styling */
     .streamlit-expanderHeader {
         background: linear-gradient(135deg, #1e293b 0%, #111827 100%);
@@ -803,18 +811,19 @@ def show_submit_report():
     # ]
 
     # --- Logo Section (Fixed for Streamlit Cloud) ---
-    st.markdown('<div style="text-align:center;">', unsafe_allow_html=True)
+    st.markdown('<div class="logo-container" style="text-align:center;">', unsafe_allow_html=True)
 
     # Use GitHub raw URL for guaranteed access
     logo_url = "https://raw.githubusercontent.com/SoumyaR01/Employee-Task-Tracker/main/logo/ptf.png"
 
     try:
-        st.image(logo_url, use_container_width=True)
+        # Render a constrained image so it doesn't overflow the layout
+        st.image(logo_url, use_container_width=False, width=480)
     except Exception:
         # Fallback if logo not loaded: show styled placeholder
         st.markdown("""
         <div class="logo-container" style="text-align: center;">
-            <div style="width: 100%; max-width:600px; height: 120px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            <div style="width: 100%; max-width:480px; height: auto; padding: 18px 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
                         display: flex; align-items: center; justify-content: center; 
                         border-radius: 10px; border: 2px solid #667eea; margin:0 auto;">
                 <p style="color: white; font-size: 22px; font-weight: bold; margin: 0;">PTF</p>
