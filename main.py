@@ -1016,32 +1016,17 @@ def show_submit_report():
 
 # Main App
 
-def is_admin():
-    """Check if user is admin (via query param)"""
-    try:
-        query_params = st.query_params
-        return query_params.get('admin', '').lower() == 'true'
-    except:
-        return False
-
 def main():
     """Main application"""
-
-    admin = is_admin()
 
     # Sidebar navigation
     with st.sidebar:
         st.title("📊 Progress Tracker")
         st.markdown("---")
 
-        if admin:
-            nav_options = ["📝 Submit Report", "📈 Dashboard", "⚙️ Settings", "📧 Reminders"]
-        else:
-            nav_options = ["📝 Submit Report"]
-
         page = st.radio(
             "Navigation",
-            nav_options,
+            ["📝 Submit Report", "📈 Dashboard", "⚙️ Settings", "📧 Reminders"],
             label_visibility="collapsed"
         )
 
@@ -1061,7 +1046,7 @@ def main():
     if page == "📝 Submit Report":
         show_submit_report()
     
-    elif page == "📈 Dashboard" and admin:
+    elif page == "📈 Dashboard":
         st.title("📈 Employee Progress Dashboard")
 
         excel_path = config.get('excel_file_path', EXCEL_FILE_PATH)
@@ -1096,11 +1081,10 @@ def main():
         # Show data table
         show_data_table(filtered_df)
 
-    elif page == "⚙️ Settings" and admin:
+    elif page == "⚙️ Settings":
         show_settings()
 
-    elif page == "📧 Reminders" and admin:
-
+    elif page == "📧 Reminders":
         st.title("📧 Reminder Management")
 
         st.info("""
