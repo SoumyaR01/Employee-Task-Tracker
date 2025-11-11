@@ -8,9 +8,6 @@ from pathlib import Path
 import time
 import os
 import logging
-import os
-st.write("Current working directory:", os.getcwd())
-st.write("Files in logo folder:", os.listdir("logo"))
 
 st.set_page_config(
     page_title="Employee Progress Tracker",
@@ -671,7 +668,7 @@ def show_settings():
 def show_submit_report():
     """Display form for submitting work progress reports with multiple tasks"""
     # Logo Section - Centered at top
-    logo_path = Path("logo/PTF1.png")
+    logo_path = "logo/PTF1.png"
     if os.path.exists(logo_path):
         # Use equal columns to center the logo
         col1, col2, col3 = st.columns([1.4, 1, 1])
