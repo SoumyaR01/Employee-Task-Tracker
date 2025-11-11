@@ -8,7 +8,9 @@ from pathlib import Path
 import time
 import os
 import logging
-
+import os
+st.write("Current working directory:", os.getcwd())
+st.write("Files in logo folder:", os.listdir("logo"))
 
 st.set_page_config(
     page_title="Employee Progress Tracker",
