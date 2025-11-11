@@ -793,12 +793,26 @@ def show_submit_report():
     
     # Logo Section - Centered at top
     # Try multiple path approaches for compatibility
-    logo_found = False
-    possible_paths = [
-        "logo/PTF1.png",  # Simple relative path (usually works on Streamlit Cloud)
-        Path("logo/PTF1.png"),  # Path object version
-        Path(__file__).parent / "logo" / "PTF1.png",  # Relative to script
-    ]
+    # logo_found = False
+    # possible_paths = [
+    #     "logo/PTF1.png",  # Simple relative path (usually works on Streamlit Cloud)
+    #     Path("logo/PTF1.png"),  # Path object version
+    #     Path(__file__).parent / "logo" / "PTF1.png",  # Relative to script
+    # ]
+
+    # --- Logo Section (Fixed for Streamlit Cloud) ---
+    st.markdown('<div style="text-align:center;">', unsafe_allow_html=True)
+
+    # Use GitHub raw URL for guaranteed access
+    logo_url = "https://raw.githubusercontent.com/SoumyaR01/Employee-Task-Tracker/main/logo/ptf.png"
+
+    try:
+    st.image(logo_url, width=200, output_format="auto", caption="")
+    except Exception:
+    st.warning("⚠️ Unable to load logo. Please check the GitHub path or rename file properly.")
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
     
     # Debug: Show current working directory (comment out in production)
     # st.caption(f"Debug - Current dir: {os.getcwd()}")
