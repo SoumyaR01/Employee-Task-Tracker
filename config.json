@@ -1,0 +1,14 @@
+{
+    "spreadsheet_id": "https://docs.google.com/spreadsheets/d/15PPEsLjD29yyLsapaUDL-L2I3R8yNWpVPoRSD-qGVCQ/edit?gid=0#gid=0",
+    "reminder_time": "18:00",
+    "reminder_days": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+    ],
+    "admin_email": "",
+    "employee_emails": []
+}
