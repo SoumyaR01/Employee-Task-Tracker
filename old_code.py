@@ -669,7 +669,7 @@ def show_settings():
 def show_submit_report():
     """Display form for submitting work progress reports with multiple tasks"""
     # Logo Section - Centered at top
-    logo_path = r'D:\Employee Track Report\logo\PTF1.png'
+    logo_path = Path("logo/PTF1.png")
     if os.path.exists(logo_path):
         # Use equal columns to center the logo
         col1, col2, col3 = st.columns([1.4, 1, 1])

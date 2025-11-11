@@ -1,37 +1,75 @@
-import schedule
-import time
-import json
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from datetime import datetime, timedelta
-import logging
-from pathlib import Path
+import streamlit as st
 import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+from datetime import datetime, timedelta
+import json
+from pathlib import Path
+import time
 import os
-import requests
+import logging
 
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('reminder_service.log'),
-        logging.StreamHandler()
-    ]
+st.set_page_config(
+    page_title="Employee Progress Tracker",
+    page_icon="📊",
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# Constants
-CONFIG_FILE = 'config.json'
-EMAIL_CONFIG_FILE = 'email_config.json'
-WHATSAPP_CONFIG_FILE = 'whatsapp_config.json'
-TELEGRAM_CONFIG_FILE = 'telegram_config.json'
-EXCEL_FILE_PATH = r'D:\Employee Track Report\task_tracker.xlsx'
+# Custom CSS
+st.markdown("""
+<style>
+    .main > div {
+        padding: 1rem;
+    }
+    .metric-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 20px;
+        border-radius: 10px;
+        color: white;
+        text-align: center;
+        margin: 10px 0;
+    }
+    .metric-value {
+        font-size: 2.5rem;
+        font-weight: bold;
+    }
+    .metric-label {
+        font-size: 1rem;
+        opacity: 0.9;
+    }
+    .filter-container {
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+    }
+    .stButton > button {
+        width: 100%;
+        border-radius: 5px;
+        height: 3rem;
+        font-weight: 600;
+    }
+    @media (max-width: 768px) {
+        .main > div {
+            padding: 0.5rem;
+        }
+        .metric-value {
+            font-size: 1.8rem;
+        }
+    }
+</style>
+""", unsafe_allow_html=True)
 
-# ==================== Configuration Management ====================
+# Constants
+EXCEL_FILE_PATH = r'D:\Employee Track Report\task_tracker.xlsx'
+CONFIG_FILE = 'config.json'
+
+# Helper Functions
 
 def load_config():
-    """Load main configuration"""
+    """Load configuration from file"""
     if Path(CONFIG_FILE).exists():
         with open(CONFIG_FILE, 'r') as f:
             return json.load(f)
@@ -40,91 +78,30 @@ def load_config():
         'reminder_time': '18:00',
         'reminder_days': [0, 1, 2, 3, 4, 5],  # Mon-Sat
         'admin_email': '',
-        'employee_emails': [],
-        # Optional: list of E.164 phone numbers aligned by index to employee_emails
-        # Example: ["+9198XXXXXXXX", "+9199XXXXXXXX"]
-        'employee_phones': [],
-        # Optional: Telegram chat IDs aligned by index to employee_emails
-        # Example: [123456789, 987654321]
-        'employee_telegram_chat_ids': []
+        'employee_emails': []
     }
 
-def load_email_config():
-    """Load email configuration"""
-    if Path(EMAIL_CONFIG_FILE).exists():
-        with open(EMAIL_CONFIG_FILE, 'r') as f:
-            return json.load(f)
-    return {
-        'smtp_server': 'smtp.gmail.com',
-        'smtp_port': 587,
-        'sender_email': '',
-        'sender_password': '',
-        'use_tls': True
-    }
-
-def save_email_config(config):
-    """Save email configuration"""
-    with open(EMAIL_CONFIG_FILE, 'w') as f:
+def save_config(config):
+    """Save configuration to file"""
+    with open(CONFIG_FILE, 'w') as f:
         json.dump(config, f, indent=4)
-
-# ==================== WhatsApp Config (Twilio or WhatsApp Cloud API) ====================
-
-def load_whatsapp_config():
-    """Load WhatsApp configuration"""
-    if Path(WHATSAPP_CONFIG_FILE).exists():
-        with open(WHATSAPP_CONFIG_FILE, 'r') as f:
-            return json.load(f)
-    return {
-        # Choose provider: 'twilio' or 'cloud_api'
-        'provider': 'twilio',
-        'enabled': False,
-        # Twilio settings
-        'twilio_account_sid': '',
-        'twilio_auth_token': '',
-        # Must be in the format 'whatsapp:+14155238886' or your approved sender
-        'twilio_from': 'whatsapp:+14155238886',
-        # WhatsApp Cloud API settings
-        'cloud_api_token': '',
-        'cloud_api_phone_number_id': '',
-        # Message template
-        'message_prefix': '⏰ Reminder:'
-    }
-
-def save_whatsapp_config(config):
-    """Save WhatsApp configuration"""
-    with open(WHATSAPP_CONFIG_FILE, 'w') as f:
-        json.dump(config, f, indent=4)
-
-# ==================== Telegram Config ====================
-
-def load_telegram_config():
-    """Load Telegram configuration"""
-    if Path(TELEGRAM_CONFIG_FILE).exists():
-        with open(TELEGRAM_CONFIG_FILE, 'r') as f:
-            return json.load(f)
-    return {
-        'enabled': False,
-        'bot_token': '',
-        'message_prefix': '⏰ Reminder:'
-    }
-
-def save_telegram_config(config):
-    """Save Telegram configuration"""
-    with open(TELEGRAM_CONFIG_FILE, 'w') as f:
-        json.dump(config, f, indent=4)
-
-# ==================== Excel File Functions ====================
 
 def read_excel_data(excel_path=None):
     """Read data from local Excel file"""
     if excel_path is None:
-        config = load_config()
-        excel_path = config.get('excel_file_path', EXCEL_FILE_PATH)
+        excel_path = EXCEL_FILE_PATH
     
     try:
         if not os.path.exists(excel_path):
-            logging.warning(f"Excel file not found at {excel_path}")
-            return pd.DataFrame()
+            # Create empty Excel file with headers if it doesn't exist
+            columns = [
+                'Date', 'Work Mode', 'Emp Id', 'Name', 'Project Name', 
+                'Task Title', 'Task Assigned By', 'Task Priority', 
+                'Task Status', 'Plan for next day', 'Comments'
+            ]
+            df = pd.DataFrame(columns=columns)
+            df.to_excel(excel_path, index=False, engine='openpyxl')
+            return df
         
         # Read Excel file
         df = pd.read_excel(excel_path, engine='openpyxl')
@@ -136,13 +113,147 @@ def read_excel_data(excel_path=None):
         return df
     
     except Exception as error:
-        logging.error(f"Error reading Excel file: {error}")
+        st.error(f"Error reading Excel file: {error}")
         return None
+
+def append_to_excel(data_list, excel_path=None):
+    """Append data to local Excel file with retry logic for concurrent access
+    Args:
+        data_list: List of dictionaries, each representing a row to append
+    """
+    if excel_path is None:
+        excel_path = EXCEL_FILE_PATH
+    
+    max_retries = 3
+    retry_delay = 0.5
+    
+    for attempt in range(max_retries):
+        try:
+            # Check if file exists and is accessible
+            if os.path.exists(excel_path):
+                # Try to check if file is locked by attempting to open it
+                try:
+                    # Try to read the file first to check if it's locked
+                    existing_df = pd.read_excel(excel_path, engine='openpyxl')
+                    # Remove any completely empty rows
+                    existing_df = existing_df.dropna(how='all')
+                except PermissionError as pe:
+                    if attempt < max_retries - 1:
+                        logging.warning(f"Permission error on attempt {attempt + 1}, retrying...")
+                        time.sleep(retry_delay * (attempt + 1))
+                        continue
+                    else:
+                        st.error(f"❌ Permission Error: Excel file is locked or inaccessible.")
+                        st.error(f"📁 File path: {excel_path}")
+                        st.error(f"💡 Please ensure:")
+                        st.error(f"   1. The Excel file is not open in Excel or another program")
+                        st.error(f"   2. You have write permissions to the file")
+                        st.error(f"   3. No other process is using the file")
+                        st.error(f"   Error details: {str(pe)}")
+                        return False
+                except Exception as e:
+                    # If file is corrupted or empty, start fresh
+                    logging.warning(f"Error reading file, starting fresh: {e}")
+                    existing_df = pd.DataFrame()
+            else:
+                existing_df = pd.DataFrame()
+            
+            # Create new rows DataFrame
+            new_rows = pd.DataFrame(data_list)
+            
+            # Define column order
+            columns = [
+                'Date', 'Work Mode', 'Emp Id', 'Name', 'Project Name', 
+                'Task Title', 'Task Assigned By', 'Task Priority', 
+                'Task Status', 'Plan for next day', 'Comments'
+            ]
+            
+            # Combine with existing data
+            if existing_df.empty:
+                combined_df = new_rows
+            else:
+                # Ensure column order matches
+                # Add missing columns if any
+                for col in columns:
+                    if col not in existing_df.columns:
+                        existing_df[col] = ''
+                    if col not in new_rows.columns:
+                        new_rows[col] = ''
+                
+                # Reorder columns
+                existing_df = existing_df[columns]
+                new_rows = new_rows[columns]
+                
+                combined_df = pd.concat([existing_df, new_rows], ignore_index=True)
+            
+            # Ensure all columns are in the right order
+            combined_df = combined_df[columns]
+            
+            # Write to Excel
+            try:
+                with pd.ExcelWriter(excel_path, engine='openpyxl', mode='w') as writer:
+                    combined_df.to_excel(writer, index=False, sheet_name='Sheet1')
+            except PermissionError as pe:
+                if attempt < max_retries - 1:
+                    logging.warning(f"Permission error writing file on attempt {attempt + 1}, retrying...")
+                    time.sleep(retry_delay * (attempt + 1))
+                    continue
+                else:
+                    st.error(f"❌ Permission Error: Cannot write to Excel file.")
+                    st.error(f"📁 File path: {excel_path}")
+                    st.error(f"💡 Please ensure:")
+                    st.error(f"   1. The Excel file is not open in Excel or another program")
+                    st.error(f"   2. You have write permissions to the file and directory")
+                    st.error(f"   3. No other process is using the file")
+                    st.error(f"   Error details: {str(pe)}")
+                    return False
+            except Exception as write_error:
+                if attempt < max_retries - 1:
+                    logging.warning(f"Write error on attempt {attempt + 1}, retrying...")
+                    time.sleep(retry_delay * (attempt + 1))
+                    continue
+                else:
+                    st.error(f"❌ Error writing to Excel file: {str(write_error)}")
+                    st.error(f"📁 File path: {excel_path}")
+                    st.error(f"💡 Error type: {type(write_error).__name__}")
+                    return False
+            
+            return True
+        
+        except PermissionError as pe:
+            # File might be locked by another process
+            if attempt < max_retries - 1:
+                logging.warning(f"Permission error on attempt {attempt + 1}, retrying...")
+                time.sleep(retry_delay * (attempt + 1))
+                continue
+            else:
+                st.error(f"❌ Permission Error: Excel file is locked or inaccessible.")
+                st.error(f"📁 File path: {excel_path}")
+                st.error(f"💡 Please ensure:")
+                st.error(f"   1. The Excel file is not open in Excel or another program")
+                st.error(f"   2. You have write permissions to the file")
+                st.error(f"   3. No other process is using the file")
+                st.error(f"   Error details: {str(pe)}")
+                return False
+        
+        except Exception as error:
+            if attempt < max_retries - 1:
+                logging.warning(f"Error on attempt {attempt + 1}, retrying... Error: {str(error)}")
+                time.sleep(retry_delay * (attempt + 1))
+                continue
+            else:
+                st.error(f"❌ Error appending to Excel file")
+                st.error(f"📁 File path: {excel_path}")
+                st.error(f"🔍 Error type: {type(error).__name__}")
+                st.error(f"📝 Error message: {str(error)}")
+                st.error(f"💡 Please check the file path and permissions.")
+                return False
+    
+    return False
 
 def get_missing_reporters(df, today):
     """Get list of employees who haven't reported today"""
     if df is None or df.empty:
-        logging.warning("No data available")
         return []
 
     today_str = today.strftime('%Y-%m-%d')
@@ -155,7 +266,6 @@ def get_missing_reporters(df, today):
         today_submissions = df_copy[df_copy['Date'] == today_str]
         submitted_employees = today_submissions['Name'].unique().tolist() if 'Name' in today_submissions.columns else []
     else:
-        logging.warning("Date column not found in data")
         submitted_employees = []
 
     # Get all employees from config
@@ -163,576 +273,709 @@ def get_missing_reporters(df, today):
     all_employees = config.get('employee_emails', [])
 
     # Find missing reporters
-    # Compare employee emails/names with submitted employees
-    missing = []
-    for emp_email in all_employees:
-        # Try to match by email or by name extracted from email
-        emp_name = emp_email.split('@')[0] if '@' in emp_email else emp_email
-        # Check if employee name or email is in submitted list
-        if emp_name not in submitted_employees and emp_email not in submitted_employees:
-            # Also check if any part of the email matches
-            found = False
-            for submitted_name in submitted_employees:
-                if isinstance(submitted_name, str):
-                    if emp_name.lower() in submitted_name.lower() or submitted_name.lower() in emp_name.lower():
-                        found = True
-                        break
-            if not found:
-                missing.append(emp_email)
+    missing = [emp for emp in all_employees if emp not in submitted_employees]
 
     return missing
 
-# ==================== Email Functions ====================
+#Dashboard Functions
 
-def send_email(to_email, subject, body, email_config):
-    """Send email reminder"""
-    try:
-        # Create message
-        msg = MIMEMultipart('alternative')
-        msg['From'] = email_config['sender_email']
-        msg['To'] = to_email
-        msg['Subject'] = subject
-        
-        # Create HTML version
-        html_body = f"""
-        <html>
-            <head>
-                <style>
-                    body {{
-                        font-family: Arial, sans-serif;
-                        line-height: 1.6;
-                        color: #333;
-                    }}
-                    .container {{
-                        max-width: 600px;
-                        margin: 0 auto;
-                        padding: 20px;
-                        background-color: #f9f9f9;
-                        border-radius: 10px;
-                    }}
-                    .header {{
-                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                        color: white;
-                        padding: 20px;
-                        border-radius: 10px 10px 0 0;
-                        text-align: center;
-                    }}
-                    .content {{
-                        background: white;
-                        padding: 30px;
-                        border-radius: 0 0 10px 10px;
-                    }}
-                    .button {{
-                        display: inline-block;
-                        padding: 12px 30px;
-                        background: #667eea;
-                        color: white;
-                        text-decoration: none;
-                        border-radius: 5px;
-                        margin: 20px 0;
-                    }}
-                    .footer {{
-                        text-align: center;
-                        margin-top: 20px;
-                        color: #666;
-                        font-size: 12px;
-                    }}
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <div class="header">
-                        <h1>📊 Daily Progress Report Reminder</h1>
-                    </div>
-                    <div class="content">
-                        {body}
-                    </div>
-                    <div class="footer">
-                        <p>This is an automated reminder from Employee Progress Tracker</p>
-                        <p>© {datetime.now().year} Your Organization</p>
-                    </div>
-                </div>
-            </body>
-        </html>
-        """
-        
-        # Attach HTML
-        msg.attach(MIMEText(html_body, 'html'))
-        
-        # Send email
-        with smtplib.SMTP(email_config['smtp_server'], email_config['smtp_port']) as server:
-            if email_config.get('use_tls', True):
-                server.starttls()
-            
-            server.login(email_config['sender_email'], email_config['sender_password'])
-            server.send_message(msg)
-        
-        logging.info(f"Email sent successfully to {to_email}")
-        return True
-        
-    except Exception as e:
-        logging.error(f"Failed to send email to {to_email}: {e}")
-        return False
+def show_metrics(df):
+    """Display key metrics"""
+    col1, col2, col3, col4 = st.columns(4)
 
-def send_reminder_emails(missing_reporters, email_config):
-    """Send reminder emails to all missing reporters"""
-    config = load_config()
-    
-    subject = "⏰ Daily Progress Report Reminder"
-    
-    for email in missing_reporters:
-        body = f"""
-        <p>Hello,</p>
-        
-        <p>This is a friendly reminder that you haven't submitted your daily progress report yet.</p>
-        
-        <p><strong>Please submit your report before end of day.</strong></p>
-        
-        <p>Your daily report helps the team stay informed about project progress and ensures smooth coordination.</p>
-        
-        <a href="{config.get('form_url', '#')}" class="button">Submit Report Now</a>
-        
-        <p>If you've already submitted your report, please disregard this message.</p>
-        
-        <p>Thank you for your cooperation!</p>
-        
-        <p>Best regards,<br>HR Team</p>
-        """
-        
-        send_email(email, subject, body, email_config)
-        time.sleep(2)  # Avoid rate limiting
+    with col1:
+        total_submissions = len(df) if df is not None and not df.empty else 0
+        st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-value">{total_submissions}</div>
+            <div class="metric-label">Total Submissions</div>
+        </div>
+        """, unsafe_allow_html=True)
 
-def send_admin_summary(missing_reporters, email_config, total_employees):
-    """Send summary to admin"""
-    config = load_config()
-    admin_email = config.get('admin_email')
-    
-    if not admin_email:
-        logging.warning("No admin email configured")
-        return
-    
-    subject = f"📊 Daily Report Summary - {datetime.now().strftime('%Y-%m-%d')}"
-    
-    submitted_count = total_employees - len(missing_reporters)
-    submission_rate = (submitted_count / total_employees * 100) if total_employees > 0 else 0
-    
-    missing_list = "<ul>"
-    for email in missing_reporters:
-        missing_list += f"<li>{email}</li>"
-    missing_list += "</ul>"
-    
-    body = f"""
-    <h2>Daily Report Summary</h2>
-    
-    <p><strong>Date:</strong> {datetime.now().strftime('%Y-%m-%d')}</p>
-    
-    <h3>Statistics</h3>
-    <ul>
-        <li><strong>Total Employees:</strong> {total_employees}</li>
-        <li><strong>Reports Submitted:</strong> {submitted_count}</li>
-        <li><strong>Reports Pending:</strong> {len(missing_reporters)}</li>
-        <li><strong>Submission Rate:</strong> {submission_rate:.1f}%</li>
-    </ul>
-    
-    <h3>Employees Who Haven't Reported:</h3>
-    {missing_list if missing_reporters else "<p>All employees have submitted their reports! 🎉</p>"}
-    
-    <p>Reminder emails have been sent to employees who haven't submitted their reports.</p>
-    """
-    
-    send_email(admin_email, subject, body, email_config)
+    with col2:
+        today = datetime.now().date()
+        today_count = 0
+        if df is not None and not df.empty and 'Date' in df.columns:
+            today_count = len(df[df['Date'] == str(today)])
+        st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-value">{today_count}</div>
+            <div class="metric-label">Today's Reports</div>
+        </div>
+        """, unsafe_allow_html=True)
 
-# ==================== Reminder Scheduler ====================
+    with col3:
+        unique_employees = 0
+        if df is not None and not df.empty and 'Name' in df.columns:
+            unique_employees = df['Name'].nunique()
+        st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-value">{unique_employees}</div>
+            <div class="metric-label">Active Employees</div>
+        </div>
+        """, unsafe_allow_html=True)
 
-def check_and_send_reminders():
-    """Main reminder function"""
-    logging.info("=" * 50)
-    logging.info("Starting reminder check...")
-    
-    # Load configurations
-    config = load_config()
-    email_config = load_email_config()
-    wa_config = load_whatsapp_config()
-    tg_config = load_telegram_config()
-    
-    # Validate configuration
-    excel_path = config.get('excel_file_path', EXCEL_FILE_PATH)
-    if not excel_path:
-        logging.error("Excel file path not configured")
-        return
-    
-    if not email_config.get('sender_email') or not email_config.get('sender_password'):
-        logging.error("Email credentials not configured")
-        return
-    
-    # Check if today is a reminder day
-    today = datetime.now()
-    reminder_days = config.get('reminder_days', [0, 1, 2, 3, 4, 5])
-    
-    if today.weekday() not in reminder_days:
-        logging.info(f"Today ({today.strftime('%A')}) is not a reminder day. Skipping...")
-        return
-    
-    # Read data from Excel file
-    logging.info(f"Reading Excel data from {excel_path}...")
-    df = read_excel_data(excel_path)
-    
-    if df is None:
-        logging.error("Failed to read Excel data")
-        return
-    
-    # Get missing reporters
-    missing_reporters = get_missing_reporters(df, today)
-    total_employees = len(config.get('employee_emails', []))
-    
-    logging.info(f"Total employees: {total_employees}")
-    logging.info(f"Missing reporters: {len(missing_reporters)}")
-    
-    if missing_reporters:
-        if email_config.get('sender_email') and email_config.get('sender_password'):
-            logging.info("Sending reminder emails...")
-            send_reminder_emails(missing_reporters, email_config)
-            logging.info(f"Sent {len(missing_reporters)} reminder emails")
+    with col4:
+        completed_tasks = 0
+        if df is not None and not df.empty and 'Task Status' in df.columns:
+            completed_tasks = len(df[df['Task Status'] == 'Completed'])
+        st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-value">{completed_tasks}</div>
+            <div class="metric-label">Completed Tasks</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+def show_filters(df):
+    """Display filter options"""
+    if df is None or df.empty:
+        return df
+
+    st.markdown('<div class="filter-container">', unsafe_allow_html=True)
+    st.subheader("🔍 Filters")
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        if 'Name' in df.columns:
+            unique_vals = [x for x in df['Name'].unique() if pd.notna(x)]
+            employees = ['All'] + sorted(unique_vals, key=lambda x: (0, x) if isinstance(x, (int, float)) else (1, str(x)))
         else:
-            logging.warning("Email not configured; skipping email reminders")
+            employees = ['All']
+        selected_employee = st.selectbox("Employee", employees)
 
-        if wa_config.get('enabled', False):
-            logging.info("Sending WhatsApp reminders...")
-            send_reminder_whatsapp(missing_reporters)
+    with col2:
+        if 'Project Name' in df.columns:
+            unique_vals = [x for x in df['Project Name'].unique() if pd.notna(x)]
+            projects = ['All'] + sorted(unique_vals, key=lambda x: (0, x) if isinstance(x, (int, float)) else (1, str(x)))
+        else:
+            projects = ['All']
+        selected_project = st.selectbox("Project", projects)
 
-        if tg_config.get('enabled', False):
-            logging.info("Sending Telegram reminders...")
-            send_reminder_telegram(missing_reporters)
-    else:
-        logging.info("All employees have submitted their reports!")
-    
-    # Send admin summary
-    logging.info("Sending admin summary...")
-    send_admin_summary(missing_reporters, email_config, total_employees)
-    
-    logging.info("Reminder check completed")
-    logging.info("=" * 50)
+    with col3:
+        if 'Task Status' in df.columns:
+            unique_vals = [x for x in df['Task Status'].unique() if pd.notna(x)]
+            statuses = ['All'] + sorted(unique_vals, key=lambda x: (0, x) if isinstance(x, (int, float)) else (1, str(x)))
+        else:
+            statuses = ['All']
+        selected_status = st.selectbox("Status", statuses)
 
-# ==================== WhatsApp Sending ====================
+    with col4:
+        if 'Task Priority' in df.columns:
+            unique_vals = [x for x in df['Task Priority'].unique() if pd.notna(x)]
+            priorities = ['All'] + sorted(unique_vals, key=lambda x: (0, x) if isinstance(x, (int, float)) else (1, str(x)))
+        else:
+            priorities = ['All']
+        selected_priority = st.selectbox("Priority", priorities)
 
-def send_whatsapp_twilio(to_phone, message, wa_config):
-    """Send WhatsApp message via Twilio API"""
-    try:
-        from requests.auth import HTTPBasicAuth
-        account_sid = wa_config.get('twilio_account_sid', '')
-        auth_token = wa_config.get('twilio_auth_token', '')
-        from_id = wa_config.get('twilio_from', '')
-        if not account_sid or not auth_token or not from_id:
-            logging.error("Twilio WhatsApp is not configured properly")
-            return False
+    # Date range
+    col5, col6 = st.columns(2)
+    with col5:
+        start_date = st.date_input("Start Date", (datetime.now() - timedelta(days=7)).date())
+    with col6:
+        end_date = st.date_input("End Date", datetime.now().date())
 
-        url = f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages.json"
-        data = {
-            'From': from_id,
-            'To': f"whatsapp:{to_phone}" if not str(to_phone).strip().startswith("whatsapp:") else str(to_phone).strip(),
-            'Body': message
-        }
-        resp = requests.post(url, data=data, auth=HTTPBasicAuth(account_sid, auth_token), timeout=20)
-        if 200 <= resp.status_code < 300:
-            logging.info(f"WhatsApp (Twilio) sent to {to_phone}")
-            return True
-        logging.error(f"Twilio send failed to {to_phone}: {resp.status_code} {resp.text}")
-        return False
-    except Exception as e:
-        logging.error(f"Twilio WhatsApp error for {to_phone}: {e}")
-        return False
+    st.markdown('</div>', unsafe_allow_html=True)
 
-def send_whatsapp_cloud_api(to_phone, message, wa_config):
-    """Send WhatsApp message via Meta WhatsApp Cloud API"""
-    try:
-        token = wa_config.get('cloud_api_token', '')
-        phone_number_id = wa_config.get('cloud_api_phone_number_id', '')
-        if not token or not phone_number_id:
-            logging.error("WhatsApp Cloud API is not configured properly")
-            return False
+    # Apply filters
+    filtered_df = df.copy()
 
-        url = f"https://graph.facebook.com/v17.0/{phone_number_id}/messages"
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json"
-        }
-        payload = {
-            "messaging_product": "whatsapp",
-            "to": to_phone.replace("whatsapp:", "").replace(" ", ""),
-            "type": "text",
-            "text": {"body": message}
-        }
-        resp = requests.post(url, headers=headers, json=payload, timeout=20)
-        if 200 <= resp.status_code < 300:
-            logging.info(f"WhatsApp (Cloud API) sent to {to_phone}")
-            return True
-        logging.error(f"Cloud API send failed to {to_phone}: {resp.status_code} {resp.text}")
-        return False
-    except Exception as e:
-        logging.error(f"Cloud API WhatsApp error for {to_phone}: {e}")
-        return False
+    if 'Date' in filtered_df.columns:
+        filtered_df['Date'] = pd.to_datetime(filtered_df['Date'])
+        filtered_df = filtered_df[
+            (filtered_df['Date'].dt.date >= start_date) &
+            (filtered_df['Date'].dt.date <= end_date)
+        ]
 
-def send_whatsapp_message(to_phone, message, wa_config):
-    """Dispatch WhatsApp message using selected provider"""
-    provider = (wa_config.get('provider') or 'twilio').lower()
-    if provider == 'cloud_api':
-        return send_whatsapp_cloud_api(to_phone, message, wa_config)
-    return send_whatsapp_twilio(to_phone, message, wa_config)
+    if selected_employee != 'All' and 'Name' in filtered_df.columns:
+        filtered_df = filtered_df[filtered_df['Name'] == selected_employee]
 
-def send_reminder_whatsapp(missing_reporters):
-    """Send WhatsApp reminders to missing reporters if enabled and phone numbers present"""
-    wa_config = load_whatsapp_config()
-    if not wa_config.get('enabled', False):
-        logging.info("WhatsApp reminders are disabled.")
+    if selected_project != 'All' and 'Project Name' in filtered_df.columns:
+        filtered_df = filtered_df[filtered_df['Project Name'] == selected_project]
+
+    if selected_status != 'All' and 'Task Status' in filtered_df.columns:
+        filtered_df = filtered_df[filtered_df['Task Status'] == selected_status]
+
+    if selected_priority != 'All' and 'Task Priority' in filtered_df.columns:
+        filtered_df = filtered_df[filtered_df['Task Priority'] == selected_priority]
+
+    return filtered_df
+
+def show_charts(df):
+    """Display analytics charts"""
+    if df is None or df.empty:
+        st.info("No data available for charts")
         return
 
-    config = load_config()
-    emails = config.get('employee_emails', []) or []
-    phones = config.get('employee_phones', []) or []
+    col1, col2 = st.columns(2)
 
-    if not phones:
-        logging.warning("No employee phone numbers configured (config.json -> employee_phones). Skipping WhatsApp.")
+    with col1:
+        st.subheader("📈 Task Status Distribution")
+        if 'Task Status' in df.columns:
+            status_counts = df['Task Status'].value_counts()
+            fig = px.pie(
+                values=status_counts.values,
+                names=status_counts.index,
+                color_discrete_sequence=px.colors.qualitative.Set3
+            )
+            st.plotly_chart(fig, width="stretch")
+
+    with col2:
+        st.subheader("⚡ Priority Distribution")
+        if 'Task Priority' in df.columns:
+            priority_counts = df['Task Priority'].value_counts()
+            fig = px.bar(
+                x=priority_counts.index,
+                y=priority_counts.values,
+                color=priority_counts.index,
+                color_discrete_map={
+                    'Low': '#90EE90',
+                    'Medium': '#FFD700',
+                    'High': '#FFA500',
+                    'Critical': '#FF6347'
+                }
+            )
+            fig.update_layout(showlegend=False, xaxis_title="Priority", yaxis_title="Count")
+            st.plotly_chart(fig, width="stretch")
+
+    # Weekly trend
+    st.subheader("📊 Weekly Submission Trend")
+    if 'Date' in df.columns:
+        df['Date'] = pd.to_datetime(df['Date'])
+        daily_counts = df.groupby(df['Date'].dt.date).size().reset_index(name='count')
+        fig = px.line(
+            daily_counts,
+            x='Date',
+            y='count',
+            markers=True
+        )
+        fig.update_layout(xaxis_title="Date", yaxis_title="Submissions")
+        st.plotly_chart(fig, width="stretch")
+
+def show_data_table(df):
+    """Display data table"""
+    st.subheader("📋 Recent Submissions")
+
+    if df is None or df.empty:
+        st.info("No submissions found")
         return
 
-    # Create mapping by email index if lengths match; otherwise best-effort by position
-    if len(phones) != len(emails):
-        logging.warning("employee_phones length does not match employee_emails; mapping by position may be incorrect.")
+    # Display options
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        search = st.text_input("🔎 Search", placeholder="Search in any column...")
+    with col2:
+        rows_to_show = st.number_input("Rows", min_value=10, max_value=1000, value=50, step=10)
 
-    prefix = wa_config.get('message_prefix', '⏰ Reminder:')
-    today_str = datetime.now().strftime('%Y-%m-%d')
-    base_message = (
-        f"{prefix} You haven't submitted your Daily Progress Report for {today_str}."
-        "\nPlease submit it before EOD.\n\nThank you."
+    # Apply search
+    display_df = df.copy()
+    if search:
+        mask = display_df.astype(str).apply(
+            lambda x: x.str.contains(search, case=False, na=False)
+        ).any(axis=1)
+        display_df = display_df[mask]
+
+    # Show data
+    st.dataframe(
+        display_df.head(rows_to_show),
+        width="stretch",
+        height=400
     )
 
-    sent = 0
-    for idx, emp in enumerate(emails):
-        if emp in missing_reporters:
-            # Find phone by index
-            if idx < len(phones):
-                to_phone = str(phones[idx]).strip()
-                if to_phone:
-                    if send_whatsapp_message(to_phone, base_message, wa_config):
-                        sent += 1
-                        time.sleep(1.5)  # mild pacing
+    # Download button
+    if not display_df.empty:
+        csv = display_df.to_csv(index=False)
+        st.download_button(
+            label="📥 Download Data as CSV",
+            data=csv,
+            file_name=f"employee_progress_{datetime.now().strftime('%Y%m%d')}.csv",
+            mime="text/csv"
+        )
+
+#Settings Page
+
+def show_settings():
+    """Display settings page"""
+    st.title("⚙️ Settings")
+
+    config = load_config()
+
+    with st.form("settings_form"):
+        st.subheader("Excel File Configuration")
+
+        excel_file_path = st.text_input(
+            "Excel File Path",
+            value=config.get('excel_file_path', EXCEL_FILE_PATH),
+            help="Path to the local Excel file"
+        )
+
+        st.markdown("---")
+        st.subheader("Reminder Settings")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            reminder_time = st.time_input(
+                "Reminder Time",
+                value=datetime.strptime(config.get('reminder_time', '18:00'), '%H:%M').time()
+            )
+
+        with col2:
+            st.write("Reminder Days (uncheck Sunday)")
+            reminder_days = []
+            days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+            default_days = config.get('reminder_days', [0, 1, 2, 3, 4, 5])
+
+            for i, day in enumerate(days):
+                if st.checkbox(day, value=i in default_days, key=f"day_{i}"):
+                    reminder_days.append(i)
+
+        st.markdown("---")
+        st.subheader("Email Configuration")
+
+        admin_email = st.text_input(
+            "Admin Email",
+            value=config.get('admin_email', '')
+        )
+
+        employee_emails = st.text_area(
+            "Employee Emails (one per line)",
+            value='\n'.join(config.get('employee_emails', [])),
+            height=150
+        )
+
+        st.caption("If you enabled Telegram reminders, add chat IDs in the same order as emails.")
+        employee_telegram_chat_ids = st.text_area(
+            "Employee Telegram Chat IDs (one per line, aligned with emails)",
+            value='\n'.join([str(x) for x in config.get('employee_telegram_chat_ids', [])]),
+            height=150
+        )
+
+        submitted = st.form_submit_button("💾 Save Settings")
+
+        if submitted:
+            # Update config
+            config['excel_file_path'] = excel_file_path
+            config['reminder_time'] = reminder_time.strftime('%H:%M')
+            config['reminder_days'] = reminder_days
+            config['admin_email'] = admin_email
+            config['employee_emails'] = [
+                email.strip()
+                for email in employee_emails.split('\n')
+                if email.strip()
+            ]
+            # Parse Telegram chat IDs line by line, keep as int if numeric, else string
+            parsed_chat_ids = []
+            for line in employee_telegram_chat_ids.split('\n'):
+                raw = line.strip()
+                if not raw:
+                    continue
+                # Try int conversion (supports negative IDs)
+                try:
+                    parsed_chat_ids.append(int(raw))
+                except ValueError:
+                    parsed_chat_ids.append(raw)
+            config['employee_telegram_chat_ids'] = parsed_chat_ids
+
+            save_config(config)
+            st.success("✅ Settings saved successfully!")
+            time.sleep(1)
+            st.rerun()
+
+    # Connection test
+    st.markdown("---")
+    st.subheader("🔌 Test Connection & Diagnostics")
+
+    if st.button("🔍 Test Excel File Connection & Check for Issues"):
+        excel_path = config.get('excel_file_path', EXCEL_FILE_PATH)
+        
+        with st.spinner("Running diagnostics..."):
+            # Check 1: File exists
+            st.write("**1. Checking if file exists...**")
+            if os.path.exists(excel_path):
+                st.success(f"✅ File exists at: `{excel_path}`")
+                
+                # Check 2: File permissions
+                st.write("**2. Checking file permissions...**")
+                if os.access(excel_path, os.R_OK):
+                    st.success("✅ File is readable")
                 else:
-                    logging.warning(f"No phone number for {emp}")
+                    st.error("❌ File is NOT readable. Check permissions.")
+                
+                if os.access(excel_path, os.W_OK):
+                    st.success("✅ File is writable")
+                else:
+                    st.error("❌ File is NOT writable. Check permissions.")
+                
+                # Check 3: Try to read the file
+                st.write("**3. Testing file read access...**")
+                try:
+                    df = read_excel_data(excel_path)
+                    if df is not None:
+                        st.success(f"✅ Successfully read file! Found {len(df)} records")
+                        if not df.empty:
+                            st.dataframe(df.head(), width="stretch")
+                        else:
+                            st.info("📋 Excel file is empty. Start submitting reports to add data.")
+                    else:
+                        st.error("❌ Failed to read file data.")
+                except PermissionError as pe:
+                    st.error(f"❌ **Permission Error**: Cannot read file")
+                    st.error(f"   Error: {str(pe)}")
+                    st.warning("💡 **Solution**: Close the Excel file if it's open in Excel or another program.")
+                except Exception as e:
+                    st.error(f"❌ **Error reading file**: {type(e).__name__}")
+                    st.error(f"   Error: {str(e)}")
+                
+                # Check 4: Try to write to the file (test write)
+                st.write("**4. Testing file write access...**")
+                try:
+                    # Save original data first
+                    original_df = df.copy() if df is not None and not df.empty else None
+                    
+                    # Try to open the file in write mode to check if it's locked
+                    # We'll write the original data back, so this is safe
+                    if original_df is not None:
+                        with pd.ExcelWriter(excel_path, engine='openpyxl', mode='w') as writer:
+                            original_df.to_excel(writer, index=False, sheet_name='Sheet1')
+                        st.success("✅ File write test successful! (Original data preserved)")
+                    else:
+                        # If file is empty, create a test write
+                        test_data = pd.DataFrame([{'Test': 'test'}])
+                        with pd.ExcelWriter(excel_path, engine='openpyxl', mode='w') as writer:
+                            test_data.to_excel(writer, index=False, sheet_name='Sheet1')
+                        # Remove test data
+                        empty_df = pd.DataFrame()
+                        with pd.ExcelWriter(excel_path, engine='openpyxl', mode='w') as writer:
+                            empty_df.to_excel(writer, index=False, sheet_name='Sheet1')
+                        st.success("✅ File write test successful!")
+                except PermissionError as pe:
+                    st.error(f"❌ **Permission Error**: Cannot write to file")
+                    st.error(f"   Error: {str(pe)}")
+                    st.warning("💡 **Most Common Causes:**")
+                    st.warning("   1. Excel file is open in Microsoft Excel")
+                    st.warning("   2. Excel file is open in another program")
+                    st.warning("   3. Another process is using the file")
+                    st.warning("   4. Insufficient file permissions")
+                except Exception as e:
+                    st.error(f"❌ **Error writing to file**: {type(e).__name__}")
+                    st.error(f"   Error: {str(e)}")
+                
             else:
-                logging.warning(f"No phone mapping for {emp} at index {idx}")
+                st.error(f"❌ File does NOT exist at: `{excel_path}`")
+                st.info("💡 The file will be created automatically when you submit your first report.")
 
-    logging.info(f"WhatsApp reminders sent: {sent}")
+#  Submit Report Page
 
-# ==================== Telegram Sending ====================
-
-def send_telegram_message(chat_id, message, tg_config):
-    """Send a Telegram message via Bot API"""
-    try:
-        token = tg_config.get('bot_token', '')
-        if not token:
-            logging.error("Telegram bot token not configured")
-            return False
-        url = f"https://api.telegram.org/bot{token}/sendMessage"
-        payload = {
-            "chat_id": chat_id,
-            "text": message
-        }
-        resp = requests.post(url, json=payload, timeout=20)
-        if 200 <= resp.status_code < 300 and resp.json().get("ok"):
-            logging.info(f"Telegram message sent to chat_id {chat_id}")
-            return True
-        logging.error(f"Telegram send failed to {chat_id}: {resp.status_code} {resp.text}")
-        return False
-    except Exception as e:
-        logging.error(f"Telegram error for chat_id {chat_id}: {e}")
-        return False
-
-def send_reminder_telegram(missing_reporters):
-    """Send Telegram reminders to missing reporters if enabled and chat IDs present"""
-    tg_config = load_telegram_config()
-    if not tg_config.get('enabled', False):
-        logging.info("Telegram reminders are disabled.")
-        return
-
-    config = load_config()
-    emails = config.get('employee_emails', []) or []
-    chat_ids = config.get('employee_telegram_chat_ids', []) or []
-
-    if not chat_ids:
-        logging.warning("No Telegram chat IDs configured (config.json -> employee_telegram_chat_ids). Skipping Telegram.")
-        return
-
-    if len(chat_ids) != len(emails):
-        logging.warning("employee_telegram_chat_ids length does not match employee_emails; mapping by position may be incorrect.")
-
-    prefix = tg_config.get('message_prefix', '⏰ Reminder:')
-    today_str = datetime.now().strftime('%Y-%m-%d')
-    base_message = (
-        f"{prefix} You haven't submitted your Daily Progress Report for {today_str}."
-        "\nPlease submit it before EOD.\n\nThank you."
-    )
-
-    sent = 0
-    for idx, emp in enumerate(emails):
-        if emp in missing_reporters:
-            if idx < len(chat_ids):
-                chat_id = chat_ids[idx]
-                if send_telegram_message(chat_id, base_message, tg_config):
-                    sent += 1
-                    time.sleep(1.0)
-            else:
-                logging.warning(f"No Telegram chat ID mapping for {emp} at index {idx}")
-
-    logging.info(f"Telegram reminders sent: {sent}")
-
-def schedule_reminders():
-    """Schedule daily reminders"""
-    config = load_config()
-    reminder_time = config.get('reminder_time', '18:00')
-    
-    logging.info(f"Scheduling daily reminders at {reminder_time}")
-    
-    schedule.every().day.at(reminder_time).do(check_and_send_reminders)
-    
-    logging.info("Reminder service started successfully")
-    logging.info(f"Next reminder check: {schedule.next_run()}")
-    
-    while True:
-        schedule.run_pending()
-        time.sleep(60)  # Check every minute
-
-# ==================== Setup Functions ====================
-
-def setup_email_config():
-    """Interactive email configuration setup"""
-    print("\n" + "=" * 50)
-    print("Email Configuration Setup")
-    print("=" * 50 + "\n")
-    
-    email_config = load_email_config()
-    
-    print("For Gmail, you need to use an App Password:")
-    print("1. Go to https://myaccount.google.com/apppasswords")
-    print("2. Generate a new app password")
-    print("3. Use that password here\n")
-    
-    email_config['sender_email'] = input(f"Sender Email [{email_config.get('sender_email', '')}]: ") or email_config.get('sender_email', '')
-    email_config['sender_password'] = input("Sender Password (App Password): ") or email_config.get('sender_password', '')
-    
-    smtp_server = input(f"SMTP Server [{email_config.get('smtp_server', 'smtp.gmail.com')}]: ") or email_config.get('smtp_server', 'smtp.gmail.com')
-    email_config['smtp_server'] = smtp_server
-    
-    smtp_port = input(f"SMTP Port [{email_config.get('smtp_port', 587)}]: ") or email_config.get('smtp_port', 587)
-    email_config['smtp_port'] = int(smtp_port)
-    
-    save_email_config(email_config)
-    
-    print("\n✅ Email configuration saved!")
-    print("\nTesting email connection...")
-    
-    # Test email
-    try:
-        test_body = "<p>This is a test email from Employee Progress Tracker.</p><p>Email configuration is working correctly!</p>"
-        if send_email(email_config['sender_email'], "Test Email", test_body, email_config):
-            print("✅ Test email sent successfully!")
-        else:
-            print("❌ Failed to send test email")
-    except Exception as e:
-        print(f"❌ Error: {e}")
-
-def setup_whatsapp_config():
-    """Interactive WhatsApp configuration setup"""
-    print("\n" + "=" * 50)
-    print("WhatsApp Configuration Setup")
-    print("=" * 50 + "\n")
-
-    wa_config = load_whatsapp_config()
-
-    provider = input(f"Provider [twilio/cloud_api] [{wa_config.get('provider','twilio')}]: ") or wa_config.get('provider','twilio')
-    wa_config['provider'] = provider.lower()
-    enabled = input(f"Enable WhatsApp reminders? [y/N]: ").strip().lower() == 'y'
-    wa_config['enabled'] = enabled
-
-    if wa_config['provider'] == 'twilio':
-        wa_config['twilio_account_sid'] = input(f"Twilio Account SID [{wa_config.get('twilio_account_sid','')}]: ") or wa_config.get('twilio_account_sid','')
-        wa_config['twilio_auth_token'] = input(f"Twilio Auth Token [{wa_config.get('twilio_auth_token','')}]: ") or wa_config.get('twilio_auth_token','')
-        wa_config['twilio_from'] = input(f"Twilio From (e.g., whatsapp:+14155238886) [{wa_config.get('twilio_from','whatsapp:+14155238886')}]: ") or wa_config.get('twilio_from','whatsapp:+14155238886')
+def show_submit_report():
+    """Display form for submitting work progress reports with multiple tasks"""
+    # Logo Section - Centered at top
+    logo_path = r'D:\Employee Track Report\logo\PTF1.png'
+    if os.path.exists(logo_path):
+        # Use equal columns to center the logo
+        col1, col2, col3 = st.columns([1.4, 1, 1])
+        with col2:
+            st.image(logo_path, width=200)
     else:
-        wa_config['cloud_api_token'] = input(f"Cloud API Token [{wa_config.get('cloud_api_token','')}]: ") or wa_config.get('cloud_api_token','')
-        wa_config['cloud_api_phone_number_id'] = input(f"Cloud API Phone Number ID [{wa_config.get('cloud_api_phone_number_id','')}]: ") or wa_config.get('cloud_api_phone_number_id','')
-
-    wa_config['message_prefix'] = input(f"Message Prefix [{wa_config.get('message_prefix','⏰ Reminder:')}]: ") or wa_config.get('message_prefix','⏰ Reminder:')
-
-    save_whatsapp_config(wa_config)
-    print("\n✅ WhatsApp configuration saved!")
-
-def setup_telegram_config():
-    """Interactive Telegram configuration setup"""
-    print("\n" + "=" * 50)
-    print("Telegram Configuration Setup")
-    print("=" * 50 + "\n")
-
-    tg_config = load_telegram_config()
-
-    enabled = input(f"Enable Telegram reminders? [y/N]: ").strip().lower() == 'y'
-    tg_config['enabled'] = enabled
-    tg_config['bot_token'] = input(f"Bot Token [{tg_config.get('bot_token','')}]: ") or tg_config.get('bot_token','')
-    tg_config['message_prefix'] = input(f"Message Prefix [{tg_config.get('message_prefix','⏰ Reminder:')}]: ") or tg_config.get('message_prefix','⏰ Reminder:')
-
-    save_telegram_config(tg_config)
-    print("\n✅ Telegram configuration saved!")
-    print("\nTip: Add employee Telegram chat IDs in config.json -> employee_telegram_chat_ids (aligned to employee_emails).")
-
-def test_reminder_now():
-    """Test reminder functionality immediately"""
-    print("\n" + "=" * 50)
-    print("Testing Reminder Functionality")
-    print("=" * 50 + "\n")
+        # Fallback if logo not found
+        col1, col2, col3 = st.columns([1, 1, 1])
+        with col2:
+            st.markdown("""
+            <div style="width: 200px; height: 100px; background: #f0f0f0; 
+                        display: flex; align-items: center; justify-content: center; 
+                        border-radius: 5px; border: 2px dashed #ccc; margin: 0 auto;">
+                <p style="color: #999; font-size: 12px; text-align: center;">Logo</p>
+            </div>
+            """, unsafe_allow_html=True)
     
-    check_and_send_reminders()
+    # Title Section - Centered below logo
+    st.markdown("<h1 style='text-align: center; margin-top: 10px;'>PTF Daily Work Progress Report</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: #666;'>Submit all your tasks for today in one report</p>", unsafe_allow_html=True)
     
-    print("\n✅ Test completed! Check the logs for details.")
+    st.markdown("---")
 
-# ==================== Main Entry Point ====================
+    config = load_config()
+    excel_path = config.get('excel_file_path', EXCEL_FILE_PATH)
+
+    # Initialize session state for task count if not exists
+    if 'num_tasks' not in st.session_state:
+        st.session_state.num_tasks = 1
+    
+    st.subheader("👤 Employee Information")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        date = st.date_input("Date*", value=datetime.now().date())
+        work_mode = st.selectbox(
+            "Work Mode*",
+            ["", "PTF", "Remote"],
+            help="Select your work mode"
+        )
+    
+    with col2:
+        emp_id = st.text_input(
+            "Employee ID*",
+            placeholder="Enter your employee ID",
+            help="Required field"
+        )
+        name = st.text_input(
+            "Name*",
+            placeholder="Enter your full name",
+            help="Required field"
+        )
+    
+    st.markdown("---")
+    st.subheader("📋 Today's Tasks")
+    st.info("💡 Add all the tasks you worked on today. You can add multiple tasks before submitting.")
+    
+    # Handle add/remove task buttons
+    col_add_remove = st.columns([1, 1, 4])
+    with col_add_remove[0]:
+        if st.button("➕ Add Task", width="stretch"):
+            st.session_state.num_tasks += 1
+            st.rerun()
+    with col_add_remove[1]:
+        if st.button("➖ Remove Task", width="stretch") and st.session_state.num_tasks > 1:
+            st.session_state.num_tasks -= 1
+            st.rerun()
+    
+    st.caption(f"📋 You have {st.session_state.num_tasks} task(s) in this report")
+    
+    # Display task inputs
+    for i in range(st.session_state.num_tasks):
+        with st.expander(f"Task {i+1}", expanded=(i == 0)):
+            col3, col4 = st.columns(2)
+            
+            with col3:
+                project_name = st.text_input(
+                    "Project Name*",
+                    placeholder="Enter project name",
+                    help="Required field",
+                    key=f"project_{i}"
+                )
+                task_title = st.text_input(
+                    "Task Title*",
+                    placeholder="Describe the task...",
+                    help="Brief description of the task",
+                    key=f"title_{i}"
+                )
+                task_assigned_by = st.text_input(
+                    "Task Assigned By*",
+                    placeholder="Who assigned this task?",
+                    help="Person who assigned the task",
+                    key=f"assigned_{i}"
+                )
+            
+            with col4:
+                task_priority = st.selectbox(
+                    "Task Priority*",
+                    ["", "Low", "Medium", "High", "Critical"],
+                    help="Select task priority level",
+                    key=f"priority_{i}"
+                )
+                task_status = st.selectbox(
+                    "Task Status*",
+                    ["", "In Progress", "Completed"],
+                    help="Select current task status",
+                    key=f"status_{i}"
+                )
+                comments = st.text_area(
+                    "Comments",
+                    placeholder="Any additional comments or notes...",
+                    height=80,
+                    help="Optional comments",
+                    key=f"comments_{i}"
+                )
+    
+    st.markdown("---")
+    st.subheader("📅 Plan for Tomorrow")
+    
+    plan_for_next_day = st.text_area(
+        "Plan for Next Day*",
+        placeholder="What are your plans for tomorrow?",
+        height=100,
+        help="Required field"
+    )
+    
+    submitted = st.button("✅ Submit Daily Report", width="stretch")
+    
+    if submitted:
+        # Validate employee information
+        employee_fields = {
+            "Date": date,
+            "Work Mode": work_mode,
+            "Employee ID": emp_id,
+            "Name": name
+        }
+        
+        missing_employee_fields = [field for field, value in employee_fields.items() if not value]
+        
+        if missing_employee_fields:
+            st.error(f"❌ Please fill in all employee information: {', '.join(missing_employee_fields)}")
+        elif st.session_state.num_tasks == 0:
+            st.error("❌ Please add at least one task to your report.")
+        elif not plan_for_next_day:
+            st.error("❌ Please fill in your plan for next day.")
+        else:
+            # Collect all task data from session_state (widget values are stored there with keys)
+            task_data_list = []
+            invalid_tasks = []
+            
+            for i in range(st.session_state.num_tasks):
+                # Get values from session_state (widgets with keys store values there)
+                project_name = st.session_state.get(f"project_{i}", "")
+                task_title = st.session_state.get(f"title_{i}", "")
+                task_assigned_by = st.session_state.get(f"assigned_{i}", "")
+                task_priority = st.session_state.get(f"priority_{i}", "")
+                task_status = st.session_state.get(f"status_{i}", "")
+                comments = st.session_state.get(f"comments_{i}", "")
+                
+                # Validate task
+                if not all([project_name, task_title, task_assigned_by, task_priority, task_status]):
+                    invalid_tasks.append(i + 1)
+                else:
+                    task_data_list.append({
+                        'Date': date.strftime("%Y-%m-%d"),
+                        'Work Mode': work_mode,
+                        'Emp Id': emp_id,
+                        'Name': name,
+                        'Project Name': project_name,
+                        'Task Title': task_title,
+                        'Task Assigned By': task_assigned_by,
+                        'Task Priority': task_priority,
+                        'Task Status': task_status,
+                        'Plan for next day': plan_for_next_day,
+                        'Comments': comments if comments else ''
+                    })
+            
+            if invalid_tasks:
+                st.error(f"❌ Please fill in all required fields for task(s): {', '.join(map(str, invalid_tasks))}")
+            elif not task_data_list:
+                st.error("❌ No valid tasks to submit. Please add at least one complete task.")
+            else:
+                # Append all tasks to Excel file
+                with st.spinner(f"Saving your daily report with {len(task_data_list)} task(s)..."):
+                    success = append_to_excel(task_data_list, excel_path)
+                
+                if success:
+                    st.success(f"✅ Your daily work progress report has been submitted successfully! ({len(task_data_list)} task(s) recorded)")
+                    st.balloons()
+                    # Reset task count for next submission
+                    st.session_state.num_tasks = 1
+                    # Clear form values by clearing session state keys
+                    for i in range(10):  # Clear up to 10 task slots
+                        for key_suffix in ['project', 'title', 'assigned', 'priority', 'status', 'comments']:
+                            key = f"{key_suffix}_{i}"
+                            if key in st.session_state:
+                                del st.session_state[key]
+                    time.sleep(2)
+                    st.rerun()
+                else:
+                    st.error("❌ Failed to save report. Please try again or contact administrator.")
+
+# Main App
 
 def main():
-    """Main entry point"""
-    import sys
+    """Main application"""
+
+    # Sidebar navigation
+    with st.sidebar:
+        st.title("📊 Progress Tracker")
+        st.markdown("---")
+
+        page = st.radio(
+            "Navigation",
+            ["📝 Submit Report", "📈 Dashboard", "⚙️ Settings", "📧 Reminders"],
+            label_visibility="collapsed"
+        )
+
+        st.markdown("---")
+        st.markdown("### 🔄 Quick Actions")
+
+        if st.button("🔄 Refresh Data"):
+            st.rerun()
+
+        st.markdown("---")
+        st.caption(f"Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
+    # Load configuration
+    config = load_config()
+
+    # Main content
+    if page == "📝 Submit Report":
+        show_submit_report()
     
-    # Check if required libraries are installed
-    try:
-        import pandas as pd
-        import schedule
-    except ImportError as e:
-        print(f"❌ Required library not installed: {e}")
-        print("\nPlease install:")
-        print("pip install pandas schedule openpyxl")
-        return
-    
-    if len(sys.argv) > 1:
-        command = sys.argv[1]
-        
-        if command == "setup":
-            setup_email_config()
-        elif command == "setup_whatsapp":
-            setup_whatsapp_config()
-        elif command == "setup_telegram":
-            setup_telegram_config()
-        elif command == "test":
-            test_reminder_now()
-        elif command == "run":
-            schedule_reminders()
-        else:
-            print("Unknown command. Use: setup, test, or run")
-    else:
-        print("\nEmployee Progress Tracker - Reminder Service")
-        print("=" * 50)
-        print("\nCommands:")
-        print("  python reminder_service.py setup  - Configure email settings")
-        print("  python reminder_service.py setup_whatsapp - Configure WhatsApp settings")
-        print("  python reminder_service.py setup_telegram - Configure Telegram settings")
-        print("  python reminder_service.py test   - Test reminder functionality now")
-        print("  python reminder_service.py run    - Start reminder service")
-        print("\n")
+    elif page == "📈 Dashboard":
+        st.title("📈 Employee Progress Dashboard")
+
+        excel_path = config.get('excel_file_path', EXCEL_FILE_PATH)
+
+        # Load data
+        with st.spinner("Loading data..."):
+            df = read_excel_data(excel_path)
+
+        if df is None:
+            st.error("Failed to load data. Check the Excel file path in Settings.")
+            return
+
+        if df.empty:
+            st.info("📋 No data available yet. Start submitting reports to see data here.")
+            return
+
+        # Show metrics
+        show_metrics(df)
+
+        st.markdown("---")
+
+        # Show filters
+        filtered_df = show_filters(df)
+
+        st.markdown("---")
+
+        # Show charts
+        show_charts(filtered_df)
+
+        st.markdown("---")
+
+        # Show data table
+        show_data_table(filtered_df)
+
+    elif page == "⚙️ Settings":
+        show_settings()
+
+    elif page == "📧 Reminders":
+        st.title("📧 Reminder Management")
+
+        st.info("""
+**Reminder System Setup**
+
+The reminder system will automatically send emails to employees who haven't submitted their daily report.
+
+To enable automated reminders:
+1. Set up reminder time and days in Settings
+2. Configure employee emails
+3. Run the reminder service: `python reminder_service.py`
+""")
+
+        excel_path = config.get('excel_file_path', EXCEL_FILE_PATH)
+
+        # Manual reminder test
+        st.subheader("🧪 Test Reminder")
+
+        if st.button("Check Missing Reports Today"):
+            with st.spinner("Checking..."):
+                df = read_excel_data(excel_path)
+                if df is not None:
+                    missing = get_missing_reporters(df, datetime.now())
+
+                    if missing:
+                        st.warning(f"📋 {len(missing)} employees haven't reported today:")
+                        for emp in missing:
+                            st.write(f"- {emp}")
+                    else:
+                        st.success("✅ All employees have submitted their reports today!")
+                else:
+                    st.error("Failed to load data")
 
 if __name__ == "__main__":
     main()
