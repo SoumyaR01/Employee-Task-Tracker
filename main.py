@@ -676,23 +676,49 @@ def show_submit_report():
     #         st.image(logo_path, width=200)
 
     # Logo Section - Centered at top
-    logo_path = "https://raw.githubusercontent.com/SoumyaR01/Employee-Task-Tracker/main/logo/PTF1.png"
-    col1, col2, col3 = st.columns([1, 1, 1])
+    # logo_path = "https://raw.githubusercontent.com/SoumyaR01/Employee-Task-Tracker/main/logo/PTF1.png"
+    # col1, col2, col3 = st.columns([1, 1, 1])
+    # with col2:
+    # st.image(logo_path, width=200)
+
+
+    # else:
+    #     # Fallback if logo not found
+    #     col1, col2, col3 = st.columns([1, 1, 1])
+    #     with col2:
+    #         st.markdown("""
+    #         <div style="width: 200px; height: 100px; background: #f0f0f0; 
+    #                     display: flex; align-items: center; justify-content: center; 
+    #                     border-radius: 5px; border: 2px dashed #ccc; margin: 0 auto;">
+    #             <p style="color: #999; font-size: 12px; text-align: center;">Logo</p>
+    #         </div>
+    #         """, unsafe_allow_html=True)
+
+    from pathlib import Path
+import streamlit as st
+import os
+
+# --- Logo Section ---
+current_dir = Path(__file__).parent if "__file__" in locals() else Path.cwd()
+logo_path = current_dir / "logo" / "PTF1.png"
+
+if logo_path.exists():
+    col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-    st.image(logo_path, width=200)
-
-
-    else:
-        # Fallback if logo not found
-        col1, col2, col3 = st.columns([1, 1, 1])
-        with col2:
-            st.markdown("""
-            <div style="width: 200px; height: 100px; background: #f0f0f0; 
-                        display: flex; align-items: center; justify-content: center; 
-                        border-radius: 5px; border: 2px dashed #ccc; margin: 0 auto;">
-                <p style="color: #999; font-size: 12px; text-align: center;">Logo</p>
+        st.image(str(logo_path), width=250)
+else:
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.markdown(
+            """
+            <div style="width:200px;height:100px;background:#444;
+                        display:flex;align-items:center;justify-content:center;
+                        color:white;border-radius:8px;margin:0 auto;">
+                <p>Logo not found</p>
             </div>
-            """, unsafe_allow_html=True)
+            """,
+            unsafe_allow_html=True,
+        )
     
     # Title Section - Centered below logo
     st.markdown("<h1 style='text-align: center; margin-top: 10px;'>PTF Daily Work Progress Report</h1>", unsafe_allow_html=True)
