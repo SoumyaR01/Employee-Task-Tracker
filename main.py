@@ -8,14 +8,11 @@ from pathlib import Path
 import time
 import os
 import logging
-import base64
-
-
 st.set_page_config(
     page_title="Employee Progress Tracker",
     page_icon="📊",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
 
 # Helper function to convert image to base64
@@ -27,16 +24,17 @@ def get_base64_image(image_path):
     except:
         return None
 
-# Custom CSS with background image
+# Custom CSS (dark/black background)
 st.markdown("""
 <style>
     /* Background styling */
     .stApp {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: #000000; /* black */
         background-attachment: fixed;
+        color: #e6eef2; /* light default text color for readability */
     }
-    
-    /* Add a subtle pattern overlay */
+
+    /* Subtle pattern overlay (very light) */
     .stApp::before {
         content: "";
         position: fixed;
@@ -44,121 +42,125 @@ st.markdown("""
         left: 0;
         width: 100%;
         height: 100%;
-        background-image: 
-            repeating-linear-gradient(45deg, transparent, transparent 35px, rgba(255,255,255,.05) 35px, rgba(255,255,255,.05) 70px);
         pointer-events: none;
         z-index: 0;
     }
-    
+
     /* Main content area */
     .main > div {
         padding: 1rem;
         position: relative;
         z-index: 1;
     }
-    
-    /* Block container styling */
+
+    /* Block container styling (dark) */
     .block-container {
         padding: 2rem 1rem;
-        background: rgba(255, 255, 255, 0.95);
+        background: rgba(10, 10, 10, 0.75);
         border-radius: 15px;
-        backdrop-filter: blur(10px);
-        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        backdrop-filter: blur(6px);
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.6);
+        color: #e6eef2; /* ensure text inside blocks is light */
     }
-    
+
     /* Metric cards */
     .metric-card {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         padding: 20px;
         border-radius: 10px;
-        color: white;
+        color: white !important;
         text-align: center;
         margin: 10px 0;
         box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-        transition: transform 0.3s ease;
+        transition: transform 0.25s ease;
     }
-    
+
     .metric-card:hover {
-        transform: translateY(-5px);
+        transform: translateY(-4px);
     }
-    
+
     .metric-value {
         font-size: 2.5rem;
         font-weight: bold;
     }
-    
+
     .metric-label {
         font-size: 1rem;
-        opacity: 0.9;
+        opacity: 0.95;
     }
-    
-    /* Filter container */
+
+    /* Filter container (dark) */
     .filter-container {
-        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        background: linear-gradient(180deg, rgba(20,20,20,0.6) 0%, rgba(30,30,30,0.6) 100%);
         padding: 20px;
         border-radius: 10px;
         margin-bottom: 20px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        box-shadow: 0 2px 10px rgba(0,0,0,0.6);
+        color: #e6eef2;
     }
-    
+
     /* Button styling */
     .stButton > button {
         width: 100%;
-        border-radius: 5px;
+        border-radius: 6px;
         height: 3rem;
         font-weight: 600;
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
+        color: white !important;
         border: none;
-        transition: all 0.3s ease;
+        transition: all 0.2s ease;
     }
-    
+
     .stButton > button:hover {
         transform: translateY(-2px);
-        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        box-shadow: 0 6px 18px rgba(102, 126, 234, 0.18);
     }
-    
+
     /* Sidebar styling */
     [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(180deg, #4c5bd4 0%, #6b4bb8 100%);
     }
-    
+
     [data-testid="stSidebar"] * {
         color: white !important;
     }
-    
-    /* Input fields */
+
+    /* Input fields (dark theme) */
     .stTextInput > div > div > input,
     .stTextArea > div > div > textarea,
     .stSelectbox > div > div > select {
         border-radius: 8px;
-        border: 2px solid #e0e0e0;
+        border: 1px solid rgba(255,255,255,0.12);
         transition: border-color 0.3s ease;
+        background: #0f1113;
+        color: #e6eef2;
     }
-    
+
     .stTextInput > div > div > input:focus,
     .stTextArea > div > div > textarea:focus,
     .stSelectbox > div > div > select:focus {
         border-color: #667eea;
-        box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+        box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.06);
     }
-    
+
     /* Logo container styling */
     .logo-container {
-        background: white;
+        background: transparent;
         padding: 20px;
         border-radius: 15px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        box-shadow: none;
         margin-bottom: 20px;
+        text-align: center;
     }
-    
+
     /* Expander styling */
     .streamlit-expanderHeader {
-        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        background: linear-gradient(135deg, #1e293b 0%, #111827 100%);
         border-radius: 8px;
         font-weight: 600;
+        color: #e6eef2 !important;
     }
-    
+
     @media (max-width: 768px) {
         .main > div {
             padding: 0.5rem;
@@ -807,56 +809,20 @@ def show_submit_report():
     logo_url = "https://raw.githubusercontent.com/SoumyaR01/Employee-Task-Tracker/main/logo/ptf.png"
 
     try:
-    st.image(logo_url, width=200, output_format="auto", caption="")
+        st.image(logo_url, use_container_width=True)
     except Exception:
-    st.warning("⚠️ Unable to load logo. Please check the GitHub path or rename file properly.")
+        # Fallback if logo not loaded: show styled placeholder
+        st.markdown("""
+        <div class="logo-container" style="text-align: center;">
+            <div style="width: 100%; max-width:600px; height: 120px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                        display: flex; align-items: center; justify-content: center; 
+                        border-radius: 10px; border: 2px solid #667eea; margin:0 auto;">
+                <p style="color: white; font-size: 22px; font-weight: bold; margin: 0;">PTF</p>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
-
-    
-    # Debug: Show current working directory (comment out in production)
-    # st.caption(f"Debug - Current dir: {os.getcwd()}")
-    # st.caption(f"Debug - Script location: {Path(__file__).parent}")
-    
-    for logo_path in possible_paths:
-        try:
-            # Try to check if file exists and can be read
-            if isinstance(logo_path, str):
-                if os.path.exists(logo_path):
-                    # Use columns to center the logo with styling
-                    col1, col2, col3 = st.columns([1, 2, 1])
-                    with col2:
-                        st.markdown('<div class="logo-container">', unsafe_allow_html=True)
-                        st.image(logo_path, use_column_width=True)
-                        st.markdown('</div>', unsafe_allow_html=True)
-                    logo_found = True
-                    break
-            else:
-                if logo_path.exists():
-                    # Use columns to center the logo with styling
-                    col1, col2, col3 = st.columns([1, 2, 1])
-                    with col2:
-                        st.markdown('<div class="logo-container">', unsafe_allow_html=True)
-                        st.image(str(logo_path), use_column_width=True)
-                        st.markdown('</div>', unsafe_allow_html=True)
-                    logo_found = True
-                    break
-        except Exception as e:
-            continue
-    
-    if not logo_found:
-        # Fallback if logo not found - show styled placeholder
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            st.markdown("""
-            <div class="logo-container" style="text-align: center;">
-                <div style="width: 100%; height: 100px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                            display: flex; align-items: center; justify-content: center; 
-                            border-radius: 10px; border: 2px solid #667eea;">
-                    <p style="color: white; font-size: 18px; font-weight: bold; margin: 0;">PTF</p>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
     
     # Title Section - Centered below logo
     st.markdown("<h1 style='text-align: center; margin-top: 10px; color: #2c3e50;'>PTF Daily Work Progress Report</h1>", unsafe_allow_html=True)
