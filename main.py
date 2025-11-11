@@ -630,14 +630,6 @@ def show_settings():
             value=config.get('excel_file_path', EXCEL_FILE_PATH),
             help="Path to the local Excel file"
         )
-        
-        st.subheader("Logo Configuration")
-        
-        logo_path = st.text_input(
-            "Logo Path",
-            value=config.get('logo_path', '/home/pinku/PTF Track/logo/PTF1.png'),
-            help="Path to the logo image file"
-        )
 
         st.markdown("---")
         st.subheader("Reminder Settings")
@@ -685,7 +677,6 @@ def show_settings():
         if submitted:
             # Update config
             config['excel_file_path'] = excel_file_path
-            config['logo_path'] = logo_path
             config['reminder_time'] = reminder_time.strftime('%H:%M')
             config['reminder_days'] = reminder_days
             config['admin_email'] = admin_email
