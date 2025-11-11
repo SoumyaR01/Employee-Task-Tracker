@@ -8,6 +8,8 @@ from pathlib import Path
 import time
 import os
 import logging
+import base64
+
 
 st.set_page_config(
     page_title="Employee Progress Tracker",
@@ -16,12 +18,55 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS
+# Helper function to convert image to base64
+def get_base64_image(image_path):
+    """Convert image to base64 for CSS background"""
+    try:
+        with open(image_path, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode()
+    except:
+        return None
+
+# Custom CSS with background image
 st.markdown("""
 <style>
+    /* Background styling */
+    .stApp {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background-attachment: fixed;
+    }
+    
+    /* Add a subtle pattern overlay */
+    .stApp::before {
+        content: "";
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-image: 
+            repeating-linear-gradient(45deg, transparent, transparent 35px, rgba(255,255,255,.05) 35px, rgba(255,255,255,.05) 70px);
+        pointer-events: none;
+        z-index: 0;
+    }
+    
+    /* Main content area */
     .main > div {
         padding: 1rem;
+        position: relative;
+        z-index: 1;
     }
+    
+    /* Block container styling */
+    .block-container {
+        padding: 2rem 1rem;
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 15px;
+        backdrop-filter: blur(10px);
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+    }
+    
+    /* Metric cards */
     .metric-card {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         padding: 20px;
@@ -29,33 +74,100 @@ st.markdown("""
         color: white;
         text-align: center;
         margin: 10px 0;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        transition: transform 0.3s ease;
     }
+    
+    .metric-card:hover {
+        transform: translateY(-5px);
+    }
+    
     .metric-value {
         font-size: 2.5rem;
         font-weight: bold;
     }
+    
     .metric-label {
         font-size: 1rem;
         opacity: 0.9;
     }
+    
+    /* Filter container */
     .filter-container {
-        background: #f8f9fa;
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
         padding: 20px;
         border-radius: 10px;
         margin-bottom: 20px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
     }
+    
+    /* Button styling */
     .stButton > button {
         width: 100%;
         border-radius: 5px;
         height: 3rem;
         font-weight: 600;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        transition: all 0.3s ease;
     }
+    
+    .stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    }
+    
+    /* Sidebar styling */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+    }
+    
+    [data-testid="stSidebar"] * {
+        color: white !important;
+    }
+    
+    /* Input fields */
+    .stTextInput > div > div > input,
+    .stTextArea > div > div > textarea,
+    .stSelectbox > div > div > select {
+        border-radius: 8px;
+        border: 2px solid #e0e0e0;
+        transition: border-color 0.3s ease;
+    }
+    
+    .stTextInput > div > div > input:focus,
+    .stTextArea > div > div > textarea:focus,
+    .stSelectbox > div > div > select:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+    }
+    
+    /* Logo container styling */
+    .logo-container {
+        background: white;
+        padding: 20px;
+        border-radius: 15px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+    }
+    
+    /* Expander styling */
+    .streamlit-expanderHeader {
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        border-radius: 8px;
+        font-weight: 600;
+    }
+    
     @media (max-width: 768px) {
         .main > div {
             padding: 0.5rem;
         }
         .metric-value {
             font-size: 1.8rem;
+        }
+        .block-container {
+            padding: 1rem 0.5rem;
         }
     }
 </style>
@@ -74,6 +186,7 @@ def load_config():
             return json.load(f)
     return {
         'excel_file_path': EXCEL_FILE_PATH,
+        'logo_path': '/home/pinku/PTF Track/logo/PTF1.png',
         'reminder_time': '18:00',
         'reminder_days': [0, 1, 2, 3, 4, 5],  # Mon-Sat
         'admin_email': '',
@@ -417,7 +530,7 @@ def show_charts(df):
                 names=status_counts.index,
                 color_discrete_sequence=px.colors.qualitative.Set3
             )
-            st.plotly_chart(fig, width="stretch")
+            st.plotly_chart(fig, use_container_width=True)
 
     with col2:
         st.subheader("⚡ Priority Distribution")
@@ -435,7 +548,7 @@ def show_charts(df):
                 }
             )
             fig.update_layout(showlegend=False, xaxis_title="Priority", yaxis_title="Count")
-            st.plotly_chart(fig, width="stretch")
+            st.plotly_chart(fig, use_container_width=True)
 
     # Weekly trend
     st.subheader("📊 Weekly Submission Trend")
@@ -449,7 +562,7 @@ def show_charts(df):
             markers=True
         )
         fig.update_layout(xaxis_title="Date", yaxis_title="Submissions")
-        st.plotly_chart(fig, width="stretch")
+        st.plotly_chart(fig, use_container_width=True)
 
 def show_data_table(df):
     """Display data table"""
@@ -477,7 +590,7 @@ def show_data_table(df):
     # Show data
     st.dataframe(
         display_df.head(rows_to_show),
-        width="stretch",
+        use_container_width=True,
         height=400
     )
 
@@ -506,6 +619,14 @@ def show_settings():
             "Excel File Path",
             value=config.get('excel_file_path', EXCEL_FILE_PATH),
             help="Path to the local Excel file"
+        )
+        
+        st.subheader("Logo Configuration")
+        
+        logo_path = st.text_input(
+            "Logo Path",
+            value=config.get('logo_path', '/home/pinku/PTF Track/logo/PTF1.png'),
+            help="Path to the logo image file"
         )
 
         st.markdown("---")
@@ -554,6 +675,7 @@ def show_settings():
         if submitted:
             # Update config
             config['excel_file_path'] = excel_file_path
+            config['logo_path'] = logo_path
             config['reminder_time'] = reminder_time.strftime('%H:%M')
             config['reminder_days'] = reminder_days
             config['admin_email'] = admin_email
@@ -612,8 +734,377 @@ def show_settings():
                     if df is not None:
                         st.success(f"✅ Successfully read file! Found {len(df)} records")
                         if not df.empty:
-                            st.dataframe(df.head(), width="stretch")
+                            st.dataframe(df.head(), use_container_width=True)
                         else:
                             st.info("📋 Excel file is empty. Start submitting reports to add data.")
                     else:
-                        st.error("
+                        st.error("❌ Failed to read file data.")
+                except PermissionError as pe:
+                    st.error(f"❌ **Permission Error**: Cannot read file")
+                    st.error(f"   Error: {str(pe)}")
+                    st.warning("💡 **Solution**: Close the Excel file if it's open in Excel or another program.")
+                except Exception as e:
+                    st.error(f"❌ **Error reading file**: {type(e).__name__}")
+                    st.error(f"   Error: {str(e)}")
+                
+                # Check 4: Try to write to the file (test write)
+                st.write("**4. Testing file write access...**")
+                try:
+                    # Save original data first
+                    original_df = df.copy() if df is not None and not df.empty else None
+                    
+                    # Try to open the file in write mode to check if it's locked
+                    # We'll write the original data back, so this is safe
+                    if original_df is not None:
+                        with pd.ExcelWriter(excel_path, engine='openpyxl', mode='w') as writer:
+                            original_df.to_excel(writer, index=False, sheet_name='Sheet1')
+                        st.success("✅ File write test successful! (Original data preserved)")
+                    else:
+                        # If file is empty, create a test write
+                        test_data = pd.DataFrame([{'Test': 'test'}])
+                        with pd.ExcelWriter(excel_path, engine='openpyxl', mode='w') as writer:
+                            test_data.to_excel(writer, index=False, sheet_name='Sheet1')
+                        # Remove test data
+                        empty_df = pd.DataFrame()
+                        with pd.ExcelWriter(excel_path, engine='openpyxl', mode='w') as writer:
+                            empty_df.to_excel(writer, index=False, sheet_name='Sheet1')
+                        st.success("✅ File write test successful!")
+                except PermissionError as pe:
+                    st.error(f"❌ **Permission Error**: Cannot write to file")
+                    st.error(f"   Error: {str(pe)}")
+                    st.warning("💡 **Most Common Causes:**")
+                    st.warning("   1. Excel file is open in Microsoft Excel")
+                    st.warning("   2. Excel file is open in another program")
+                    st.warning("   3. Another process is using the file")
+                    st.warning("   4. Insufficient file permissions")
+                except Exception as e:
+                    st.error(f"❌ **Error writing to file**: {type(e).__name__}")
+                    st.error(f"   Error: {str(e)}")
+                
+            else:
+                st.error(f"❌ File does NOT exist at: `{excel_path}`")
+                st.info("💡 The file will be created automatically when you submit your first report.")
+
+#  Submit Report Page
+
+def show_submit_report():
+    """Display form for submitting work progress reports with multiple tasks"""
+    config = load_config()
+    
+    # Logo Section - Centered at top
+    # Use relative path for Streamlit Cloud deployment
+    logo_path = Path(__file__).resolve().parent / "logo" / "PTF1.png"
+    
+    if logo_path.exists():
+        # Use columns to center the logo with styling
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            st.markdown('<div class="logo-container">', unsafe_allow_html=True)
+            st.image(str(logo_path), use_column_width=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+    else:
+        # Fallback if logo not found with better styling
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            st.markdown("""
+            <div class="logo-container" style="text-align: center;">
+                <div style="width: 100%; height: 100px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                            display: flex; align-items: center; justify-content: center; 
+                            border-radius: 10px; border: 2px solid #667eea;">
+                    <p style="color: white; font-size: 18px; font-weight: bold; margin: 0;">PTF Logo</p>
+                </div>
+                <p style="color: #888; font-size: 12px; margin-top: 10px;">Logo not found at: {}</p>
+            </div>
+            """.format(str(logo_path)), unsafe_allow_html=True)
+    
+    # Title Section - Centered below logo
+    st.markdown("<h1 style='text-align: center; margin-top: 10px; color: #2c3e50;'>PTF Daily Work Progress Report</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: #7f8c8d; font-size: 1.1rem;'>Submit all your tasks for today in one report</p>", unsafe_allow_html=True)
+    
+    st.markdown("---")
+
+    excel_path = config.get('excel_file_path', EXCEL_FILE_PATH)
+
+    # Initialize session state for task count if not exists
+    if 'num_tasks' not in st.session_state:
+        st.session_state.num_tasks = 1
+    
+    st.subheader("👤 Employee Information")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        date = st.date_input("Date*", value=datetime.now().date())
+        work_mode = st.selectbox(
+            "Work Mode*",
+            ["", "PTF", "Remote"],
+            help="Select your work mode"
+        )
+    
+    with col2:
+        emp_id = st.text_input(
+            "Employee ID*",
+            placeholder="Enter your employee ID",
+            help="Required field"
+        )
+        name = st.text_input(
+            "Name*",
+            placeholder="Enter your full name",
+            help="Required field"
+        )
+    
+    st.markdown("---")
+    st.subheader("📋 Today's Tasks")
+    st.info("💡 Add all the tasks you worked on today. You can add multiple tasks before submitting.")
+    
+    # Handle add/remove task buttons
+    col_add_remove = st.columns([1, 1, 4])
+    with col_add_remove[0]:
+        if st.button("➕ Add Task", use_container_width=True):
+            st.session_state.num_tasks += 1
+            st.rerun()
+    with col_add_remove[1]:
+        if st.button("➖ Remove Task", use_container_width=True) and st.session_state.num_tasks > 1:
+            st.session_state.num_tasks -= 1
+            st.rerun()
+    
+    st.caption(f"📋 You have {st.session_state.num_tasks} task(s) in this report")
+    
+    # Display task inputs
+    for i in range(st.session_state.num_tasks):
+        with st.expander(f"Task {i+1}", expanded=(i == 0)):
+            col3, col4 = st.columns(2)
+            
+            with col3:
+                project_name = st.text_input(
+                    "Project Name*",
+                    placeholder="Enter project name",
+                    help="Required field",
+                    key=f"project_{i}"
+                )
+                task_title = st.text_input(
+                    "Task Title*",
+                    placeholder="Describe the task...",
+                    help="Brief description of the task",
+                    key=f"title_{i}"
+                )
+                task_assigned_by = st.text_input(
+                    "Task Assigned By*",
+                    placeholder="Who assigned this task?",
+                    help="Person who assigned the task",
+                    key=f"assigned_{i}"
+                )
+            
+            with col4:
+                task_priority = st.selectbox(
+                    "Task Priority*",
+                    ["", "Low", "Medium", "High", "Critical"],
+                    help="Select task priority level",
+                    key=f"priority_{i}"
+                )
+                task_status = st.selectbox(
+                    "Task Status*",
+                    ["", "In Progress", "Completed"],
+                    help="Select current task status",
+                    key=f"status_{i}"
+                )
+                comments = st.text_area(
+                    "Comments",
+                    placeholder="Any additional comments or notes...",
+                    height=80,
+                    help="Optional comments",
+                    key=f"comments_{i}"
+                )
+    
+    st.markdown("---")
+    st.subheader("📅 Plan for Tomorrow")
+    
+    plan_for_next_day = st.text_area(
+        "Plan for Next Day*",
+        placeholder="What are your plans for tomorrow?",
+        height=100,
+        help="Required field"
+    )
+    
+    submitted = st.button("✅ Submit Daily Report", use_container_width=True)
+    
+    if submitted:
+        # Validate employee information
+        employee_fields = {
+            "Date": date,
+            "Work Mode": work_mode,
+            "Employee ID": emp_id,
+            "Name": name
+        }
+        
+        missing_employee_fields = [field for field, value in employee_fields.items() if not value]
+        
+        if missing_employee_fields:
+            st.error(f"❌ Please fill in all employee information: {', '.join(missing_employee_fields)}")
+        elif st.session_state.num_tasks == 0:
+            st.error("❌ Please add at least one task to your report.")
+        elif not plan_for_next_day:
+            st.error("❌ Please fill in your plan for next day.")
+        else:
+            # Collect all task data from session_state (widget values are stored there with keys)
+            task_data_list = []
+            invalid_tasks = []
+            
+            for i in range(st.session_state.num_tasks):
+                # Get values from session_state (widgets with keys store values there)
+                project_name = st.session_state.get(f"project_{i}", "")
+                task_title = st.session_state.get(f"title_{i}", "")
+                task_assigned_by = st.session_state.get(f"assigned_{i}", "")
+                task_priority = st.session_state.get(f"priority_{i}", "")
+                task_status = st.session_state.get(f"status_{i}", "")
+                comments = st.session_state.get(f"comments_{i}", "")
+                
+                # Validate task
+                if not all([project_name, task_title, task_assigned_by, task_priority, task_status]):
+                    invalid_tasks.append(i + 1)
+                else:
+                    task_data_list.append({
+                        'Date': date.strftime("%Y-%m-%d"),
+                        'Work Mode': work_mode,
+                        'Emp Id': emp_id,
+                        'Name': name,
+                        'Project Name': project_name,
+                        'Task Title': task_title,
+                        'Task Assigned By': task_assigned_by,
+                        'Task Priority': task_priority,
+                        'Task Status': task_status,
+                        'Plan for next day': plan_for_next_day,
+                        'Comments': comments if comments else ''
+                    })
+            
+            if invalid_tasks:
+                st.error(f"❌ Please fill in all required fields for task(s): {', '.join(map(str, invalid_tasks))}")
+            elif not task_data_list:
+                st.error("❌ No valid tasks to submit. Please add at least one complete task.")
+            else:
+                # Append all tasks to Excel file
+                with st.spinner(f"Saving your daily report with {len(task_data_list)} task(s)..."):
+                    success = append_to_excel(task_data_list, excel_path)
+                
+                if success:
+                    st.success(f"✅ Your daily work progress report has been submitted successfully! ({len(task_data_list)} task(s) recorded)")
+                    st.balloons()
+                    # Reset task count for next submission
+                    st.session_state.num_tasks = 1
+                    # Clear form values by clearing session state keys
+                    for i in range(10):  # Clear up to 10 task slots
+                        for key_suffix in ['project', 'title', 'assigned', 'priority', 'status', 'comments']:
+                            key = f"{key_suffix}_{i}"
+                            if key in st.session_state:
+                                del st.session_state[key]
+                    time.sleep(2)
+                    st.rerun()
+                else:
+                    st.error("❌ Failed to save report. Please try again or contact administrator.")
+
+# Main App
+
+def main():
+    """Main application"""
+
+    # Sidebar navigation
+    with st.sidebar:
+        st.title("📊 Progress Tracker")
+        st.markdown("---")
+
+        page = st.radio(
+            "Navigation",
+            ["📝 Submit Report", "📈 Dashboard", "⚙️ Settings", "📧 Reminders"],
+            label_visibility="collapsed"
+        )
+
+        st.markdown("---")
+        st.markdown("### 🔄 Quick Actions")
+
+        if st.button("🔄 Refresh Data"):
+            st.rerun()
+
+        st.markdown("---")
+        st.caption(f"Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
+    # Load configuration
+    config = load_config()
+
+    # Main content
+    if page == "📝 Submit Report":
+        show_submit_report()
+    
+    elif page == "📈 Dashboard":
+        st.title("📈 Employee Progress Dashboard")
+
+        excel_path = config.get('excel_file_path', EXCEL_FILE_PATH)
+
+        # Load data
+        with st.spinner("Loading data..."):
+            df = read_excel_data(excel_path)
+
+        if df is None:
+            st.error("Failed to load data. Check the Excel file path in Settings.")
+            return
+
+        if df.empty:
+            st.info("📋 No data available yet. Start submitting reports to see data here.")
+            return
+
+        # Show metrics
+        show_metrics(df)
+
+        st.markdown("---")
+
+        # Show filters
+        filtered_df = show_filters(df)
+
+        st.markdown("---")
+
+        # Show charts
+        show_charts(filtered_df)
+
+        st.markdown("---")
+
+        # Show data table
+        show_data_table(filtered_df)
+
+    elif page == "⚙️ Settings":
+        show_settings()
+
+    elif page == "📧 Reminders":
+        st.title("📧 Reminder Management")
+
+        st.info("""
+**Reminder System Setup**
+
+The reminder system will automatically send emails to employees who haven't submitted their daily report.
+
+To enable automated reminders:
+1. Set up reminder time and days in Settings
+2. Configure employee emails
+3. Run the reminder service: `python reminder_service.py`
+""")
+
+        excel_path = config.get('excel_file_path', EXCEL_FILE_PATH)
+
+        # Manual reminder test
+        st.subheader("🧪 Test Reminder")
+
+        if st.button("Check Missing Reports Today"):
+            with st.spinner("Checking..."):
+                df = read_excel_data(excel_path)
+                if df is not None:
+                    missing = get_missing_reporters(df, datetime.now())
+
+                    if missing:
+                        st.warning(f"📋 {len(missing)} employees haven't reported today:")
+                        for emp in missing:
+                            st.write(f"- {emp}")
+                    else:
+                        st.success("✅ All employees have submitted their reports today!")
+                else:
+                    st.error("Failed to load data")
+
+if __name__ == "__main__":
+    main()
