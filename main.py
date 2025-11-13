@@ -1183,23 +1183,49 @@ def main():
             st.info("📋 No data available yet. Start submitting reports to see data here.")
             return
 
-        # Show metrics
-        show_metrics(df)
+        # Provide tabs so admin/users can view overview or performance
+        tab_overview, tab_performance = st.tabs(["Overview", "Employee Performance"])
 
-        st.markdown("---")
+        with tab_overview:
+            # Overview tab: metrics, filters, charts, table
+            show_metrics(df)
+            st.markdown("---")
+            filtered_df = show_filters(df)
+            st.markdown("---")
+            show_charts(filtered_df)
+            st.markdown("---")
+            show_data_table(filtered_df)
 
-        # Show filters
-        filtered_df = show_filters(df)
+        with tab_performance:
+            st.subheader("Employee Performance (%)")
+            # Ensure the performance column exists
+            perf_df = df.copy()
+            if 'Employee Performance (%)' not in perf_df.columns:
+                perf_df['Employee Performance (%)'] = 0.0
 
-        st.markdown("---")
+            # Calculate summary metrics per employee
+            summary = perf_df.groupby('Name').agg(
+                Total_Tasks=('Name', 'count'),
+                Completed_Tasks=('Task Status', lambda x: (x == 'Completed').sum()),
+                Avg_Performance=('Employee Performance (%)', 'mean')
+            ).reset_index()
+            # Compute Completion Rate (%)
+            summary['Completion Rate (%)'] = summary.apply(
+                lambda row: round((row['Completed_Tasks'] / row['Total_Tasks'] * 100) if row['Total_Tasks'] > 0 else 0, 2),
+                axis=1
+            )
+            summary['Avg Performance (%)'] = summary['Avg_Performance'].round(2)
+            # Reorder and sort
+            perf_display = summary[['Name', 'Total_Tasks', 'Completed_Tasks', 'Completion Rate (%)', 'Avg Performance (%)']].rename(
+                columns={'Total_Tasks': 'Total Tasks', 'Completed_Tasks': 'Completed Tasks'}
+            ).sort_values('Avg Performance (%)', ascending=False)
 
-        # Show charts
-        show_charts(filtered_df)
-
-        st.markdown("---")
-
-        # Show data table
-        show_data_table(filtered_df)
+            if perf_display.empty:
+                st.info("No performance data available yet.")
+            else:
+                st.dataframe(perf_display, use_container_width=True)
+                csv = perf_display.to_csv(index=False)
+                st.download_button("📥 Download Performance CSV", data=csv, file_name=f"employee_performance_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
 
     elif page == "⚙️ Settings":
         show_settings()
