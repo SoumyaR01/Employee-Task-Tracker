@@ -470,23 +470,61 @@ def get_missing_reporters(df, today):
     return missing
 
 
-# Streamlit entry point wrapper - redirects to app.py
-# Note: Best practice is to set main file to app.py in Streamlit Community Cloud settings
-# This wrapper allows main.py to work as an entry point by importing and running app.py
+# ============================================================================
+# Streamlit Entry Point Wrapper
+# ============================================================================
+# This allows main.py to work as a Streamlit entry point by redirecting to app.py
+# When Streamlit runs main.py, it will import and execute app.py
+# Note: app.py imports from main, creating a circular import, but Python handles this
+# ============================================================================
 
-# Import and run the Streamlit app from app.py when this file is executed
-try:
-    from app import main as app_main
-    # Execute the app - Streamlit will run this when main.py is the entry point
-    app_main()
-except ImportError as e:
-    # Show error in Streamlit if available
+import sys
+
+# Only execute the wrapper when this file is run by Streamlit (not when imported by app.py)
+# Check if 'app' is already in sys.modules - if so, app.py is importing us, so don't run wrapper
+# If 'app' is not in sys.modules, we're being run by Streamlit, so run the wrapper
+if 'app' not in sys.modules:
+    # Import streamlit at module level so Streamlit recognizes this as a valid entry point
     try:
         import streamlit as st
-        st.error(f"❌ Error importing app.py: {e}")
-        st.info("💡 Please ensure app.py exists in the same directory as main.py")
-        st.info("💡 Alternatively, change the main file to app.py in Streamlit Community Cloud settings")
     except ImportError:
-        # Streamlit not available, just print error (for local testing)
-        print(f"Error importing app.py: {e}")
-        print("Please ensure app.py exists in the same directory as main.py")
+        pass  # Streamlit not available (shouldn't happen in Streamlit Cloud)
+
+    # Import and execute the app from app.py
+    # This will execute all module-level Streamlit code in app.py and then call main()
+    try:
+        # Import the app module - this executes module-level code like st.set_page_config()
+        # Note: This creates a circular import (app imports from main), but Python handles it
+        # When app.py imports from main, it will get the partially initialized main module
+        import app
+        
+        # Call the main function to run the Streamlit app
+        # This is safe because app.py's if __name__ == "__main__" block won't execute
+        # when app is imported as a module, so we need to call main() explicitly
+        if hasattr(app, 'main'):
+            app.main()
+        else:
+            # Fallback: if main() doesn't exist, show error
+            try:
+                st.error("❌ app.py does not have a main() function")
+            except:
+                print("Error: app.py does not have a main() function")
+                
+    except ImportError as e:
+        # Show helpful error message
+        try:
+            st.error(f"❌ Error importing app.py: {e}")
+            st.info("💡 Please ensure app.py exists in the same directory as main.py")
+            st.info("💡 The app.py file should contain your Streamlit application code")
+        except:
+            print(f"Error importing app.py: {e}")
+            print("Please ensure app.py exists in the same directory as main.py")
+    except Exception as e:
+        # Catch any other errors
+        try:
+            st.error(f"❌ Error running app: {e}")
+            st.exception(e)
+        except:
+            print(f"Error running app: {e}")
+            import traceback
+            traceback.print_exc()
