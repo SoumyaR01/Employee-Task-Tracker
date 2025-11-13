@@ -8,6 +8,8 @@ from pathlib import Path
 import time
 import os
 import logging
+import base64
+from openpyxl import load_workbook
 st.set_page_config(
     page_title="Employee Progress Tracker",
     page_icon="📊",
@@ -219,7 +221,8 @@ def read_excel_data(excel_path=None):
             columns = [
                 'Date', 'Work Mode', 'Emp Id', 'Name', 'Project Name', 
                 'Task Title', 'Task Assigned By', 'Task Priority', 
-                'Task Status', 'Plan for next day', 'Comments'
+                'Task Status', 'Plan for next day', 'Comments',
+                'Employee Performance (%)'
             ]
             df = pd.DataFrame(columns=columns)
             df.to_excel(excel_path, index=False, engine='openpyxl')
@@ -231,6 +234,10 @@ def read_excel_data(excel_path=None):
         # Handle empty file
         if df.empty:
             return pd.DataFrame()
+        
+        # Ensure 'Employee Performance (%)' column exists
+        if 'Employee Performance (%)' not in df.columns:
+            df['Employee Performance (%)'] = 0.0
         
         return df
     
@@ -287,7 +294,8 @@ def append_to_excel(data_list, excel_path=None):
             columns = [
                 'Date', 'Work Mode', 'Emp Id', 'Name', 'Project Name', 
                 'Task Title', 'Task Assigned By', 'Task Priority', 
-                'Task Status', 'Plan for next day', 'Comments'
+                'Task Status', 'Plan for next day', 'Comments',
+                'Employee Performance (%)'
             ]
             
             # Combine with existing data
@@ -339,6 +347,75 @@ def append_to_excel(data_list, excel_path=None):
                     st.error(f"📁 File path: {excel_path}")
                     st.error(f"💡 Error type: {type(write_error).__name__}")
                     return False
+
+            # Update dashboard sheets after successful main sheet write
+            try:
+                full_df = pd.read_excel(excel_path, engine='openpyxl', sheet_name='Sheet1')
+                if 'Employee Performance (%)' not in full_df.columns:
+                    full_df['Employee Performance (%)'] = 0.0
+
+                unique_names = full_df['Name'].dropna().unique()
+                summary_data = []
+                for name in unique_names:
+                    emp_data = full_df[full_df['Name'] == name]
+                    total_tasks = len(emp_data)
+                    completed = len(emp_data[emp_data['Task Status'] == 'Completed'])
+                    avg_perf = emp_data['Employee Performance (%)'].mean()
+                    summary_data.append({
+                        'Name': name,
+                        'Total Tasks': total_tasks,
+                        'Completed Tasks': completed,
+                        'Performance (%)': round(avg_perf, 2)
+                    })
+
+                # Load workbook to update sheets
+                book = load_workbook(excel_path)
+
+                # Update or create summary sheet
+                dashboard_sheet_name = '📈 Employee Progress Dashboard'
+                if dashboard_sheet_name in book.sheetnames:
+                    del book[dashboard_sheet_name]
+                ws_summary = book.create_sheet(dashboard_sheet_name)
+
+                # Headers for summary
+                headers = ['Name', 'Total Tasks', 'Completed Tasks', 'Performance (%)', 'Individual Dashboard']
+                for col, header in enumerate(headers, 1):
+                    ws_summary.cell(row=1, column=col, value=header)
+
+                # Data and hyperlinks for summary
+                for row, data in enumerate(summary_data, 2):
+                    ws_summary.cell(row=row, column=1, value=data['Name'])
+                    ws_summary.cell(row=row, column=2, value=data['Total Tasks'])
+                    ws_summary.cell(row=row, column=3, value=data['Completed Tasks'])
+                    ws_summary.cell(row=row, column=4, value=data['Performance (%)'])
+                    # Hyperlink to individual sheet
+                    safe_name = str(data['Name']).replace('/', '_').replace('\\', '_').replace('*', '').replace('?', '').replace(':', '').replace('[', '').replace(']', '')
+                    safe_sheet_name = f"{safe_name} Dashboard"[:31]
+                    hyperlink_formula = f'=HYPERLINK("#\'{safe_sheet_name}\'!A1", "View Dashboard")'
+                    ws_summary.cell(row=row, column=5).value = hyperlink_formula
+
+                # Create/update individual employee sheets
+                for name in unique_names:
+                    safe_name = str(name).replace('/', '_').replace('\\', '_').replace('*', '').replace('?', '').replace(':', '').replace('[', '').replace(']', '')
+                    safe_sheet_name = f"{safe_name} Dashboard"[:31]
+                    if safe_sheet_name in book.sheetnames:
+                        del book[safe_sheet_name]
+                    ws_emp = book.create_sheet(safe_sheet_name)
+
+                    emp_data = full_df[full_df['Name'] == name][columns].sort_values('Date')
+                    # Headers for emp sheet
+                    for col, header in enumerate(emp_data.columns, 1):
+                        ws_emp.cell(row=1, column=col, value=header)
+                    # Data
+                    for r_idx, (_, row_data) in enumerate(emp_data.iterrows(), 2):
+                        for c_idx, value in enumerate(row_data, 1):
+                            ws_emp.cell(row=r_idx, column=c_idx, value=value)
+
+                book.save(excel_path)
+                logging.info("Dashboard sheets updated successfully.")
+            except Exception as dash_error:
+                logging.error(f"Failed to update dashboard sheets: {dash_error}")
+                # Continue without failing the main append
             
             return True
         
@@ -986,7 +1063,8 @@ def show_submit_report():
                         'Task Priority': task_priority,
                         'Task Status': task_status,
                         'Plan for next day': plan_for_next_day,
-                        'Comments': comments if comments else ''
+                        'Comments': comments if comments else '',
+                        'Employee Performance (%)': 100.0 if task_status == 'Completed' else 0.0
                     })
             
             if invalid_tasks:
