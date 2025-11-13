@@ -839,6 +839,137 @@ def show_charts(df):
         fig.update_layout(xaxis_title="Date", yaxis_title="Submissions")
         st.plotly_chart(fig, use_container_width=True)
 
+
+def show_employee_dashboard(df):
+    """Interactive dashboard for selected employee using performance metrics."""
+    if df is None or df.empty or 'Name' not in df.columns:
+        st.info("No employee data available for detailed view.")
+        return
+
+    df = ensure_performance_column(df)
+    df = df.copy()
+    if 'Date' in df.columns:
+        df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
+
+    employees = sorted([name for name in df['Name'].dropna().unique() if str(name).strip()])
+    if not employees:
+        st.info("No employees found in the dataset.")
+        return
+
+    st.subheader("👤 Employee Performance Explorer")
+    selected_employee = st.selectbox("Select an employee to view detailed performance", employees)
+
+    if not selected_employee:
+        st.info("Select an employee to view their dashboard.")
+        return
+
+    emp_df = df[df['Name'] == selected_employee].copy()
+    if emp_df.empty:
+        st.warning("No records found for the selected employee.")
+        return
+
+    total_tasks = len(emp_df)
+    completed_tasks = int((emp_df.get('Task Status') == 'Completed').sum()) if 'Task Status' in emp_df.columns else 0
+    pending_tasks = max(total_tasks - completed_tasks, 0)
+    avg_performance = round(emp_df['Employee Performance (%)'].mean(), 2)
+    latest_perf = round(emp_df.sort_values('Date')['Employee Performance (%)'].iloc[-1], 2) if not emp_df['Employee Performance (%)'].empty else 0
+    last_update = emp_df['Date'].dropna().max().date().isoformat() if 'Date' in emp_df.columns and not emp_df['Date'].dropna().empty else "N/A"
+
+    metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
+    with metric_col1:
+        st.metric("Total Tasks", total_tasks)
+    with metric_col2:
+        st.metric("Completed Tasks", completed_tasks)
+    with metric_col3:
+        st.metric("Avg Performance (%)", avg_performance)
+    with metric_col4:
+        st.metric("Last Update", last_update)
+
+    chart_col1, chart_col2 = st.columns([1, 1])
+
+    with chart_col1:
+        st.caption("Current Performance Gauge")
+        gauge_fig = go.Figure(
+            go.Indicator(
+                mode="gauge+number",
+                value=latest_perf,
+                title={'text': "Latest Performance"},
+                gauge={
+                    'axis': {'range': [0, 100]},
+                    'bar': {'color': "#764ba2"},
+                    'steps': [
+                        {'range': [0, 50], 'color': "#ff7675"},
+                        {'range': [50, 80], 'color': "#ffeaa7"},
+                        {'range': [80, 100], 'color': "#55efc4"},
+                    ]
+                }
+            )
+        )
+        gauge_fig.update_layout(height=280, margin=dict(l=40, r=40, t=60, b=40))
+        st.plotly_chart(gauge_fig, use_container_width=True)
+
+    with chart_col2:
+        st.caption("Performance Trend")
+        trend_df = emp_df[['Date', 'Employee Performance (%)']].dropna()
+        if not trend_df.empty and trend_df['Date'].notna().any():
+            trend_fig = px.line(
+                trend_df.sort_values('Date'),
+                x='Date',
+                y='Employee Performance (%)',
+                markers=True
+            )
+            trend_fig.update_layout(
+                xaxis_title="Date",
+                yaxis_title="Performance (%)",
+                yaxis_range=[0, 100]
+            )
+            st.plotly_chart(trend_fig, use_container_width=True)
+        else:
+            st.info("No performance history available for this employee.")
+
+    st.caption("Task Breakdown")
+    breakdown_col1, breakdown_col2 = st.columns(2)
+    with breakdown_col1:
+        if 'Task Status' in emp_df.columns:
+            status_counts = emp_df['Task Status'].value_counts()
+            if not status_counts.empty:
+                status_fig = px.pie(
+                    values=status_counts.values,
+                    names=status_counts.index,
+                    color_discrete_sequence=px.colors.sequential.RdBu
+                )
+                st.plotly_chart(status_fig, use_container_width=True)
+            else:
+                st.info("No task status data available for this employee.")
+        else:
+            st.info("Task status column not available.")
+    with breakdown_col2:
+        if 'Task Priority' in emp_df.columns:
+            priority_counts = emp_df['Task Priority'].value_counts()
+            if not priority_counts.empty:
+                priority_fig = px.bar(
+                    x=priority_counts.index,
+                    y=priority_counts.values,
+                    text=priority_counts.values,
+                    color=priority_counts.index,
+                    color_discrete_sequence=px.colors.sequential.PuBu
+                )
+                priority_fig.update_layout(showlegend=False, xaxis_title="Priority", yaxis_title="Tasks")
+                priority_fig.update_traces(textposition='outside')
+                st.plotly_chart(priority_fig, use_container_width=True)
+            else:
+                st.info("No task priority data available for this employee.")
+        else:
+            st.info("Task priority column not available.")
+
+    st.subheader("📋 Recent Tasks")
+    display_columns = [col for col in DATA_COLUMNS if col in emp_df.columns]
+    if display_columns:
+        display_df = emp_df.sort_values('Date', ascending=False)[display_columns]
+        st.dataframe(display_df, use_container_width=True, height=320)
+    else:
+        st.info("No detailed task records to display.")
+
 def show_data_table(df):
     """Display data table"""
     st.subheader("📋 Recent Submissions")
@@ -1363,6 +1494,11 @@ def main():
 
         # Show charts
         show_charts(filtered_df)
+
+        st.markdown("---")
+
+        # Show employee specific dashboard
+        show_employee_dashboard(filtered_df if filtered_df is not None and not filtered_df.empty else df)
 
         st.markdown("---")
 
