@@ -326,7 +326,7 @@ def update_dashboard_sheets(excel_path: str, full_df: pd.DataFrame) -> None:
         'Completed Tasks',
         'Pending Tasks',
         'Completion Rate (%)',
-        'Avg Performance (%)',
+        'Employee Performance (%)',
         'Last Update',
         'Individual Dashboard'
     ]
@@ -417,7 +417,7 @@ def update_dashboard_sheets(excel_path: str, full_df: pd.DataFrame) -> None:
             'Total Tasks',
             'Completed Tasks',
             'Completion Rate (%)',
-            'Avg Performance (%)',
+            'Employee Performance (%)',
             'Last Update',
             'Dashboard Link'
         ]
