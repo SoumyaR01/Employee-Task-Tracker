@@ -201,6 +201,7 @@ DATA_COLUMNS = [
     'Task Status',
     'Plan for next day',
     'Comments',
+    'Effort (in hours)',
     'Employee Performance (%)'
 ]
 SUMMARY_SHEET_NAME = '📈 Employee Progress Dashboard'
@@ -234,16 +235,18 @@ def build_employee_sheet_name(base_name: str, used_names: set[str]) -> str:
     return candidate
 
 
-def ensure_performance_column(df: pd.DataFrame) -> pd.DataFrame:
-    """Guarantee the performance column exists and is numeric."""
+def ensure_numeric_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """Guarantee the performance and effort columns exist and are numeric."""
     df = df.copy()
-    if 'Employee Performance (%)' not in df.columns:
-        df['Employee Performance (%)'] = 0.0
-    df['Employee Performance (%)'] = (
-        pd.to_numeric(df['Employee Performance (%)'], errors='coerce')
-        .fillna(0.0)
-        .astype(float)
-    )
+    numeric_cols = ['Employee Performance (%)', 'Effort (in hours)']
+    for col in numeric_cols:
+        if col not in df.columns:
+            df[col] = 0.0
+        df[col] = (
+            pd.to_numeric(df[col], errors='coerce')
+            .fillna(0.0)
+            .astype(float)
+        )
     return df
 
 
@@ -258,7 +261,7 @@ def update_dashboard_sheets(excel_path: str, full_df: pd.DataFrame) -> None:
         return
 
     try:
-        full_df = ensure_performance_column(full_df)
+        full_df = ensure_numeric_columns(full_df)
         if 'Date' in full_df.columns:
             full_df['Date'] = pd.to_datetime(full_df['Date'], errors='coerce')
     except Exception as parse_error:
@@ -489,7 +492,7 @@ def read_excel_data(excel_path=None):
             return pd.DataFrame()
         
         # Ensure 'Employee Performance (%)' column exists
-        return ensure_performance_column(df)
+        return ensure_numeric_columns(df)
     
     except Exception as error:
         st.error(f"Error reading Excel file: {error}")
@@ -567,7 +570,7 @@ def append_to_excel(data_list, excel_path=None):
             # Ensure all columns are in the right order
             if not existing_df.empty:
                 combined_df = combined_df[columns]
-            combined_df = ensure_performance_column(combined_df)
+            combined_df = ensure_numeric_columns(combined_df)
             
             # Write to Excel
             try:
@@ -846,7 +849,7 @@ def show_employee_dashboard(df):
         st.info("No employee data available for detailed view.")
         return
 
-    df = ensure_performance_column(df)
+    df = ensure_numeric_columns(df)
     df = df.copy()
     if 'Date' in df.columns:
         df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
@@ -1316,6 +1319,14 @@ def show_submit_report():
                     help="Select current task status",
                     key=f"status_{i}"
                 )
+                effort = st.number_input(
+                    "Effort (in hours)*",
+                    min_value=0.0,
+                    value=1.0,  # Default to 1 hour
+                    step=0.5,
+                    help="Hours spent on this task (must be >0)",
+                    key=f"effort_{i}"
+                )
                 comments = st.text_area(
                     "Comments",
                     placeholder="Any additional comments or notes...",
@@ -1359,16 +1370,17 @@ def show_submit_report():
             invalid_tasks = []
             
             for i in range(st.session_state.num_tasks):
-                # Get values from session_state (widgets with keys store values there)
+                # Get values from session_state (widgets with keys store values there with keys)
                 project_name = st.session_state.get(f"project_{i}", "")
                 task_title = st.session_state.get(f"title_{i}", "")
                 task_assigned_by = st.session_state.get(f"assigned_{i}", "")
                 task_priority = st.session_state.get(f"priority_{i}", "")
                 task_status = st.session_state.get(f"status_{i}", "")
+                effort = st.session_state.get(f"effort_{i}", 0.0)
                 comments = st.session_state.get(f"comments_{i}", "")
                 
                 # Validate task
-                if not all([project_name, task_title, task_assigned_by, task_priority, task_status]):
+                if not all([project_name, task_title, task_assigned_by, task_priority, task_status]) or effort <= 0:
                     invalid_tasks.append(i + 1)
                 else:
                     task_data_list.append({
@@ -1383,9 +1395,21 @@ def show_submit_report():
                         'Task Status': task_status,
                         'Plan for next day': plan_for_next_day,
                         'Comments': comments if comments else '',
-                        'Employee Performance (%)': 100.0 if task_status == 'Completed' else 0.0
+                        'Effort (in hours)': effort,
+                        # 'Employee Performance (%)' calculated below
                     })
             
+            # Calculate overall performance for the day based on completed efforts only
+            if task_data_list:
+                effective_effort = sum(
+                    row['Effort (in hours)'] for row in task_data_list 
+                    if row['Task Status'] == 'Completed'
+                )
+                total_expected = 8.0  # Standard workday hours
+                performance = min((effective_effort / total_expected) * 100, 100.0)
+                for row in task_data_list:
+                    row['Employee Performance (%)'] = round(performance, 2)
+
             if invalid_tasks:
                 st.error(f"❌ Please fill in all required fields for task(s): {', '.join(map(str, invalid_tasks))}")
             elif not task_data_list:
@@ -1402,7 +1426,7 @@ def show_submit_report():
                     st.session_state.num_tasks = 1
                     # Clear form values by clearing session state keys
                     for i in range(10):  # Clear up to 10 task slots
-                        for key_suffix in ['project', 'title', 'assigned', 'priority', 'status', 'comments']:
+                        for key_suffix in ['project', 'title', 'assigned', 'priority', 'status', 'comments', 'effort']:
                             key = f"{key_suffix}_{i}"
                             if key in st.session_state:
                                 del st.session_state[key]
