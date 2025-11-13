@@ -1320,6 +1320,28 @@ def main():
         # Load data
         with st.spinner("Loading data..."):
             df = read_excel_data(excel_path)
+            if df is not None and not df.empty:
+                try:
+                    workbook = load_workbook(excel_path)
+                    summary_needs_refresh = SUMMARY_SHEET_NAME not in workbook.sheetnames
+
+                    if not summary_needs_refresh:
+                        ws_summary = workbook[SUMMARY_SHEET_NAME]
+                        summary_headers = [
+                            cell.value for cell in next(ws_summary.iter_rows(min_row=1, max_row=1))
+                            if cell.value
+                        ]
+                        if "Employee Performance (%)" not in summary_headers:
+                            summary_needs_refresh = True
+                    if summary_needs_refresh:
+                        update_dashboard_sheets(excel_path, df)
+                except Exception as dashboard_error:
+                    logging.warning(f"Dashboard sheet auto-refresh failed: {dashboard_error}")
+                finally:
+                    try:
+                        workbook.close()
+                    except Exception:
+                        pass
 
         if df is None:
             st.error("Failed to load data. Check the Excel file path in Settings.")
