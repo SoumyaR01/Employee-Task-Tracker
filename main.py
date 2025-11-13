@@ -468,3 +468,25 @@ def get_missing_reporters(df, today):
     missing = [emp for emp in all_employees if emp not in submitted_employees]
 
     return missing
+
+
+# Streamlit entry point wrapper - redirects to app.py
+# Note: Best practice is to set main file to app.py in Streamlit Community Cloud settings
+# This wrapper allows main.py to work as an entry point by importing and running app.py
+
+# Import and run the Streamlit app from app.py when this file is executed
+try:
+    from app import main as app_main
+    # Execute the app - Streamlit will run this when main.py is the entry point
+    app_main()
+except ImportError as e:
+    # Show error in Streamlit if available
+    try:
+        import streamlit as st
+        st.error(f"❌ Error importing app.py: {e}")
+        st.info("💡 Please ensure app.py exists in the same directory as main.py")
+        st.info("💡 Alternatively, change the main file to app.py in Streamlit Community Cloud settings")
+    except ImportError:
+        # Streamlit not available, just print error (for local testing)
+        print(f"Error importing app.py: {e}")
+        print("Please ensure app.py exists in the same directory as main.py")
