@@ -250,6 +250,45 @@ def ensure_numeric_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+# ==================== PERFORMANCE CALCULATION ====================
+def calculate_performance(tasks_list):
+    """
+    Calculate employee performance using formula:
+    Average % = (Sum of Task Priority / Total Effort in Hours) * 100
+    
+    Priority weights: Low=1, Medium=2, High=3, Critical=4
+    """
+    if not tasks_list:
+        return 0.0
+    
+    priority_weights = {
+        'Low': 1,
+        'Medium': 2,
+        'High': 3,
+        'Critical': 4
+    }
+    
+    total_priority_weight = 0
+    total_effort = 0
+    
+    for task in tasks_list:
+        priority = task.get('Task Priority', 'Low')
+        try:
+            effort = float(task.get('Effort (in hours)', 0))
+        except Exception:
+            effort = 0.0
+        
+        weight = priority_weights.get(priority, 1)
+        total_priority_weight += weight
+        total_effort += effort
+    
+    if total_effort == 0:
+        return 0.0
+    
+    performance = (total_priority_weight / total_effort) * 100
+    return min(round(performance, 2), 100.0)  # Cap at 100%
+
+
 def update_dashboard_sheets(excel_path: str, full_df: pd.DataFrame) -> None:
     """Regenerate the summary and individual employee dashboard sheets."""
     if full_df is None or full_df.empty:
@@ -1399,16 +1438,11 @@ def show_submit_report():
                         # 'Employee Performance (%)' calculated below
                     })
             
-            # Calculate overall performance for the day based on completed efforts only
+            # Calculate overall performance for the day using the new priority/effort formula
             if task_data_list:
-                effective_effort = sum(
-                    row['Effort (in hours)'] for row in task_data_list 
-                    if row['Task Status'] == 'Completed'
-                )
-                total_expected = 8.0  # Standard workday hours
-                performance = min((effective_effort / total_expected) * 100, 100.0)
+                performance = calculate_performance(task_data_list)
                 for row in task_data_list:
-                    row['Employee Performance (%)'] = round(performance, 2)
+                    row['Employee Performance (%)'] = performance
 
             if invalid_tasks:
                 st.error(f"❌ Please fill in all required fields for task(s): {', '.join(map(str, invalid_tasks))}")
