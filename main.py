@@ -11,6 +11,7 @@ import logging
 import base64
 import re
 from openpyxl import load_workbook
+
 st.set_page_config(
     page_title="Employee Progress Tracker",
     page_icon="📊",
@@ -18,175 +19,8 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Helper function to convert image to base64
-def get_base64_image(image_path):
-    """Convert image to base64 for CSS background"""
-    try:
-        with open(image_path, "rb") as img_file:
-            return base64.b64encode(img_file.read()).decode()
-    except:
-        return None
+# ==================== CONSTANTS ====================
 
-# Custom CSS (dark/black background)
-st.markdown("""
-<style>
-    /* Background styling */
-    .stApp {
-        background: #000000; /* black */
-        background-attachment: fixed;
-        color: #e6eef2; /* light default text color for readability */
-    }
-
-    /* Subtle pattern overlay (very light) */
-    .stApp::before {
-        content: "";
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        pointer-events: none;
-        z-index: 0;
-    }
-
-    /* Main content area */
-    .main > div {
-        padding: 1rem;
-        position: relative;
-        z-index: 1;
-    }
-
-    /* Block container styling (dark) */
-    .block-container {
-        padding: 2rem 1rem;
-        background: rgba(10, 10, 10, 0.75);
-        border-radius: 15px;
-        backdrop-filter: blur(6px);
-        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.6);
-        color: #e6eef2; /* ensure text inside blocks is light */
-    }
-
-    /* Metric cards */
-    .metric-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 20px;
-        border-radius: 10px;
-        color: white !important;
-        text-align: center;
-        margin: 10px 0;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-        transition: transform 0.25s ease;
-    }
-
-    .metric-card:hover {
-        transform: translateY(-4px);
-    }
-
-    .metric-value {
-        font-size: 2.5rem;
-        font-weight: bold;
-    }
-
-    .metric-label {
-        font-size: 1rem;
-        opacity: 0.95;
-    }
-
-    /* Filter container (dark) */
-    .filter-container {
-        background: linear-gradient(180deg, rgba(20,20,20,0.6) 0%, rgba(30,30,30,0.6) 100%);
-        padding: 20px;
-        border-radius: 10px;
-        margin-bottom: 20px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.6);
-        color: #e6eef2;
-    }
-
-    /* Button styling */
-    .stButton > button {
-        width: 100%;
-        border-radius: 6px;
-        height: 3rem;
-        font-weight: 600;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white !important;
-        border: none;
-        transition: all 0.2s ease;
-    }
-
-    .stButton > button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 18px rgba(102, 126, 234, 0.18);
-    }
-
-    /* Sidebar styling */
-    [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #4c5bd4 0%, #6b4bb8 100%);
-    }
-
-    [data-testid="stSidebar"] * {
-        color: white !important;
-    }
-
-    /* Input fields (dark theme) */
-    .stTextInput > div > div > input,
-    .stTextArea > div > div > textarea,
-    .stSelectbox > div > div > select {
-        border-radius: 8px;
-        border: 1px solid rgba(255,255,255,0.12);
-        transition: border-color 0.3s ease;
-        background: #0f1113;
-        color: #e6eef2;
-    }
-
-    .stTextInput > div > div > input:focus,
-    .stTextArea > div > div > textarea:focus,
-    .stSelectbox > div > div > select:focus {
-        border-color: #667eea;
-        box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.06);
-    }
-
-    /* Logo container styling */
-    .logo-container {
-        background: transparent;
-        padding: 20px;
-        border-radius: 15px;
-        box-shadow: none;
-        margin-bottom: 20px;
-        text-align: center;
-    }
-
-    /* Constrain logo image size so it doesn't take the entire viewport */
-    .logo-container img {
-        max-width: 480px;
-        width: 100%;
-        height: auto;
-        display: inline-block;
-    }
-
-    /* Expander styling */
-    .streamlit-expanderHeader {
-        background: linear-gradient(135deg, #1e293b 0%, #111827 100%);
-        border-radius: 8px;
-        font-weight: 600;
-        color: #e6eef2 !important;
-    }
-
-    @media (max-width: 768px) {
-        .main > div {
-            padding: 0.5rem;
-        }
-        .metric-value {
-            font-size: 1.8rem;
-        }
-        .block-container {
-            padding: 1rem 0.5rem;
-        }
-    }
-</style>
-""", unsafe_allow_html=True)
-
-# Constants
 EXCEL_FILE_PATH = r'D:\Employee Track Report\task_tracker.xlsx'
 CONFIG_FILE = 'config.json'
 DATA_COLUMNS = [
@@ -208,6 +42,294 @@ SUMMARY_SHEET_NAME = '📈 Employee Progress Dashboard'
 PERFORMANCE_SHEET_NAME = 'Employee Performance'
 EMPLOYEE_SHEET_SUFFIX = ' Dashboard'
 
+# ==================== PERFORMANCE CALCULATION ====================
+
+def calculate_performance(tasks_list):
+    """
+    Calculate employee performance using formula:
+    Average % = (Sum of Task Priority / Total Effort in Hours) * 100
+    
+    Priority weights: Low=1, Medium=2, High=3, Critical=4
+    """
+    if not tasks_list:
+        return 0.0
+    
+    priority_weights = {
+        'Low': 1,
+        'Medium': 2,
+        'High': 3,
+        'Critical': 4
+    }
+    
+    total_priority_weight = 0
+    total_effort = 0
+    
+    for task in tasks_list:
+        priority = task.get('Task Priority', 'Low')
+        effort = float(task.get('Effort (in hours)', 0))
+        
+        weight = priority_weights.get(priority, 1)
+        total_priority_weight += weight
+        total_effort += effort
+    
+    if total_effort == 0:
+        return 0.0
+    
+    performance = (total_priority_weight / total_effort) * 100
+    return min(round(performance, 2), 100.0)  # Cap at 100%
+
+# ==================== CUSTOM CSS ====================
+
+st.markdown("""
+<style>
+    /* Background styling */
+    .stApp {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background-attachment: fixed;
+        color: #ffffff;
+    }
+
+    /* Overlay pattern */
+    .stApp::before {
+        content: "";
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: 
+            repeating-linear-gradient(
+                45deg,
+                transparent,
+                transparent 10px,
+                rgba(255,255,255,.02) 10px,
+                rgba(255,255,255,.02) 20px
+            );
+        pointer-events: none;
+        z-index: 0;
+    }
+
+    /* Main content area */
+    .main > div {
+        padding: 1.5rem;
+        position: relative;
+        z-index: 1;
+    }
+
+    /* Block container styling */
+    .block-container {
+        padding: 2.5rem 1.5rem;
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 20px;
+        backdrop-filter: blur(10px);
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        color: #2c3e50;
+    }
+
+    /* Metric cards */
+    .metric-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 25px;
+        border-radius: 15px;
+        color: white !important;
+        text-align: center;
+        margin: 10px 0;
+        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+        transition: all 0.3s ease;
+        border: 2px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .metric-card:hover {
+        transform: translateY(-8px) scale(1.02);
+        box-shadow: 0 15px 40px rgba(102, 126, 234, 0.6);
+    }
+
+    .metric-value {
+        font-size: 3rem;
+        font-weight: 800;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        margin: 10px 0;
+    }
+
+    .metric-label {
+        font-size: 1.1rem;
+        opacity: 0.95;
+        font-weight: 500;
+        letter-spacing: 0.5px;
+    }
+
+    /* Filter container */
+    .filter-container {
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        padding: 25px;
+        border-radius: 15px;
+        margin-bottom: 25px;
+        box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        border: 1px solid rgba(102, 126, 234, 0.2);
+    }
+
+    /* Button styling */
+    .stButton > button {
+        width: 100%;
+        border-radius: 10px;
+        height: 3.5rem;
+        font-weight: 700;
+        font-size: 1.05rem;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white !important;
+        border: none;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    .stButton > button:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.6);
+        background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+    }
+
+    /* Sidebar styling */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+        box-shadow: 5px 0 20px rgba(0,0,0,0.2);
+    }
+
+    [data-testid="stSidebar"] * {
+        color: white !important;
+    }
+
+    [data-testid="stSidebar"] .stRadio > label {
+        background: rgba(255, 255, 255, 0.1);
+        padding: 12px;
+        border-radius: 8px;
+        margin: 5px 0;
+        transition: all 0.2s ease;
+    }
+
+    [data-testid="stSidebar"] .stRadio > label:hover {
+        background: rgba(255, 255, 255, 0.2);
+        transform: translateX(5px);
+    }
+
+    /* Input fields */
+    .stTextInput > div > div > input,
+    .stTextArea > div > div > textarea,
+    .stSelectbox > div > div > select,
+    .stNumberInput > div > div > input {
+        border-radius: 10px;
+        border: 2px solid #e0e6ed;
+        transition: all 0.3s ease;
+        background: white;
+        color: #2c3e50;
+        padding: 12px;
+        font-size: 1rem;
+    }
+
+    .stTextInput > div > div > input:focus,
+    .stTextArea > div > div > textarea:focus,
+    .stSelectbox > div > div > select:focus,
+    .stNumberInput > div > div > input:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        outline: none;
+    }
+
+    /* Logo container */
+    .logo-container {
+        background: rgba(255, 255, 255, 0.95);
+        padding: 30px;
+        border-radius: 20px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        margin-bottom: 30px;
+        text-align: center;
+        border: 3px solid rgba(102, 126, 234, 0.3);
+    }
+
+    .logo-container img {
+        max-width: 400px;
+        width: 100%;
+        height: auto;
+        display: inline-block;
+        border-radius: 10px;
+    }
+
+    /* Expander styling */
+    .streamlit-expanderHeader {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 10px;
+        font-weight: 700;
+        color: white !important;
+        padding: 15px;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+    }
+
+    .streamlit-expanderHeader:hover {
+        background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+    }
+
+    /* Headers */
+    h1, h2, h3 {
+        color: #2c3e50;
+        font-weight: 800;
+    }
+
+    /* Dataframe styling */
+    .dataframe {
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+
+    /* Success/Error messages */
+    .stSuccess {
+        background: linear-gradient(135deg, #55efc4 0%, #00b894 100%);
+        border-radius: 10px;
+        padding: 15px;
+        color: white;
+        font-weight: 600;
+    }
+
+    .stError {
+        background: linear-gradient(135deg, #ff7675 0%, #d63031 100%);
+        border-radius: 10px;
+        padding: 15px;
+        color: white;
+        font-weight: 600;
+    }
+
+    .stInfo {
+        background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%);
+        border-radius: 10px;
+        padding: 15px;
+        color: white;
+        font-weight: 600;
+    }
+
+    .stWarning {
+        background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%);
+        border-radius: 10px;
+        padding: 15px;
+        color: #2c3e50;
+        font-weight: 600;
+    }
+
+    @media (max-width: 768px) {
+        .main > div {
+            padding: 0.5rem;
+        }
+        .metric-value {
+            font-size: 2rem;
+        }
+        .block-container {
+            padding: 1.5rem 1rem;
+        }
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# ==================== HELPER FUNCTIONS ====================
 
 def sanitize_sheet_name(name: str) -> str:
     """Return a workbook-safe base sheet name (<=31 chars, invalid chars removed)."""
@@ -215,7 +337,6 @@ def sanitize_sheet_name(name: str) -> str:
     if not safe:
         safe = 'Unnamed'
     return safe[:31]
-
 
 def build_employee_sheet_name(base_name: str, used_names: set[str]) -> str:
     """Construct a unique sheet name for an employee while respecting Excel limits."""
@@ -234,7 +355,6 @@ def build_employee_sheet_name(base_name: str, used_names: set[str]) -> str:
     used_names.add(candidate)
     return candidate
 
-
 def ensure_numeric_columns(df: pd.DataFrame) -> pd.DataFrame:
     """Guarantee the performance and effort columns exist and are numeric."""
     df = df.copy()
@@ -248,7 +368,6 @@ def ensure_numeric_columns(df: pd.DataFrame) -> pd.DataFrame:
             .astype(float)
         )
     return df
-
 
 def update_dashboard_sheets(excel_path: str, full_df: pd.DataFrame) -> None:
     """Regenerate the summary and individual employee dashboard sheets."""
@@ -319,7 +438,7 @@ def update_dashboard_sheets(excel_path: str, full_df: pd.DataFrame) -> None:
             'last_update': last_update
         })
 
-    # Sort by average performance descending, then by completion rate
+    # Sort by average performance descending
     summary_records.sort(key=lambda record: (record['avg_performance'], record['completion_rate']), reverse=True)
 
     ws_summary = book.create_sheet(SUMMARY_SHEET_NAME)
@@ -451,8 +570,6 @@ def update_dashboard_sheets(excel_path: str, full_df: pd.DataFrame) -> None:
     except Exception as save_error:
         logging.error(f"Failed to save workbook with updated dashboard sheets: {save_error}")
 
-# Helper Functions
-
 def load_config():
     """Load configuration from file"""
     if Path(CONFIG_FILE).exists():
@@ -462,7 +579,7 @@ def load_config():
         'excel_file_path': EXCEL_FILE_PATH,
         'logo_path': '/home/pinku/PTF Track/logo/PTF1.png',
         'reminder_time': '18:00',
-        'reminder_days': [0, 1, 2, 3, 4, 5],  # Mon-Sat
+        'reminder_days': [0, 1, 2, 3, 4, 5],
         'admin_email': '',
         'employee_emails': []
     }
@@ -479,19 +596,15 @@ def read_excel_data(excel_path=None):
     
     try:
         if not os.path.exists(excel_path):
-            # Create empty Excel file with headers if it doesn't exist
             df = pd.DataFrame(columns=DATA_COLUMNS)
             df.to_excel(excel_path, index=False, engine='openpyxl')
             return df
         
-        # Read Excel file
         df = pd.read_excel(excel_path, engine='openpyxl')
         
-        # Handle empty file
         if df.empty:
             return pd.DataFrame()
         
-        # Ensure 'Employee Performance (%)' column exists
         return ensure_numeric_columns(df)
     
     except Exception as error:
@@ -499,10 +612,7 @@ def read_excel_data(excel_path=None):
         return None
 
 def append_to_excel(data_list, excel_path=None):
-    """Append data to local Excel file with retry logic for concurrent access
-    Args:
-        data_list: List of dictionaries, each representing a row to append
-    """
+    """Append data to local Excel file with retry logic"""
     if excel_path is None:
         excel_path = EXCEL_FILE_PATH
     
@@ -511,13 +621,9 @@ def append_to_excel(data_list, excel_path=None):
     
     for attempt in range(max_retries):
         try:
-            # Check if file exists and is accessible
             if os.path.exists(excel_path):
-                # Try to check if file is locked by attempting to open it
                 try:
-                    # Try to read the file first to check if it's locked
                     existing_df = pd.read_excel(excel_path, engine='openpyxl')
-                    # Remove any completely empty rows
                     existing_df = existing_df.dropna(how='all')
                 except PermissionError as pe:
                     if attempt < max_retries - 1:
@@ -527,52 +633,37 @@ def append_to_excel(data_list, excel_path=None):
                     else:
                         st.error(f"❌ Permission Error: Excel file is locked or inaccessible.")
                         st.error(f"📁 File path: {excel_path}")
-                        st.error(f"💡 Please ensure:")
-                        st.error(f"   1. The Excel file is not open in Excel or another program")
-                        st.error(f"   2. You have write permissions to the file")
-                        st.error(f"   3. No other process is using the file")
-                        st.error(f"   Error details: {str(pe)}")
+                        st.error(f"💡 Please ensure the Excel file is not open in Excel or another program")
                         return False
                 except Exception as e:
-                    # If file is corrupted or empty, start fresh
                     logging.warning(f"Error reading file, starting fresh: {e}")
                     existing_df = pd.DataFrame()
             else:
                 existing_df = pd.DataFrame()
             
-            # Create new rows DataFrame
             new_rows = pd.DataFrame(data_list)
-            
-            # Define column order
             columns = DATA_COLUMNS
             
-            # Combine with existing data
             if existing_df.empty:
                 for col in columns:
                     if col not in new_rows.columns:
                         new_rows[col] = 0.0 if col == 'Employee Performance (%)' else ''
                 combined_df = new_rows[columns]
             else:
-                # Ensure column order matches
-                # Add missing columns if any
                 for col in columns:
                     if col not in existing_df.columns:
                         existing_df[col] = 0.0 if col == 'Employee Performance (%)' else ''
                     if col not in new_rows.columns:
                         new_rows[col] = 0.0 if col == 'Employee Performance (%)' else ''
                 
-                # Reorder columns
                 existing_df = existing_df[columns]
                 new_rows = new_rows[columns]
-                
                 combined_df = pd.concat([existing_df, new_rows], ignore_index=True)
             
-            # Ensure all columns are in the right order
             if not existing_df.empty:
                 combined_df = combined_df[columns]
             combined_df = ensure_numeric_columns(combined_df)
             
-            # Write to Excel
             try:
                 with pd.ExcelWriter(excel_path, engine='openpyxl', mode='w') as writer:
                     combined_df.to_excel(writer, index=False, sheet_name='Sheet1')
@@ -584,46 +675,22 @@ def append_to_excel(data_list, excel_path=None):
                 else:
                     st.error(f"❌ Permission Error: Cannot write to Excel file.")
                     st.error(f"📁 File path: {excel_path}")
-                    st.error(f"💡 Please ensure:")
-                    st.error(f"   1. The Excel file is not open in Excel or another program")
-                    st.error(f"   2. You have write permissions to the file and directory")
-                    st.error(f"   3. No other process is using the file")
-                    st.error(f"   Error details: {str(pe)}")
-                    return False
-            except Exception as write_error:
-                if attempt < max_retries - 1:
-                    logging.warning(f"Write error on attempt {attempt + 1}, retrying...")
-                    time.sleep(retry_delay * (attempt + 1))
-                    continue
-                else:
-                    st.error(f"❌ Error writing to Excel file: {str(write_error)}")
-                    st.error(f"📁 File path: {excel_path}")
-                    st.error(f"💡 Error type: {type(write_error).__name__}")
                     return False
 
-            # Update dashboard sheets after successful main sheet write
             try:
                 update_dashboard_sheets(excel_path, combined_df)
             except Exception as dash_error:
                 logging.error(f"Failed to update dashboard sheets: {dash_error}")
-                # Continue without failing the main append
             
             return True
         
         except PermissionError as pe:
-            # File might be locked by another process
             if attempt < max_retries - 1:
                 logging.warning(f"Permission error on attempt {attempt + 1}, retrying...")
                 time.sleep(retry_delay * (attempt + 1))
                 continue
             else:
                 st.error(f"❌ Permission Error: Excel file is locked or inaccessible.")
-                st.error(f"📁 File path: {excel_path}")
-                st.error(f"💡 Please ensure:")
-                st.error(f"   1. The Excel file is not open in Excel or another program")
-                st.error(f"   2. You have write permissions to the file")
-                st.error(f"   3. No other process is using the file")
-                st.error(f"   Error details: {str(pe)}")
                 return False
         
         except Exception as error:
@@ -632,11 +699,7 @@ def append_to_excel(data_list, excel_path=None):
                 time.sleep(retry_delay * (attempt + 1))
                 continue
             else:
-                st.error(f"❌ Error appending to Excel file")
-                st.error(f"📁 File path: {excel_path}")
-                st.error(f"🔍 Error type: {type(error).__name__}")
-                st.error(f"📝 Error message: {str(error)}")
-                st.error(f"💡 Please check the file path and permissions.")
+                st.error(f"❌ Error appending to Excel file: {str(error)}")
                 return False
     
     return False
@@ -648,9 +711,7 @@ def get_missing_reporters(df, today):
 
     today_str = today.strftime('%Y-%m-%d')
 
-    # Filter today's submissions (create a copy to avoid modifying original)
     if 'Date' in df.columns:
-        # Convert Date column to string for comparison
         df_copy = df.copy()
         df_copy['Date'] = pd.to_datetime(df_copy['Date']).dt.strftime('%Y-%m-%d')
         today_submissions = df_copy[df_copy['Date'] == today_str]
@@ -658,16 +719,13 @@ def get_missing_reporters(df, today):
     else:
         submitted_employees = []
 
-    # Get all employees from config
     config = load_config()
     all_employees = config.get('employee_emails', [])
-
-    # Find missing reporters
     missing = [emp for emp in all_employees if emp not in submitted_employees]
 
     return missing
 
-#Dashboard Functions
+# ==================== DASHBOARD FUNCTIONS ====================
 
 def show_metrics(df):
     """Display key metrics"""
@@ -758,7 +816,6 @@ def show_filters(df):
             priorities = ['All']
         selected_priority = st.selectbox("Priority", priorities)
 
-    # Date range
     col5, col6 = st.columns(2)
     with col5:
         start_date = st.date_input("Start Date", (datetime.now() - timedelta(days=7)).date())
@@ -767,7 +824,6 @@ def show_filters(df):
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Apply filters
     filtered_df = df.copy()
 
     if 'Date' in filtered_df.columns:
@@ -806,8 +862,10 @@ def show_charts(df):
             fig = px.pie(
                 values=status_counts.values,
                 names=status_counts.index,
-                color_discrete_sequence=px.colors.qualitative.Set3
+                color_discrete_sequence=px.colors.qualitative.Set3,
+                hole=0.4
             )
+            fig.update_traces(textposition='inside', textinfo='percent+label')
             st.plotly_chart(fig, use_container_width=True)
 
     with col2:
@@ -823,12 +881,13 @@ def show_charts(df):
                     'Medium': '#FFD700',
                     'High': '#FFA500',
                     'Critical': '#FF6347'
-                }
+                },
+                text=priority_counts.values
             )
+            fig.update_traces(textposition='outside')
             fig.update_layout(showlegend=False, xaxis_title="Priority", yaxis_title="Count")
             st.plotly_chart(fig, use_container_width=True)
 
-    # Weekly trend
     st.subheader("📊 Weekly Submission Trend")
     if 'Date' in df.columns:
         df['Date'] = pd.to_datetime(df['Date'])
@@ -839,12 +898,12 @@ def show_charts(df):
             y='count',
             markers=True
         )
+        fig.update_traces(line_color='#667eea', line_width=3, marker=dict(size=8))
         fig.update_layout(xaxis_title="Date", yaxis_title="Submissions")
         st.plotly_chart(fig, use_container_width=True)
 
-
 def show_employee_dashboard(df):
-    """Interactive dashboard for selected employee using performance metrics."""
+    """Interactive dashboard for selected employee"""
     if df is None or df.empty or 'Name' not in df.columns:
         st.info("No employee data available for detailed view.")
         return
@@ -904,7 +963,12 @@ def show_employee_dashboard(df):
                         {'range': [0, 50], 'color': "#ff7675"},
                         {'range': [50, 80], 'color': "#ffeaa7"},
                         {'range': [80, 100], 'color': "#55efc4"},
-                    ]
+                    ],
+                    'threshold': {
+                        'line': {'color': "red", 'width': 4},
+                        'thickness': 0.75,
+                        'value': 90
+                    }
                 }
             )
         )
@@ -921,6 +985,7 @@ def show_employee_dashboard(df):
                 y='Employee Performance (%)',
                 markers=True
             )
+            trend_fig.update_traces(line_color='#667eea', line_width=3, marker=dict(size=8))
             trend_fig.update_layout(
                 xaxis_title="Date",
                 yaxis_title="Performance (%)",
@@ -939,8 +1004,10 @@ def show_employee_dashboard(df):
                 status_fig = px.pie(
                     values=status_counts.values,
                     names=status_counts.index,
-                    color_discrete_sequence=px.colors.sequential.RdBu
+                    color_discrete_sequence=px.colors.sequential.RdBu,
+                    hole=0.4
                 )
+                status_fig.update_traces(textposition='inside', textinfo='percent+label')
                 st.plotly_chart(status_fig, use_container_width=True)
             else:
                 st.info("No task status data available for this employee.")
@@ -981,14 +1048,12 @@ def show_data_table(df):
         st.info("No submissions found")
         return
 
-    # Display options
     col1, col2 = st.columns([3, 1])
     with col1:
         search = st.text_input("🔎 Search", placeholder="Search in any column...")
     with col2:
         rows_to_show = st.number_input("Rows", min_value=10, max_value=1000, value=50, step=10)
 
-    # Apply search
     display_df = df.copy()
     if search:
         mask = display_df.astype(str).apply(
@@ -996,14 +1061,12 @@ def show_data_table(df):
         ).any(axis=1)
         display_df = display_df[mask]
 
-    # Show data
     st.dataframe(
         display_df.head(rows_to_show),
         use_container_width=True,
         height=400
     )
 
-    # Download button
     if not display_df.empty:
         csv = display_df.to_csv(index=False)
         st.download_button(
@@ -1013,7 +1076,7 @@ def show_data_table(df):
             mime="text/csv"
         )
 
-#Settings Page
+# ==================== SETTINGS PAGE ====================
 
 def show_settings():
     """Display settings page"""
@@ -1064,17 +1127,9 @@ def show_settings():
             height=150
         )
 
-        st.caption("If you enabled Telegram reminders, add chat IDs in the same order as emails.")
-        employee_telegram_chat_ids = st.text_area(
-            "Employee Telegram Chat IDs (one per line, aligned with emails)",
-            value='\n'.join([str(x) for x in config.get('employee_telegram_chat_ids', [])]),
-            height=150
-        )
-
         submitted = st.form_submit_button("💾 Save Settings")
 
         if submitted:
-            # Update config
             config['excel_file_path'] = excel_file_path
             config['reminder_time'] = reminder_time.strftime('%H:%M')
             config['reminder_days'] = reminder_days
@@ -1084,25 +1139,12 @@ def show_settings():
                 for email in employee_emails.split('\n')
                 if email.strip()
             ]
-            # Parse Telegram chat IDs line by line, keep as int if numeric, else string
-            parsed_chat_ids = []
-            for line in employee_telegram_chat_ids.split('\n'):
-                raw = line.strip()
-                if not raw:
-                    continue
-                # Try int conversion (supports negative IDs)
-                try:
-                    parsed_chat_ids.append(int(raw))
-                except ValueError:
-                    parsed_chat_ids.append(raw)
-            config['employee_telegram_chat_ids'] = parsed_chat_ids
 
             save_config(config)
             st.success("✅ Settings saved successfully!")
             time.sleep(1)
             st.rerun()
 
-    # Connection test
     st.markdown("---")
     st.subheader("🔌 Test Connection & Diagnostics")
 
@@ -1110,12 +1152,10 @@ def show_settings():
         excel_path = config.get('excel_file_path', EXCEL_FILE_PATH)
         
         with st.spinner("Running diagnostics..."):
-            # Check 1: File exists
             st.write("**1. Checking if file exists...**")
             if os.path.exists(excel_path):
                 st.success(f"✅ File exists at: `{excel_path}`")
                 
-                # Check 2: File permissions
                 st.write("**2. Checking file permissions...**")
                 if os.access(excel_path, os.R_OK):
                     st.success("✅ File is readable")
@@ -1127,7 +1167,6 @@ def show_settings():
                 else:
                     st.error("❌ File is NOT writable. Check permissions.")
                 
-                # Check 3: Try to read the file
                 st.write("**3. Testing file read access...**")
                 try:
                     df = read_excel_data(excel_path)
@@ -1147,24 +1186,18 @@ def show_settings():
                     st.error(f"❌ **Error reading file**: {type(e).__name__}")
                     st.error(f"   Error: {str(e)}")
                 
-                # Check 4: Try to write to the file (test write)
                 st.write("**4. Testing file write access...**")
                 try:
-                    # Save original data first
                     original_df = df.copy() if df is not None and not df.empty else None
                     
-                    # Try to open the file in write mode to check if it's locked
-                    # We'll write the original data back, so this is safe
                     if original_df is not None:
                         with pd.ExcelWriter(excel_path, engine='openpyxl', mode='w') as writer:
                             original_df.to_excel(writer, index=False, sheet_name='Sheet1')
                         st.success("✅ File write test successful! (Original data preserved)")
                     else:
-                        # If file is empty, create a test write
                         test_data = pd.DataFrame([{'Test': 'test'}])
                         with pd.ExcelWriter(excel_path, engine='openpyxl', mode='w') as writer:
                             test_data.to_excel(writer, index=False, sheet_name='Sheet1')
-                        # Remove test data
                         empty_df = pd.DataFrame()
                         with pd.ExcelWriter(excel_path, engine='openpyxl', mode='w') as writer:
                             empty_df.to_excel(writer, index=False, sheet_name='Sheet1')
@@ -1175,8 +1208,6 @@ def show_settings():
                     st.warning("💡 **Most Common Causes:**")
                     st.warning("   1. Excel file is open in Microsoft Excel")
                     st.warning("   2. Excel file is open in another program")
-                    st.warning("   3. Another process is using the file")
-                    st.warning("   4. Insufficient file permissions")
                 except Exception as e:
                     st.error(f"❌ **Error writing to file**: {type(e).__name__}")
                     st.error(f"   Error: {str(e)}")
@@ -1185,26 +1216,14 @@ def show_settings():
                 st.error(f"❌ File does NOT exist at: `{excel_path}`")
                 st.info("💡 The file will be created automatically when you submit your first report.")
 
-#  Submit Report Page
+# ==================== SUBMIT REPORT PAGE ====================
 
 def show_submit_report():
-    """Display form for submitting work progress reports with multiple tasks"""
+    """Display form for submitting work progress reports"""
     config = load_config()
     
-    # Logo Section - Centered at top
-    # Try multiple path approaches for compatibility
-    # logo_found = False
-    # possible_paths = [
-    #     "logo/PTF1.png",  # Simple relative path (usually works on Streamlit Cloud)
-    #     Path("logo/PTF1.png"),  # Path object version
-    #     Path(__file__).parent / "logo" / "PTF1.png",  # Relative to script
-    # ]
-
-    # --- Logo Section (Fixed for Streamlit Cloud) ---
-    # Use a single HTML block to ensure the image is centered and constrained
     logo_url = "https://raw.githubusercontent.com/SoumyaR01/Employee-Task-Tracker/main/logo/ptf.png"
 
-    # Render using an HTML <img> so CSS sizing/centering is reliable inside Streamlit's layout
     try:
         st.markdown(
             f'<div class="logo-container" style="text-align:center;">'
@@ -1214,7 +1233,6 @@ def show_submit_report():
             unsafe_allow_html=True,
         )
     except Exception:
-        # Fallback placeholder if remote image cannot be loaded
         st.markdown(
             """
         <div class="logo-container" style="text-align: center;">
@@ -1228,15 +1246,13 @@ def show_submit_report():
             unsafe_allow_html=True,
         )
     
-    # Title Section - Centered below logo
-    st.markdown("<h1 style='text-align: center; margin-top: 10px; color: #2c3e50;'>PTF Daily Work Progress Report</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; color: #7f8c8d; font-size: 1.1rem;'>Submit all your tasks for today in one report</p>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; margin-top: 10px;'>PTF Daily Work Progress Report</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; font-size: 1.1rem;'>Submit all your tasks for today in one report</p>", unsafe_allow_html=True)
     
     st.markdown("---")
 
     excel_path = config.get('excel_file_path', EXCEL_FILE_PATH)
 
-    # Initialize session state for task count if not exists
     if 'num_tasks' not in st.session_state:
         st.session_state.num_tasks = 1
     
@@ -1268,7 +1284,6 @@ def show_submit_report():
     st.subheader("📋 Today's Tasks")
     st.info("💡 Add all the tasks you worked on today. You can add multiple tasks before submitting.")
     
-    # Handle add/remove task buttons
     col_add_remove = st.columns([1, 1, 4])
     with col_add_remove[0]:
         if st.button("➕ Add Task", use_container_width=True):
@@ -1281,7 +1296,6 @@ def show_submit_report():
     
     st.caption(f"📋 You have {st.session_state.num_tasks} task(s) in this report")
     
-    # Display task inputs
     for i in range(st.session_state.num_tasks):
         with st.expander(f"Task {i+1}", expanded=(i == 0)):
             col3, col4 = st.columns(2)
@@ -1322,7 +1336,7 @@ def show_submit_report():
                 effort = st.number_input(
                     "Effort (in hours)*",
                     min_value=0.0,
-                    value=1.0,  # Default to 1 hour
+                    value=1.0,
                     step=0.5,
                     help="Hours spent on this task (must be >0)",
                     key=f"effort_{i}"
@@ -1348,7 +1362,6 @@ def show_submit_report():
     submitted = st.button("✅ Submit Daily Report", use_container_width=True)
     
     if submitted:
-        # Validate employee information
         employee_fields = {
             "Date": date,
             "Work Mode": work_mode,
@@ -1365,12 +1378,10 @@ def show_submit_report():
         elif not plan_for_next_day:
             st.error("❌ Please fill in your plan for next day.")
         else:
-            # Collect all task data from session_state (widget values are stored there with keys)
             task_data_list = []
             invalid_tasks = []
             
             for i in range(st.session_state.num_tasks):
-                # Get values from session_state (widgets with keys store values there with keys)
                 project_name = st.session_state.get(f"project_{i}", "")
                 task_title = st.session_state.get(f"title_{i}", "")
                 task_assigned_by = st.session_state.get(f"assigned_{i}", "")
@@ -1379,7 +1390,6 @@ def show_submit_report():
                 effort = st.session_state.get(f"effort_{i}", 0.0)
                 comments = st.session_state.get(f"comments_{i}", "")
                 
-                # Validate task
                 if not all([project_name, task_title, task_assigned_by, task_priority, task_status]) or effort <= 0:
                     invalid_tasks.append(i + 1)
                 else:
@@ -1396,36 +1406,27 @@ def show_submit_report():
                         'Plan for next day': plan_for_next_day,
                         'Comments': comments if comments else '',
                         'Effort (in hours)': effort,
-                        # 'Employee Performance (%)' calculated below
                     })
             
-            # Calculate overall performance for the day based on completed efforts only
+            # Calculate performance using the new formula
             if task_data_list:
-                effective_effort = sum(
-                    row['Effort (in hours)'] for row in task_data_list 
-                    if row['Task Status'] == 'Completed'
-                )
-                total_expected = 8.0  # Standard workday hours
-                performance = min((effective_effort / total_expected) * 100, 100.0)
+                performance = calculate_performance(task_data_list)
                 for row in task_data_list:
-                    row['Employee Performance (%)'] = round(performance, 2)
+                    row['Employee Performance (%)'] = performance
 
             if invalid_tasks:
                 st.error(f"❌ Please fill in all required fields for task(s): {', '.join(map(str, invalid_tasks))}")
             elif not task_data_list:
                 st.error("❌ No valid tasks to submit. Please add at least one complete task.")
             else:
-                # Append all tasks to Excel file
                 with st.spinner(f"Saving your daily report with {len(task_data_list)} task(s)..."):
                     success = append_to_excel(task_data_list, excel_path)
                 
                 if success:
                     st.success(f"✅ Your daily work progress report has been submitted successfully! ({len(task_data_list)} task(s) recorded)")
                     st.balloons()
-                    # Reset task count for next submission
                     st.session_state.num_tasks = 1
-                    # Clear form values by clearing session state keys
-                    for i in range(10):  # Clear up to 10 task slots
+                    for i in range(10):
                         for key_suffix in ['project', 'title', 'assigned', 'priority', 'status', 'comments', 'effort']:
                             key = f"{key_suffix}_{i}"
                             if key in st.session_state:
@@ -1435,12 +1436,11 @@ def show_submit_report():
                 else:
                     st.error("❌ Failed to save report. Please try again or contact administrator.")
 
-# Main App
+# ==================== MAIN APP ====================
 
 def main():
     """Main application"""
 
-    # Sidebar navigation
     with st.sidebar:
         st.title("📊 Progress Tracker")
         st.markdown("---")
@@ -1460,10 +1460,8 @@ def main():
         st.markdown("---")
         st.caption(f"Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
-    # Load configuration
     config = load_config()
 
-    # Main content
     if page == "📝 Submit Report":
         show_submit_report()
     
@@ -1472,7 +1470,6 @@ def main():
 
         excel_path = config.get('excel_file_path', EXCEL_FILE_PATH)
 
-        # Load data
         with st.spinner("Loading data..."):
             df = read_excel_data(excel_path)
             if df is not None and not df.empty:
@@ -1506,27 +1503,18 @@ def main():
             st.info("📋 No data available yet. Start submitting reports to see data here.")
             return
 
-        # Show metrics
         show_metrics(df)
-
         st.markdown("---")
 
-        # Show filters
         filtered_df = show_filters(df)
-
         st.markdown("---")
 
-        # Show charts
         show_charts(filtered_df)
-
         st.markdown("---")
 
-        # Show employee specific dashboard
         show_employee_dashboard(filtered_df if filtered_df is not None and not filtered_df.empty else df)
-
         st.markdown("---")
 
-        # Show data table
         show_data_table(filtered_df)
 
     elif page == "⚙️ Settings":
@@ -1547,9 +1535,6 @@ To enable automated reminders:
 """)
 
         excel_path = config.get('excel_file_path', EXCEL_FILE_PATH)
-
-        # Manual reminder test
-        st.subheader("🧪 Test Reminder")
 
         if st.button("Check Missing Reports Today"):
             with st.spinner("Checking..."):
