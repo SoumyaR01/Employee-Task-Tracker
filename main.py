@@ -1008,7 +1008,18 @@ def show_employee_dashboard(df):
     display_columns = [col for col in DATA_COLUMNS if col in emp_df.columns]
     if display_columns:
         display_df = emp_df.sort_values('Date', ascending=False)[display_columns]
-        st.dataframe(display_df, use_container_width=True, height=320)
+        
+        # NEW: Helper function to highlight non-empty Support Request cells
+        def highlight_support(val):
+            if pd.isna(val) or str(val).strip() == "":
+                return ""
+            return "background-color: #ffebee"  # Light red for flagged support requests
+        
+        # NEW: Apply styling to the Support Request column only
+        styled_df = display_df.style.map(highlight_support, subset=['Support Request'])
+        
+        # UPDATED: Use the styled dataframe
+        st.dataframe(styled_df, use_container_width=True, height=320)
     else:
         st.info("No detailed task records to display.")
 
@@ -1035,9 +1046,18 @@ def show_data_table(df):
         ).any(axis=1)
         display_df = display_df[mask]
 
-    # Show data
+    # NEW: Helper function to highlight non-empty Support Request cells
+    def highlight_support(val):
+        if pd.isna(val) or str(val).strip() == "":
+            return ""
+        return "background-color: #ffebee"  # Light red for flagged support requests
+
+    # NEW: Apply styling to the Support Request column only
+    styled_df = display_df.style.map(highlight_support, subset=['Support Request'])
+
+    # UPDATED: Use the styled dataframe
     st.dataframe(
-        display_df.head(rows_to_show),
+        styled_df,
         use_container_width=True,
         height=400
     )
