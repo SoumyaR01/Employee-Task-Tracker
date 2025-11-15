@@ -1048,9 +1048,9 @@ def show_data_table(df):
 
     # NEW: Helper function to highlight non-empty Support Request cells
     def highlight_support(val):
-        if pd.isna(val) or str(val).strip() == "":
-            return ""
-        return "background-color: #ffebee"  # Light red for flagged support requests
+    if pd.isna(val) or str(val).strip() == "":
+        return ""
+    return "background-color: #ffcccb; color: #000000; font-weight: bold; border-left: 3px solid #ff4444"
 
     # NEW: Apply styling to the Support Request column only
     styled_df = display_df.style.map(highlight_support, subset=['Support Request'])
