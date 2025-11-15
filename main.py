@@ -185,20 +185,6 @@ st.markdown("""
         }
     }
 
-    /* Blink for flagged requests */
-    @keyframes blinker {
-        50% { opacity: 0; }
-    }
-    .blink {
-        animation: blinker 1s linear infinite;
-        background: #b00020;
-        color: #ffffff !important;
-        padding: 12px;
-        border-radius: 8px;
-        text-align: center;
-        font-weight: 700;
-        box-shadow: 0 6px 20px rgba(176, 0, 32, 0.25);
-    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -1089,12 +1075,19 @@ def show_data_table(df):
         ).any(axis=1)
         display_df = display_df[mask]
 
-    # Show data
-    st.dataframe(
-        display_df.head(rows_to_show),
-        use_container_width=True,
-        height=400
-    )
+    # Show data - highlight flagged support requests (red row) in the Recent Submissions table
+    display_slice = display_df.head(rows_to_show)
+    def _highlight_flagged(row):
+        if 'Support Request' in row.index and pd.notna(row['Support Request']) and str(row['Support Request']).strip():
+            return ['background-color: #ffdddd'] * len(row)
+        return [''] * len(row)
+
+    try:
+        styled = display_slice.style.apply(_highlight_flagged, axis=1)
+        st.markdown(styled.to_html(index=False, escape=False), unsafe_allow_html=True)
+    except Exception:
+        # Fallback to default dataframe view if styling fails
+        st.dataframe(display_slice, use_container_width=True, height=400)
 
     # Download button
     if not display_df.empty:
@@ -1325,21 +1318,6 @@ def show_submit_report():
     st.markdown("<h1 style='text-align: center; margin-top: 10px; color: #2c3e50;'>PTF Daily Work Progress Report</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; color: #7f8c8d; font-size: 1.1rem;'>Submit all your tasks for today in one report</p>", unsafe_allow_html=True)
     
-    # Show any flagged support requests (blink) so users/admins notice them
-    excel_path = config.get('excel_file_path', EXCEL_FILE_PATH)
-    try:
-        wb_preview = load_workbook(excel_path)
-        if 'Flagged Requests' in wb_preview.sheetnames:
-            ws_flag = wb_preview['Flagged Requests']
-            if ws_flag.max_row > 1:
-                # Show most recent flagged request (last row)
-                last_row_idx = ws_flag.max_row
-                name_val = ws_flag.cell(row=last_row_idx, column=4).value or ''
-                support_val = ws_flag.cell(row=last_row_idx, column=11).value or ''
-                st.markdown(f"<div class='blink'>🚨 Flagged Support Request — {name_val}: {support_val}</div>", unsafe_allow_html=True)
-    except Exception:
-        pass
-
     st.markdown("---")
 
     # Initialize session state for task count if not exists
