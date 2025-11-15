@@ -1367,7 +1367,7 @@ def show_submit_report():
                     key=f"effort_{i}"
                 )
                 comments = st.text_area(
-                    "Comments",
+                    "Support Request",
                     placeholder="Provide any supporting information...",
                     height=80,
                     help="Optional comments",
@@ -1460,7 +1460,7 @@ def show_submit_report():
                     st.session_state.num_tasks = 1
                     # Clear form values by clearing session state keys
                     for i in range(10):  # Clear up to 10 task slots
-                        for key_suffix in ['project', 'title', 'assigned', 'priority', 'status', 'comments', 'effort']:
+                        for key_suffix in ['project', 'title', 'assigned', 'priority', 'status', 'Support Request', 'effort']:
                             key = f"{key_suffix}_{i}"
                             if key in st.session_state:
                                 del st.session_state[key]
