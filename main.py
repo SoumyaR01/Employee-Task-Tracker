@@ -1433,7 +1433,7 @@ def show_submit_report():
                         'Task Priority': task_priority,
                         'Task Status': task_status,
                         'Plan for next day': plan_for_next_day,
-                        'Comments': comments if comments else '',
+                            'Support Request': comments if comments else '',
                         'Effort (in hours)': effort,
                         # 'Employee Performance (%)' calculated below
                     })
