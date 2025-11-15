@@ -200,7 +200,7 @@ DATA_COLUMNS = [
     'Task Priority',
     'Task Status',
     'Plan for next day',
-    'Comments',
+    'Support Request',
     'Effort (in hours)',
     'Employee Performance (%)'
 ]
@@ -1368,7 +1368,7 @@ def show_submit_report():
                 )
                 comments = st.text_area(
                     "Comments",
-                    placeholder="Any additional comments or notes...",
+                    placeholder="Provide any supporting information...",
                     height=80,
                     help="Optional comments",
                     key=f"comments_{i}"
