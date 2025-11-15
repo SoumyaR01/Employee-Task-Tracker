@@ -1013,7 +1013,7 @@ def show_employee_dashboard(df):
         def highlight_support(val):
             if pd.isna(val) or str(val).strip() == "":
                 return ""
-            return "background-color: #ffebee"  # Light red for flagged support requests
+            return "background-color: #ffcccb; color: #000000; font-weight: bold; border-left: 3px solid #ff4444"  # Light red for flagged support requests
         
         # NEW: Apply styling to the Support Request column only
         styled_df = display_df.style.map(highlight_support, subset=['Support Request'])
@@ -1050,7 +1050,7 @@ def show_data_table(df):
     def highlight_support(val):
         if pd.isna(val) or str(val).strip() == "":
             return ""
-        return "background-color: #ffebee"  # Light red for flagged support requests
+        return "background-color: #ffcccb; color: #000000; font-weight: bold; border-left: 3px solid #ff4444"  # Light red for flagged support requests
 
     # NEW: Apply styling to the Support Request column only
     styled_df = display_df.style.map(highlight_support, subset=['Support Request'])
