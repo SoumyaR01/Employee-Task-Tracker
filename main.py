@@ -10,8 +10,7 @@ import os
 import logging
 import base64
 import re
-from openpyxl import load_workbook, Workbook
-from openpyxl.styles import PatternFill
+from openpyxl import load_workbook
 st.set_page_config(
     page_title="Employee Progress Tracker",
     page_icon="📊",
@@ -184,7 +183,6 @@ st.markdown("""
             padding: 1rem 0.5rem;
         }
     }
-
 </style>
 """, unsafe_allow_html=True)
 
@@ -289,44 +287,6 @@ def calculate_performance(tasks_list):
     
     performance = (total_priority_weight / total_effort) * 100
     return min(round(performance, 2), 100.0)  # Cap at 100%
-
-
-def add_flagged_requests(excel_path: str, flagged_rows: list[dict]) -> None:
-    """Append flagged support requests to a 'Flagged Requests' sheet and mark them red."""
-    if not flagged_rows:
-        return
-    try:
-        try:
-            book = load_workbook(excel_path)
-        except Exception:
-            book = Workbook()
-
-        sheet_name = 'Flagged Requests'
-        if sheet_name not in book.sheetnames:
-            ws = book.create_sheet(sheet_name)
-            headers = DATA_COLUMNS.copy()
-            headers.append('Recorded At')
-            for idx, h in enumerate(headers, start=1):
-                ws.cell(row=1, column=idx, value=h)
-            start_row = 2
-        else:
-            ws = book[sheet_name]
-            start_row = ws.max_row + 1
-
-        red_fill = PatternFill(start_color='FFCCCC', end_color='FFCCCC', fill_type='solid')
-
-        for i, row in enumerate(flagged_rows):
-            r = start_row + i
-            for c_idx, col in enumerate(DATA_COLUMNS, start=1):
-                val = row.get(col, '')
-                ws.cell(row=r, column=c_idx, value=val)
-                ws.cell(row=r, column=c_idx).fill = red_fill
-            ws.cell(row=r, column=len(DATA_COLUMNS) + 1, value=datetime.now().isoformat())
-            ws.cell(row=r, column=len(DATA_COLUMNS) + 1).fill = red_fill
-
-        book.save(excel_path)
-    except Exception as e:
-        logging.error(f"Failed to add flagged requests sheet: {e}")
 
 
 def update_dashboard_sheets(excel_path: str, full_df: pd.DataFrame) -> None:
@@ -1075,19 +1035,12 @@ def show_data_table(df):
         ).any(axis=1)
         display_df = display_df[mask]
 
-    # Show data - highlight flagged support requests (red row) in the Recent Submissions table
-    display_slice = display_df.head(rows_to_show)
-    def _highlight_flagged(row):
-        if 'Support Request' in row.index and pd.notna(row['Support Request']) and str(row['Support Request']).strip():
-            return ['background-color: #ffdddd'] * len(row)
-        return [''] * len(row)
-
-    try:
-        styled = display_slice.style.apply(_highlight_flagged, axis=1)
-        st.markdown(styled.to_html(index=False, escape=False), unsafe_allow_html=True)
-    except Exception:
-        # Fallback to default dataframe view if styling fails
-        st.dataframe(display_slice, use_container_width=True, height=400)
+    # Show data
+    st.dataframe(
+        display_df.head(rows_to_show),
+        use_container_width=True,
+        height=400
+    )
 
     # Download button
     if not display_df.empty:
@@ -1320,6 +1273,8 @@ def show_submit_report():
     
     st.markdown("---")
 
+    excel_path = config.get('excel_file_path', EXCEL_FILE_PATH)
+
     # Initialize session state for task count if not exists
     if 'num_tasks' not in st.session_state:
         st.session_state.num_tasks = 1
@@ -1496,29 +1451,16 @@ def show_submit_report():
             else:
                 # Append all tasks to Excel file
                 with st.spinner(f"Saving your daily report with {len(task_data_list)} task(s)..."):
-                    try:
-                        success = append_to_excel(task_data_list, excel_path)
-                    except Exception as e:
-                        logging.exception("append_to_excel failed while saving report")
-                        st.error("❌ Failed to save report due to an internal error.")
-                        success = False
+                    success = append_to_excel(task_data_list, excel_path)
                 
                 if success:
-                    # If any support requests were submitted, add them to the Flagged Requests sheet
-                    flagged_rows = [r for r in task_data_list if r.get('Support Request')]
-                    if flagged_rows:
-                        try:
-                            add_flagged_requests(excel_path, flagged_rows)
-                        except Exception as e:
-                            logging.error(f"Failed to record flagged requests: {e}")
-
                     st.success(f"✅ Your daily work progress report has been submitted successfully! ({len(task_data_list)} task(s) recorded)")
                     st.balloons()
                     # Reset task count for next submission
                     st.session_state.num_tasks = 1
                     # Clear form values by clearing session state keys
                     for i in range(10):  # Clear up to 10 task slots
-                        for key_suffix in ['project', 'title', 'assigned', 'priority', 'status', 'comments', 'effort']:
+                        for key_suffix in ['project', 'title', 'assigned', 'priority', 'status', 'Support Request', 'effort']:
                             key = f"{key_suffix}_{i}"
                             if key in st.session_state:
                                 del st.session_state[key]
