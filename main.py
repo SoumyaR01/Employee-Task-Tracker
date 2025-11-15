@@ -1496,7 +1496,12 @@ def show_submit_report():
             else:
                 # Append all tasks to Excel file
                 with st.spinner(f"Saving your daily report with {len(task_data_list)} task(s)..."):
-                    success = append_to_excel(task_data_list, excel_path)
+                    try:
+                        success = append_to_excel(task_data_list, excel_path)
+                    except Exception as e:
+                        logging.exception("append_to_excel failed while saving report")
+                        st.error("❌ Failed to save report due to an internal error.")
+                        success = False
                 
                 if success:
                     # If any support requests were submitted, add them to the Flagged Requests sheet
