@@ -917,7 +917,7 @@ def show_employee_dashboard(df):
     st.caption("Analyze and track employee performance metrics")
 
     # Export All Employees (create ZIP of per-employee CSVs)
-    exp_col1, exp_col2, exp_col3 = st.columns([5, 1, 1])
+    exp_col1, exp_col2 = st.columns([5, 1])
     with exp_col2:
         if st.button("📥 Export All", use_container_width=True, key="export_all_btn"):
             buf = io.BytesIO()
@@ -936,60 +936,6 @@ def show_employee_dashboard(df):
                 file_name=f"all_employees_reports_{datetime.now().strftime('%Y%m%d')}.zip",
                 mime="application/zip",
                 key="download_all_zip"
-            )
-
-    # New: Export All Employees as XLSX with color-coded Availability
-    import openpyxl
-    from openpyxl.styles import PatternFill
-    with exp_col3:
-        if st.button("📄 Export All (.xlsx)", use_container_width=True, key="export_all_xlsx_btn"):
-            buf_xlsx = io.BytesIO()
-            wb = openpyxl.Workbook()
-            ws = wb.active
-            ws.title = "All Employees"
-            # Write header
-            headers = [col for col in df.columns]
-            ws.append(headers)
-            # Color mapping
-            color_map = {
-                "Underutilized": "10b981",  # Green
-                "Partially Busy": "f59e0b", # Yellow
-                "Fully Busy": "ef4444",    # Red
-                "Unknown": "ffffff"         # White
-            }
-            # Write data rows
-            for _, row in df.iterrows():
-                ws.append([row.get(col, "") for col in headers])
-            # Find Availability column index
-            try:
-                avail_idx = headers.index("Availability") + 1  # 1-based for openpyxl
-            except ValueError:
-                avail_idx = None
-            if avail_idx:
-                for i, row in enumerate(df.itertuples(index=False), start=2):
-                    avail = getattr(row, "Availability", "Unknown")
-                    # Remove emoji if present
-                    if isinstance(avail, str):
-                        if "Underutilized" in avail:
-                            key = "Underutilized"
-                        elif "Partially Busy" in avail:
-                            key = "Partially Busy"
-                        elif "Fully Busy" in avail:
-                            key = "Fully Busy"
-                        else:
-                            key = "Unknown"
-                    else:
-                        key = "Unknown"
-                    fill = PatternFill(start_color=color_map[key], end_color=color_map[key], fill_type="solid")
-                    ws.cell(row=i, column=avail_idx).fill = fill
-            wb.save(buf_xlsx)
-            buf_xlsx.seek(0)
-            st.download_button(
-                label="Download All Employees (.xlsx)",
-                data=buf_xlsx,
-                file_name=f"all_employees_colored_{datetime.now().strftime('%Y%m%d')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                key="download_all_xlsx"
             )
 
     selected_employee = st.selectbox("Select an employee to view detailed performance", employees, key="employee_selector")
