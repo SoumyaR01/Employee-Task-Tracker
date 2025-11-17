@@ -251,6 +251,17 @@ def ensure_numeric_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _format_percentage(val):
+    try:
+        v = float(val)
+    except Exception:
+        return val
+    # Show integer percent if no fractional part, else show two decimals (keep trailing zero)
+    if v == int(v):
+        return f"{int(v)}%"
+    return f"{v:.2f}%"
+
+
 # ==================== PERFORMANCE CALCULATION ====================
 def calculate_performance(tasks_list):
     """
@@ -924,7 +935,7 @@ def show_employee_dashboard(df):
     with metric_col2:
         st.metric("Completed Tasks", completed_tasks)
     with metric_col3:
-        st.metric("Avg Performance (%)", avg_performance)
+        st.metric("Avg Performance (%)", _format_percentage(avg_performance))
     with metric_col4:
         st.metric("Last Update", last_update)
 
@@ -1026,17 +1037,23 @@ def show_employee_dashboard(df):
     display_columns = [col for col in DATA_COLUMNS if col in emp_df.columns]
     if display_columns:
         display_df = emp_df.sort_values('Date', ascending=False)[display_columns]
-        
-        # NEW: Helper function to highlight non-empty Support Request cells
+
+        # Format Effort and Performance for display
+        display_df_formatted = display_df.copy()
+        if 'Effort (in hours)' in display_df_formatted.columns:
+            display_df_formatted['Effort (in hours)'] = display_df_formatted['Effort (in hours)'].apply(
+                lambda x: f"{float(x):.1f}" if pd.notna(x) else x
+            )
+        if 'Employee Performance (%)' in display_df_formatted.columns:
+            display_df_formatted['Employee Performance (%)'] = display_df_formatted['Employee Performance (%)'].apply(_format_percentage)
+
+        # Helper function to highlight non-empty Support Request cells
         def highlight_support(val):
             if pd.isna(val) or str(val).strip() == "":
                 return ""
-            return "background-color: #ffcccb; color: #000000; font-weight: bold; border-left: 3px solid #ff4444"  # Light red for flagged support requests
-        
-        # NEW: Apply styling to the Support Request column only
-        styled_df = display_df.style.map(highlight_support, subset=['Support Request'])
-        
-        # UPDATED: Use the styled dataframe
+            return "background-color: #ffcccb; color: #000000; font-weight: bold; border-left: 3px solid #ff4444"
+
+        styled_df = display_df_formatted.style.applymap(lambda v: 'background-color: #ffcccb' if pd.notna(v) and isinstance(v, str) and len(v.strip())>0 else '', subset=['Support Request'])
         st.dataframe(styled_df, use_container_width=True, height=320)
     else:
         st.info("No detailed task records to display.")
@@ -1468,6 +1485,9 @@ def show_submit_report():
                 else:
                     availability = st.session_state.get(f"availability_{i}", "")
 
+                    # Format effort to one decimal place for storage/display
+                    effort_value = round(float(effort), 1) if effort is not None else 0.0
+
                     task_data_list.append({
                         'Date': date.strftime("%Y-%m-%d"),
                         'Work Mode': work_mode,
@@ -1481,7 +1501,7 @@ def show_submit_report():
                         'Plan for next day': plan_for_next_day,
                                 'Support Request': comments if comments else '',
                             'Availability': availability if availability else '',
-                            'Effort (in hours)': effort,
+                            'Effort (in hours)': effort_value,
                         # 'Employee Performance (%)' calculated below
                     })
             
