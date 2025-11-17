@@ -1098,7 +1098,7 @@ def show_employee_dashboard(df):
         # Prepare export data
         export_df = emp_df.copy()
         if 'Date' in export_df.columns:
-        export_df['Date'] = export_df['Date'].astype(str)
+            export_df['Date'] = export_df['Date'].astype(str)
     export_df = export_df.sort_values('Date', ascending=False) if 'Date' in export_df.columns else export_df
 
     # Add a new column for styled availability
