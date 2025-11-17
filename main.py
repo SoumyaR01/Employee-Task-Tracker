@@ -1536,7 +1536,7 @@ def show_submit_report():
     if 'num_tasks' not in st.session_state:
         st.session_state.num_tasks = 1
    
-    st.subheader("👤 Employee Information")
+    st.subheader("👨‍💻 Employee Information")
    
     col1, col2 = st.columns(2)
    
