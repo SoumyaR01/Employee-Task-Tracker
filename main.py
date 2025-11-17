@@ -953,7 +953,7 @@ def show_employee_dashboard(df):
     if not employees:
         st.info("No employees found in the dataset.")
         return
-    st.subheader("👤 Employee Performance Explorer")
+    st.subheader("👨‍💻 Employee Performance Explorer")
     st.caption("Analyze and track employee performance metrics")
     # Per-employee average performance chart
     try:
