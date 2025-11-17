@@ -898,20 +898,20 @@ def get_status_color_and_label(availability):
 
 
 def format_availability_for_csv(availability):
-    """Format availability value to HTML for CSV exports."""
+    """Format availability value to emoji + label for CSV exports."""
     try:
         if availability is None:
-            return "<span style='background-color:#6b7280;color:black;'>⚪ Unknown</span>"
+            return "⚪ Unknown"
         a = str(availability).strip()
         if a == "Underutilized":
-            return "<span style='background-color:#10b981;color:white;'>🟢 Underutilized</span>"
+            return "🟢 Underutilized"
         if a == "Partially Busy":
-            return "<span style='background-color:#f59e0b;color:black;'>🟡 Partially Busy</span>"
+            return "🟡 Partially Busy"
         if a == "Fully Busy":
-            return "<span style='background-color:#ef4444;color:black;'>🔴 Fully Busy</span>"
-        return "<span style='background-color:#6b7280;color:black;'>⚪ Unknown</span>"
+            return "🔴 Fully Busy"
+        return "⚪ Unknown"
     except Exception:
-        return "<span style='background-color:#6b7280;color:black;'>⚪ Unknown</span>"
+        return "⚪ Unknown"
 
 
 def show_employee_dashboard(df):
@@ -1069,29 +1069,6 @@ def show_employee_dashboard(df):
     </div>
     """, unsafe_allow_html=True)
     
-    # # Export individual employee data
-    # col_export_individual = st.columns([5, 1])
-    # with col_export_individual[1]:
-    #     # Prepare export data
-    #     export_df = emp_df.copy()
-    #     if 'Date' in export_df.columns:
-    #         export_df['Date'] = export_df['Date'].astype(str)
-    #     export_df = export_df.sort_values('Date', ascending=False) if 'Date' in export_df.columns else export_df
-    #     # Format Availability for CSV export
-    #     if 'Availability' in export_df.columns:
-    #         export_df = export_df.copy()
-    #         export_df['Availability'] = export_df['Availability'].apply(format_availability_for_csv)
-
-    #     csv_bytes = export_df.to_csv(index=False).encode('utf-8-sig')
-    #     st.download_button(
-    #         label=f"📥 Export",
-    #         data=csv_bytes,
-    #         file_name=f"{selected_employee}_performance_report_{datetime.now().strftime('%Y%m%d')}.csv",
-    #         mime="text/csv",
-    #         use_container_width=True,
-    #         key="export_individual_emp"
-    #     )
-
     # Export individual employee data
     col_export_individual = st.columns([5, 1])
     with col_export_individual[1]:
@@ -1099,23 +1076,21 @@ def show_employee_dashboard(df):
         export_df = emp_df.copy()
         if 'Date' in export_df.columns:
             export_df['Date'] = export_df['Date'].astype(str)
-    export_df = export_df.sort_values('Date', ascending=False) if 'Date' in export_df.columns else export_df
+        export_df = export_df.sort_values('Date', ascending=False) if 'Date' in export_df.columns else export_df
+        # Format Availability for CSV export
+        if 'Availability' in export_df.columns:
+            export_df = export_df.copy()
+            export_df['Availability'] = export_df['Availability'].apply(format_availability_for_csv)
 
-    # Add a new column for styled availability
-    export_df['Styled Availability'] = export_df['Availability'].apply(lambda x: f"<span style='background-color:#ef4444;color:black;'>🔴 {x}</span>" if x == 'Fully Busy' else
-                                                                       f"<span style='background-color:#f59e0b;color:black;'>🟡 {x}</span>" if x == 'Partially Busy' else
-                                                                       f"<span style='background-color:#10b981;color:white;'>🟢 {x}</span>" if x == 'Underutilized' else
-                                                                       f"<span style='background-color:#6b7280;color:black;'>⚪ {x}</span>")
-
-    csv_bytes = export_df.to_csv(index=False, encoding='utf-8-sig').encode('utf-8-sig')
-    st.download_button(
-        label=f"📥 Export",
-        data=csv_bytes,
-        file_name=f"{selected_employee}_performance_report_{datetime.now().strftime('%Y%m%d')}.csv",
-        mime="text/csv",
-        use_container_width=True,
-        key="export_individual_emp"
-    )
+        csv_bytes = export_df.to_csv(index=False).encode('utf-8-sig')
+        st.download_button(
+            label=f"📥 Export",
+            data=csv_bytes,
+            file_name=f"{selected_employee}_performance_report_{datetime.now().strftime('%Y%m%d')}.csv",
+            mime="text/csv",
+            use_container_width=True,
+            key="export_individual_emp"
+        )
 
     metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
     with metric_col1:
