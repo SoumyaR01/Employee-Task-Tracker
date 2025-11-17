@@ -990,7 +990,7 @@ def show_employee_dashboard(df):
                         emp_rows_export['Availability'] = emp_rows_export['Availability'].apply(format_availability_for_csv)
                     else:
                         emp_rows_export = emp_rows
-                    csv_bytes = emp_rows_export.to_csv(index=False).encode('utf-8')
+                    csv_bytes = emp_rows_export.to_csv(index=False).encode('utf-8-sig')
                     safe_name = re.sub(r"[^A-Za-z0-9_\- ]+", "", str(name)).strip() or "employee"
                     zf.writestr(f"{safe_name}_report.csv", csv_bytes)
             buf.seek(0)
@@ -1082,10 +1082,10 @@ def show_employee_dashboard(df):
             export_df = export_df.copy()
             export_df['Availability'] = export_df['Availability'].apply(format_availability_for_csv)
 
-        csv = export_df.to_csv(index=False)
+        csv_bytes = export_df.to_csv(index=False).encode('utf-8-sig')
         st.download_button(
             label=f"📥 Export",
-            data=csv,
+            data=csv_bytes,
             file_name=f"{selected_employee}_performance_report_{datetime.now().strftime('%Y%m%d')}.csv",
             mime="text/csv",
             use_container_width=True,
@@ -1254,10 +1254,10 @@ def show_employee_dashboard(df):
         st.dataframe(recent_performance_df, use_container_width=True)
         
         # Download trend data
-        trend_csv = trend_df.to_csv(index=False)
+        trend_csv_bytes = trend_df.to_csv(index=False).encode('utf-8-sig')
         st.download_button(
             label="📥 Download Performance Trend Data",
-            data=trend_csv,
+            data=trend_csv_bytes,
             file_name=f"{selected_employee}_performance_trend_{datetime.now().strftime('%Y%m%d')}.csv",
             mime="text/csv",
             key="download_trend_data"
@@ -1326,10 +1326,10 @@ def show_data_table(df):
         if 'Availability' in df_export.columns:
             df_export['Availability'] = df_export['Availability'].apply(format_availability_for_csv)
 
-        csv = df_export.to_csv(index=False)
+        csv_bytes = df_export.to_csv(index=False).encode('utf-8-sig')
         st.download_button(
             label="📥 Download Data as CSV",
-            data=csv,
+            data=csv_bytes,
             file_name=f"employee_progress_{datetime.now().strftime('%Y%m%d')}.csv",
             mime="text/csv"
         )
