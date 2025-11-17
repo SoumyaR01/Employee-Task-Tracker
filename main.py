@@ -201,7 +201,6 @@ DATA_COLUMNS = [
     'Task Status',
     'Plan for next day',
     'Support Request',
-    'Availability',
     'Effort (in hours)',
     'Employee Performance (%)'
 ]
@@ -249,17 +248,6 @@ def ensure_numeric_columns(df: pd.DataFrame) -> pd.DataFrame:
             .astype(float)
         )
     return df
-
-
-def _format_percentage(val):
-    try:
-        v = float(val)
-    except Exception:
-        return val
-    # Show integer percent if no fractional part, else show two decimals (keep trailing zero)
-    if v == int(v):
-        return f"{int(v)}%"
-    return f"{v:.2f}%"
 
 
 # ==================== PERFORMANCE CALCULATION ====================
@@ -935,7 +923,7 @@ def show_employee_dashboard(df):
     with metric_col2:
         st.metric("Completed Tasks", completed_tasks)
     with metric_col3:
-        st.metric("Avg Performance (%)", _format_percentage(avg_performance))
+        st.metric("Avg Performance (%)", avg_performance)
     with metric_col4:
         st.metric("Last Update", last_update)
 
@@ -963,7 +951,7 @@ def show_employee_dashboard(df):
         st.plotly_chart(gauge_fig, use_container_width=True)
 
     with chart_col2:
-        st.caption("Performance Snapshot")
+        st.caption("Performance Trend")
         trend_df = emp_df[['Date', 'Employee Performance (%)']].dropna()
         if not trend_df.empty and trend_df['Date'].notna().any():
             trend_fig = px.line(
@@ -1016,44 +1004,21 @@ def show_employee_dashboard(df):
         else:
             st.info("Task priority column not available.")
 
-    st.subheader("Performance Trend")
-    trend_df = emp_df[['Date', 'Employee Performance (%)']].dropna()
-    if not trend_df.empty and trend_df['Date'].notna().any():
-        trend_fig_full = px.line(
-            trend_df.sort_values('Date'),
-            x='Date',
-            y='Employee Performance (%)',
-            markers=True,
-            title='Employee Performance Over Time'
-        )
-        trend_fig_full.update_layout(xaxis_title='Date', yaxis_title='Performance (%)', yaxis_range=[0, 100])
-        st.plotly_chart(trend_fig_full, use_container_width=True)
-        st.markdown('**Recent performance values**')
-        st.dataframe(trend_df.sort_values('Date', ascending=False).head(20), use_container_width=True)
-    else:
-        st.info("No performance history available for this employee.")
-
     st.subheader("📋 Recent Tasks")
     display_columns = [col for col in DATA_COLUMNS if col in emp_df.columns]
     if display_columns:
         display_df = emp_df.sort_values('Date', ascending=False)[display_columns]
-
-        # Format Effort and Performance for display
-        display_df_formatted = display_df.copy()
-        if 'Effort (in hours)' in display_df_formatted.columns:
-            display_df_formatted['Effort (in hours)'] = display_df_formatted['Effort (in hours)'].apply(
-                lambda x: f"{float(x):.1f}" if pd.notna(x) else x
-            )
-        if 'Employee Performance (%)' in display_df_formatted.columns:
-            display_df_formatted['Employee Performance (%)'] = display_df_formatted['Employee Performance (%)'].apply(_format_percentage)
-
-        # Helper function to highlight non-empty Support Request cells
+        
+        # NEW: Helper function to highlight non-empty Support Request cells
         def highlight_support(val):
             if pd.isna(val) or str(val).strip() == "":
                 return ""
-            return "background-color: #ffcccb; color: #000000; font-weight: bold; border-left: 3px solid #ff4444"
-
-        styled_df = display_df_formatted.style.applymap(lambda v: 'background-color: #ffcccb' if pd.notna(v) and isinstance(v, str) and len(v.strip())>0 else '', subset=['Support Request'])
+            return "background-color: #ffcccb; color: #000000; font-weight: bold; border-left: 3px solid #ff4444"  # Light red for flagged support requests
+        
+        # NEW: Apply styling to the Support Request column only
+        styled_df = display_df.style.map(highlight_support, subset=['Support Request'])
+        
+        # UPDATED: Use the styled dataframe
         st.dataframe(styled_df, use_container_width=True, height=320)
     else:
         st.info("No detailed task records to display.")
@@ -1428,12 +1393,6 @@ def show_submit_report():
                     help="Optional comments",
                     key=f"comments_{i}"
                 )
-                availability = st.selectbox(
-                    "Availability",
-                    ["", "Fully Busy", "Partially Busy", "Underutilized"],
-                    help="Select availability status for this task",
-                    key=f"availability_{i}"
-                )
     
     st.markdown("---")
     st.subheader("📅 Plan for Tomorrow")
@@ -1483,11 +1442,6 @@ def show_submit_report():
                 if not all([project_name, task_title, task_assigned_by, task_priority, task_status]) or effort <= 0:
                     invalid_tasks.append(i + 1)
                 else:
-                    availability = st.session_state.get(f"availability_{i}", "")
-
-                    # Format effort to one decimal place for storage/display
-                    effort_value = round(float(effort), 1) if effort is not None else 0.0
-
                     task_data_list.append({
                         'Date': date.strftime("%Y-%m-%d"),
                         'Work Mode': work_mode,
@@ -1499,9 +1453,8 @@ def show_submit_report():
                         'Task Priority': task_priority,
                         'Task Status': task_status,
                         'Plan for next day': plan_for_next_day,
-                                'Support Request': comments if comments else '',
-                            'Availability': availability if availability else '',
-                            'Effort (in hours)': effort_value,
+                            'Support Request': comments if comments else '',
+                        'Effort (in hours)': effort,
                         # 'Employee Performance (%)' calculated below
                     })
             
@@ -1527,7 +1480,7 @@ def show_submit_report():
                     st.session_state.num_tasks = 1
                     # Clear form values by clearing session state keys
                     for i in range(10):  # Clear up to 10 task slots
-                        for key_suffix in ['project', 'title', 'assigned', 'priority', 'status', 'comments', 'availability', 'effort']:
+                        for key_suffix in ['project', 'title', 'assigned', 'priority', 'status', 'Support Request', 'effort']:
                             key = f"{key_suffix}_{i}"
                             if key in st.session_state:
                                 del st.session_state[key]
