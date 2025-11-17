@@ -11,6 +11,8 @@ import logging
 import base64
 import re
 from openpyxl import load_workbook
+import io
+import zipfile
 st.set_page_config(
     page_title="Employee Progress Tracker",
     page_icon="📊",
@@ -900,6 +902,28 @@ def show_employee_dashboard(df):
         return
 
     st.subheader("👤 Employee Performance Explorer")
+
+    # Export All Employees (create ZIP of per-employee CSVs)
+    exp_col1, exp_col2 = st.columns([5, 1])
+    with exp_col2:
+        if st.button("📥 Export All Employees", use_container_width=True):
+            buf = io.BytesIO()
+            with zipfile.ZipFile(buf, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+                for name in employees:
+                    emp_rows = df[df['Name'] == name].copy()
+                    if 'Date' in emp_rows.columns:
+                        emp_rows['Date'] = emp_rows['Date'].astype(str)
+                    csv_bytes = emp_rows.to_csv(index=False).encode('utf-8')
+                    safe_name = re.sub(r"[^A-Za-z0-9_\- ]+", "", str(name)).strip() or "employee"
+                    zf.writestr(f"{safe_name}_report.csv", csv_bytes)
+            buf.seek(0)
+            st.download_button(
+                label="Download All Employees (ZIP)",
+                data=buf,
+                file_name=f"all_employees_reports_{datetime.now().strftime('%Y%m%d')}.zip",
+                mime="application/zip"
+            )
+
     selected_employee = st.selectbox("Select an employee to view detailed performance", employees)
 
     if not selected_employee:
