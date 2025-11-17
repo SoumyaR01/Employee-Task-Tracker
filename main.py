@@ -1098,11 +1098,14 @@ def show_employee_dashboard(df):
         # Prepare export data
         export_df = emp_df.copy()
         if 'Date' in export_df.columns:
-            export_df['Date'] = export_df['Date'].astype(str)
+        export_df['Date'] = export_df['Date'].astype(str)
     export_df = export_df.sort_values('Date', ascending=False) if 'Date' in export_df.columns else export_df
-    # Format Availability for CSV export
-    if 'Availability' in export_df.columns:
-        export_df['Availability'] = export_df['Availability'].apply(format_availability_for_csv)
+
+    # Add a new column for styled availability
+    export_df['Styled Availability'] = export_df['Availability'].apply(lambda x: f"<span style='background-color:#ef4444;color:black;'>🔴 {x}</span>" if x == 'Fully Busy' else
+                                                                       f"<span style='background-color:#f59e0b;color:black;'>🟡 {x}</span>" if x == 'Partially Busy' else
+                                                                       f"<span style='background-color:#10b981;color:white;'>🟢 {x}</span>" if x == 'Underutilized' else
+                                                                       f"<span style='background-color:#6b7280;color:black;'>⚪ {x}</span>")
 
     csv_bytes = export_df.to_csv(index=False, encoding='utf-8-sig').encode('utf-8-sig')
     st.download_button(
