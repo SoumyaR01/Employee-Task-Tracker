@@ -201,6 +201,7 @@ DATA_COLUMNS = [
     'Task Status',
     'Plan for next day',
     'Support Request',
+    'Availability',
     'Effort (in hours)',
     'Employee Performance (%)'
 ]
@@ -951,7 +952,7 @@ def show_employee_dashboard(df):
         st.plotly_chart(gauge_fig, use_container_width=True)
 
     with chart_col2:
-        st.caption("Performance Trend")
+        st.caption("Performance Snapshot")
         trend_df = emp_df[['Date', 'Employee Performance (%)']].dropna()
         if not trend_df.empty and trend_df['Date'].notna().any():
             trend_fig = px.line(
@@ -1003,6 +1004,23 @@ def show_employee_dashboard(df):
                 st.info("No task priority data available for this employee.")
         else:
             st.info("Task priority column not available.")
+
+    st.subheader("Performance Trend")
+    trend_df = emp_df[['Date', 'Employee Performance (%)']].dropna()
+    if not trend_df.empty and trend_df['Date'].notna().any():
+        trend_fig_full = px.line(
+            trend_df.sort_values('Date'),
+            x='Date',
+            y='Employee Performance (%)',
+            markers=True,
+            title='Employee Performance Over Time'
+        )
+        trend_fig_full.update_layout(xaxis_title='Date', yaxis_title='Performance (%)', yaxis_range=[0, 100])
+        st.plotly_chart(trend_fig_full, use_container_width=True)
+        st.markdown('**Recent performance values**')
+        st.dataframe(trend_df.sort_values('Date', ascending=False).head(20), use_container_width=True)
+    else:
+        st.info("No performance history available for this employee.")
 
     st.subheader("📋 Recent Tasks")
     display_columns = [col for col in DATA_COLUMNS if col in emp_df.columns]
@@ -1393,6 +1411,12 @@ def show_submit_report():
                     help="Optional comments",
                     key=f"comments_{i}"
                 )
+                availability = st.selectbox(
+                    "Availability",
+                    ["", "Fully Busy", "Partially Busy", "Underutilized"],
+                    help="Select availability status for this task",
+                    key=f"availability_{i}"
+                )
     
     st.markdown("---")
     st.subheader("📅 Plan for Tomorrow")
@@ -1442,6 +1466,8 @@ def show_submit_report():
                 if not all([project_name, task_title, task_assigned_by, task_priority, task_status]) or effort <= 0:
                     invalid_tasks.append(i + 1)
                 else:
+                    availability = st.session_state.get(f"availability_{i}", "")
+
                     task_data_list.append({
                         'Date': date.strftime("%Y-%m-%d"),
                         'Work Mode': work_mode,
@@ -1453,8 +1479,9 @@ def show_submit_report():
                         'Task Priority': task_priority,
                         'Task Status': task_status,
                         'Plan for next day': plan_for_next_day,
-                            'Support Request': comments if comments else '',
-                        'Effort (in hours)': effort,
+                                'Support Request': comments if comments else '',
+                            'Availability': availability if availability else '',
+                            'Effort (in hours)': effort,
                         # 'Employee Performance (%)' calculated below
                     })
             
@@ -1480,7 +1507,7 @@ def show_submit_report():
                     st.session_state.num_tasks = 1
                     # Clear form values by clearing session state keys
                     for i in range(10):  # Clear up to 10 task slots
-                        for key_suffix in ['project', 'title', 'assigned', 'priority', 'status', 'Support Request', 'effort']:
+                        for key_suffix in ['project', 'title', 'assigned', 'priority', 'status', 'comments', 'availability', 'effort']:
                             key = f"{key_suffix}_{i}"
                             if key in st.session_state:
                                 del st.session_state[key]
