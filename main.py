@@ -984,7 +984,13 @@ def show_employee_dashboard(df):
                     emp_rows = df[df['Name'] == name].copy()
                     if 'Date' in emp_rows.columns:
                         emp_rows['Date'] = emp_rows['Date'].astype(str)
-                    csv_bytes = emp_rows.to_csv(index=False).encode('utf-8')
+                    # Ensure Availability is formatted in exported CSVs
+                    if 'Availability' in emp_rows.columns:
+                        emp_rows_export = emp_rows.copy()
+                        emp_rows_export['Availability'] = emp_rows_export['Availability'].apply(format_availability_for_csv)
+                    else:
+                        emp_rows_export = emp_rows
+                    csv_bytes = emp_rows_export.to_csv(index=False).encode('utf-8')
                     safe_name = re.sub(r"[^A-Za-z0-9_\- ]+", "", str(name)).strip() or "employee"
                     zf.writestr(f"{safe_name}_report.csv", csv_bytes)
             buf.seek(0)
@@ -1071,7 +1077,11 @@ def show_employee_dashboard(df):
         if 'Date' in export_df.columns:
             export_df['Date'] = export_df['Date'].astype(str)
         export_df = export_df.sort_values('Date', ascending=False) if 'Date' in export_df.columns else export_df
-        
+        # Format Availability for CSV export
+        if 'Availability' in export_df.columns:
+            export_df = export_df.copy()
+            export_df['Availability'] = export_df['Availability'].apply(format_availability_for_csv)
+
         csv = export_df.to_csv(index=False)
         st.download_button(
             label=f"📥 Export",
