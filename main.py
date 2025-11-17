@@ -904,11 +904,11 @@ def format_availability_for_csv(availability):
             return "⚪ Unknown"
         a = str(availability).strip()
         if a == "Underutilized":
-            return "🟢 Underutilized"
+            return f"🟢 Underutilized [color:#10b981]"
         if a == "Partially Busy":
-            return "🟡 Partially Busy"
+            return f"🟡 Partially Busy [color:#f59e0b]"
         if a == "Fully Busy":
-            return "🔴 Fully Busy"
+            return f"🔴 Fully Busy [color:#ef4444]"
         return "⚪ Unknown"
     except Exception:
         return "⚪ Unknown"
@@ -1069,28 +1069,50 @@ def show_employee_dashboard(df):
     </div>
     """, unsafe_allow_html=True)
     
+    # # Export individual employee data
+    # col_export_individual = st.columns([5, 1])
+    # with col_export_individual[1]:
+    #     # Prepare export data
+    #     export_df = emp_df.copy()
+    #     if 'Date' in export_df.columns:
+    #         export_df['Date'] = export_df['Date'].astype(str)
+    #     export_df = export_df.sort_values('Date', ascending=False) if 'Date' in export_df.columns else export_df
+    #     # Format Availability for CSV export
+    #     if 'Availability' in export_df.columns:
+    #         export_df = export_df.copy()
+    #         export_df['Availability'] = export_df['Availability'].apply(format_availability_for_csv)
+
+    #     csv_bytes = export_df.to_csv(index=False).encode('utf-8-sig')
+    #     st.download_button(
+    #         label=f"📥 Export",
+    #         data=csv_bytes,
+    #         file_name=f"{selected_employee}_performance_report_{datetime.now().strftime('%Y%m%d')}.csv",
+    #         mime="text/csv",
+    #         use_container_width=True,
+    #         key="export_individual_emp"
+    #     )
+
     # Export individual employee data
     col_export_individual = st.columns([5, 1])
     with col_export_individual[1]:
-        # Prepare export data
-        export_df = emp_df.copy()
-        if 'Date' in export_df.columns:
-            export_df['Date'] = export_df['Date'].astype(str)
-        export_df = export_df.sort_values('Date', ascending=False) if 'Date' in export_df.columns else export_df
-        # Format Availability for CSV export
-        if 'Availability' in export_df.columns:
-            export_df = export_df.copy()
-            export_df['Availability'] = export_df['Availability'].apply(format_availability_for_csv)
+    # Prepare export data
+    export_df = emp_df.copy()
+    if 'Date' in export_df.columns:
+        export_df['Date'] = export_df['Date'].astype(str)
+    export_df = export_df.sort_values('Date', ascending=False) if 'Date' in export_df.columns else export_df
+    # Format Availability for CSV export
+    if 'Availability' in export_df.columns:
+        export_df['Availability'] = export_df['Availability'].apply(format_availability_for_csv)
 
-        csv_bytes = export_df.to_csv(index=False).encode('utf-8-sig')
-        st.download_button(
-            label=f"📥 Export",
-            data=csv_bytes,
-            file_name=f"{selected_employee}_performance_report_{datetime.now().strftime('%Y%m%d')}.csv",
-            mime="text/csv",
-            use_container_width=True,
-            key="export_individual_emp"
-        )
+    csv_bytes = export_df.to_csv(index=False).encode('utf-8-sig')
+    st.download_button(
+        label=f"📥 Export",
+        data=csv_bytes,
+        file_name=f"{selected_employee}_performance_report_{datetime.now().strftime('%Y%m%d')}.csv",
+        mime="text/csv",
+        use_container_width=True,
+        key="export_individual_emp"
+    )
 
     metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
     with metric_col1:
