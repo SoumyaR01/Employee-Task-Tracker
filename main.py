@@ -913,6 +913,47 @@ def format_availability_for_csv(availability):
     except Exception:
         return "⚪ Unknown"
 
+    def create_colored_excel(df, employee_name):
+    """Create Excel file with color-coded Availability column"""
+    from openpyxl.styles import PatternFill, Font, Alignment
+    
+    output = io.BytesIO()
+    
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Report')
+        workbook = writer.book
+        worksheet = writer.sheets['Report']
+        
+        # Find Availability column index
+        avail_col_idx = None
+        for idx, col_name in enumerate(df.columns, start=1):
+            if col_name == 'Availability':
+                avail_col_idx = idx
+                break
+        
+        if avail_col_idx:
+            # Define color fills matching your image
+            color_fills = {
+                'Underutilized': PatternFill(start_color='00C853', end_color='00C853', fill_type='solid'),      # Green
+                'Partially Busy': PatternFill(start_color='FFD600', end_color='FFD600', fill_type='solid'),     # Yellow
+                'Fully Busy': PatternFill(start_color='FF1744', end_color='FF1744', fill_type='solid'),         # Red
+                'Unknown': PatternFill(start_color='9E9E9E', end_color='9E9E9E', fill_type='solid')             # Gray
+            }
+            
+            # Apply colors to data rows (row 2 onwards, row 1 is header)
+            for row_idx in range(2, len(df) + 2):
+                cell = worksheet.cell(row=row_idx, column=avail_col_idx)
+                availability_value = str(cell.value).strip()
+                
+                # Apply color based on value
+                if availability_value in color_fills:
+                    cell.fill = color_fills[availability_value]
+                    cell.font = Font(bold=True, color='FFFFFF')  # White text
+                    cell.alignment = Alignment(horizontal='center', vertical='center')
+    
+    output.seek(0)
+    return output
+
 
 def show_employee_dashboard(df):
     """Interactive dashboard for selected employee using performance metrics."""
@@ -1082,12 +1123,12 @@ def show_employee_dashboard(df):
             export_df = export_df.copy()
             export_df['Availability'] = export_df['Availability'].apply(format_availability_for_csv)
 
-        csv_bytes = export_df.to_csv(index=False).encode('utf-8-sig')
-        st.download_button(
+        excel_buffer = create_colored_excel(export_df, selected_employee)
+            st.download_button(
             label=f"📥 Export",
-            data=csv_bytes,
-            file_name=f"{selected_employee}_performance_report_{datetime.now().strftime('%Y%m%d')}.csv",
-            mime="text/csv",
+            data=excel_buffer,
+            file_name=f"{selected_employee}_performance_report_{datetime.now().strftime('%Y%m%d')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True,
             key="export_individual_emp"
         )
@@ -1254,12 +1295,12 @@ def show_employee_dashboard(df):
         st.dataframe(recent_performance_df, use_container_width=True)
         
         # Download trend data
-        trend_csv_bytes = trend_df.to_csv(index=False).encode('utf-8-sig')
+        trend_excel = create_colored_excel(trend_df, selected_employee)
         st.download_button(
             label="📥 Download Performance Trend Data",
-            data=trend_csv_bytes,
-            file_name=f"{selected_employee}_performance_trend_{datetime.now().strftime('%Y%m%d')}.csv",
-            mime="text/csv",
+            data=trend_excel,
+            file_name=f"{selected_employee}_performance_trend_{datetime.now().strftime('%Y%m%d')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             key="download_trend_data"
         )
     else:
@@ -1326,12 +1367,20 @@ def show_data_table(df):
         if 'Availability' in df_export.columns:
             df_export['Availability'] = df_export['Availability'].apply(format_availability_for_csv)
 
-        csv_bytes = df_export.to_csv(index=False).encode('utf-8-sig')
+        # csv_bytes = df_export.to_csv(index=False).encode('utf-8-sig')
+        # st.download_button(
+        #     label="📥 Download Data as CSV",
+        #     data=csv_bytes,
+        #     file_name=f"employee_progress_{datetime.now().strftime('%Y%m%d')}.csv",
+        #     mime="text/csv"
+        # )
+
+        excel_buffer = create_colored_excel(df_export, "All_Employees")
         st.download_button(
-            label="📥 Download Data as CSV",
-            data=csv_bytes,
-            file_name=f"employee_progress_{datetime.now().strftime('%Y%m%d')}.csv",
-            mime="text/csv"
+            label="📥 Download Data as Excel",
+            data=excel_buffer,
+            file_name=f"employee_progress_{datetime.now().strftime('%Y%m%d')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
 #Settings Page
