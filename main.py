@@ -951,25 +951,19 @@ def show_employee_dashboard(df):
         st.plotly_chart(gauge_fig, use_container_width=True)
 
     with chart_col2:
-        st.caption("Performance Trend (with Busyness Overlay)")
-        trend_df = emp_df[['Date', 'Employee Performance (%)', 'Support Request']].dropna()
+        st.caption("Performance Trend")
+        trend_df = emp_df[['Date', 'Employee Performance (%)']].dropna()
         if not trend_df.empty and trend_df['Date'].notna().any():
-            # Map busyness to numeric for coloring (e.g., Fully=green, Under=orange)
-            color_map = {'Fully Busy': 'green', 'Partially Busy': 'orange', 'Underutilized': 'red'}
-            trend_df['Color'] = trend_df['Support Request'].map(color_map).fillna('gray')
-            
             trend_fig = px.line(
                 trend_df.sort_values('Date'),
-                x='Date', y='Employee Performance (%)',
-                color='Color',  # Color lines by busyness
-                markers=True,
-                title=f"{selected_employee} Performance Over Time"
+                x='Date',
+                y='Employee Performance (%)',
+                markers=True
             )
-            # Add reference lines
-            trend_fig.add_hline(y=80, line_dash="dash", line_color="yellow", annotation_text="Target Threshold")
-            trend_fig.add_hline(y=100, line_dash="dot", line_color="green", annotation_text="Max")
             trend_fig.update_layout(
-                xaxis_title="Date", yaxis_title="Performance (%)", yaxis_range=[0, 120]  # Allow >100% as in your table
+                xaxis_title="Date",
+                yaxis_title="Performance (%)",
+                yaxis_range=[0, 100]
             )
             st.plotly_chart(trend_fig, use_container_width=True)
         else:
@@ -1392,16 +1386,11 @@ def show_submit_report():
                     help="Hours spent on this task (must be >0)",
                     key=f"effort_{i}"
                 )
-                busyness_level = st.selectbox(
-                    "Busyness Level",
-                    ["", "Fully Busy", "Partially Busy", "Underutilized"],
-                    help="Select your overall busyness for this task (optional)",
-                    key=f"busyness_{i}"
-                )
-                support_comments = st.text_area(
-                    "Additional Support Request (optional)",
-                    placeholder="e.g., 'Need help with LLM tuning'",
-                    height=60,
+                comments = st.text_area(
+                    "Support Request",
+                    placeholder="Provide any supporting information...",
+                    height=80,
+                    help="Optional comments",
                     key=f"comments_{i}"
                 )
     
@@ -1447,14 +1436,12 @@ def show_submit_report():
                 task_priority = st.session_state.get(f"priority_{i}", "")
                 task_status = st.session_state.get(f"status_{i}", "")
                 effort = st.session_state.get(f"effort_{i}", 0.0)
-                busyness_level = st.session_state.get(f"busyness_{i}", "")
-                support_comments = st.session_state.get(f"comments_{i}", "")
+                comments = st.session_state.get(f"comments_{i}", "")
                 
                 # Validate task
                 if not all([project_name, task_title, task_assigned_by, task_priority, task_status]) or effort <= 0:
                     invalid_tasks.append(i + 1)
                 else:
-                    support_request = busyness_level if busyness_level else support_comments  # Prioritize dropdown, fallback to text
                     task_data_list.append({
                         'Date': date.strftime("%Y-%m-%d"),
                         'Work Mode': work_mode,
@@ -1466,7 +1453,7 @@ def show_submit_report():
                         'Task Priority': task_priority,
                         'Task Status': task_status,
                         'Plan for next day': plan_for_next_day,
-                        'Support Request': support_request,
+                            'Support Request': comments if comments else '',
                         'Effort (in hours)': effort,
                         # 'Employee Performance (%)' calculated below
                     })
@@ -1493,7 +1480,7 @@ def show_submit_report():
                     st.session_state.num_tasks = 1
                     # Clear form values by clearing session state keys
                     for i in range(10):  # Clear up to 10 task slots
-                        for key_suffix in ['project', 'title', 'assigned', 'priority', 'status', 'busyness', 'comments', 'effort']:
+                        for key_suffix in ['project', 'title', 'assigned', 'priority', 'status', 'Support Request', 'effort']:
                             key = f"{key_suffix}_{i}"
                             if key in st.session_state:
                                 del st.session_state[key]
