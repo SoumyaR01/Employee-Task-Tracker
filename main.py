@@ -1528,7 +1528,7 @@ def show_submit_report():
    
     # Title Section - Centered below logo
     st.markdown("<h1 style='text-align: center; margin-top: 10px; color: #2c3e50;'>Staff Productivity Insight</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; color: #7f8c8d; font-size: 1.1rem;'>Submit your task report for today</p>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: #7f8c8d; font-size: 1.1rem;'>📤Submit your task report for today</p>", unsafe_allow_html=True)
    
     st.markdown("---")
     excel_path = config.get('excel_file_path', EXCEL_FILE_PATH)
