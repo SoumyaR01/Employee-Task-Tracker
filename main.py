@@ -1034,14 +1034,28 @@ def show_employee_dashboard(df):
     project_name = emp_df['Project Name'].mode()[0] if 'Project Name' in emp_df.columns and not emp_df['Project Name'].empty else 'Multiple Projects'
     
     # Professional Employee Card Display
+    # Determine full-card background and text color based on status
+    def _is_light_hex(hex_color: str) -> bool:
+        try:
+            h = hex_color.lstrip('#')
+            r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+            # Perceived luminance
+            lum = 0.299 * r + 0.587 * g + 0.114 * b
+            return lum > 186
+        except Exception:
+            return False
+
+    card_bg = status_color if status_label and status_label != "⚪ Unknown" else "#ffffff"
+    card_text_color = "#000000" if _is_light_hex(card_bg) else "#ffffff"
+
     st.markdown(f"""
-    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+    <div style="background: {card_bg}; 
                 padding: 25px; border-radius: 15px; margin-bottom: 20px; 
-                box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+                box-shadow: 0 4px 15px rgba(0,0,0,0.2); color: {card_text_color};">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
             <div>
-                <h2 style="color: white; margin: 0; font-size: 28px;">{selected_employee}</h2>
-                <p style="color: rgba(255,255,255,0.9); margin: 5px 0 0 0; font-size: 16px;">
+                <h2 style="color: {card_text_color}; margin: 0; font-size: 28px;">{selected_employee}</h2>
+                <p style="color: {card_text_color}; margin: 5px 0 0 0; font-size: 16px;">
                     {project_name}
                 </p>
             </div>
