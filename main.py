@@ -292,11 +292,8 @@ def calculate_performance(tasks_list):
     return min(round(performance, 2), 100.0)  # Cap at 100%
 
 
-import pandas as pd
-from openpyxl import load_workbook
-
 def update_dashboard_sheets(excel_path: str, full_df: pd.DataFrame) -> None:
-    ""Regenerate the summary and individual employee dashboard sheets."""
+    """Regenerate the summary and individual employee dashboard sheets."""
     if full_df is None or full_df.empty:
         logging.info("Skipping dashboard sheet update because there is no data.")
         return
@@ -399,7 +396,7 @@ def update_dashboard_sheets(excel_path: str, full_df: pd.DataFrame) -> None:
         ws_summary.cell(row=row_idx, column=5, value=record['completion_rate'])
         ws_summary.cell(row=row_idx, column=6, value=record['avg_performance'])
         last_update_value = ""
-        if record['last_update'] is not None and not pd.isna(record['last_update'])):
+        if record['last_update'] is not None and not pd.isna(record['last_update']):
             if isinstance(record['last_update'], pd.Timestamp):
                 last_update_value = record['last_update'].date().isoformat()
             else:
@@ -495,8 +492,6 @@ def update_dashboard_sheets(excel_path: str, full_df: pd.DataFrame) -> None:
         book.save(excel_path)
     except Exception as save_error:
         logging.error(f"Failed to save workbook with updated dashboard sheets: {save_error}")
-
-
 
 # Helper Functions
 
@@ -689,7 +684,7 @@ def append_to_excel(data_list, excel_path=None):
     return False
 
 def get_missing_reporters(df, today):
-        """Get list of employees who haven't reported today"""
+    """Get list of employees who haven't reported today"""
     if df is None or df.empty:
         return []
 
