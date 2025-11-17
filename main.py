@@ -901,17 +901,17 @@ def format_availability_for_csv(availability):
     """Format availability value to emoji + label for CSV exports."""
     try:
         if availability is None:
-            return "⚪ Unknown"
+            return "⚪ Unknown\x1b[0m"
         a = str(availability).strip()
         if a == "Underutilized":
-            return f"🟢 Underutilized [color:#10b981]"
+            return "\x1b[48;2;16;185;154m🟢 Underutilized\x1b[0m"
         if a == "Partially Busy":
-            return f"🟡 Partially Busy [color:#f59e0b]"
+            return "\x1b[48;2;245;158;11m🟡 Partially Busy\x1b[0m"
         if a == "Fully Busy":
-            return f"🔴 Fully Busy [color:#ef4444]"
-        return "⚪ Unknown"
+            return "\x1b[48;2;239;68;68m🔴 Fully Busy\x1b[0m"
+        return "⚪ Unknown\x1b[0m"
     except Exception:
-        return "⚪ Unknown"
+        return "⚪ Unknown\x1b[0m"
 
 
 def show_employee_dashboard(df):
@@ -1095,16 +1095,16 @@ def show_employee_dashboard(df):
     # Export individual employee data
     col_export_individual = st.columns([5, 1])
     with col_export_individual[1]:
-        # Prepare export data
-        export_df = emp_df.copy()
-        if 'Date' in export_df.columns:
-            export_df['Date'] = export_df['Date'].astype(str)
+    # Prepare export data
+    export_df = emp_df.copy()
+    if 'Date' in export_df.columns:
+        export_df['Date'] = export_df['Date'].astype(str)
     export_df = export_df.sort_values('Date', ascending=False) if 'Date' in export_df.columns else export_df
     # Format Availability for CSV export
     if 'Availability' in export_df.columns:
         export_df['Availability'] = export_df['Availability'].apply(format_availability_for_csv)
 
-    csv_bytes = export_df.to_csv(index=False).encode('utf-8-sig')
+    csv_bytes = export_df.to_csv(index=False, encoding='utf-8-sig').encode('utf-8-sig')
     st.download_button(
         label=f"📥 Export",
         data=csv_bytes,
