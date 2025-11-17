@@ -897,6 +897,23 @@ def get_status_color_and_label(availability):
         return "⚪ Unknown", "#6b7280"
 
 
+def format_availability_for_csv(availability):
+    """Format availability value to emoji + label for CSV exports."""
+    try:
+        if availability is None:
+            return "⚪ Unknown"
+        a = str(availability).strip()
+        if a == "Underutilized":
+            return "🟢 Underutilized"
+        if a == "Partially Busy":
+            return "🟡 Partially Busy"
+        if a == "Fully Busy":
+            return "🔴 Fully Busy"
+        return "⚪ Unknown"
+    except Exception:
+        return "⚪ Unknown"
+
+
 def show_employee_dashboard(df):
     """Interactive dashboard for selected employee using performance metrics."""
     if df is None or df.empty or 'Name' not in df.columns:
@@ -916,6 +933,47 @@ def show_employee_dashboard(df):
     st.subheader("👤 Employee Performance Explorer")
     st.caption("Analyze and track employee performance metrics")
 
+    # Per-employee average performance chart
+    try:
+        perf_summary = (
+            df.groupby('Name')['Employee Performance (%)']
+            .mean()
+            .reset_index(name='AvgPerformance')
+        )
+        # latest availability per employee
+        latest_avails = {}
+        for name in perf_summary['Name'].tolist():
+            emp_rows = df[df['Name'] == name]
+            if 'Availability' in emp_rows.columns and not emp_rows[emp_rows['Availability'].notna()].empty:
+                latest_avails[name] = emp_rows[emp_rows['Availability'].notna()]['Availability'].iloc[-1]
+            else:
+                latest_avails[name] = 'Unknown'
+
+        perf_summary['StatusCategory'] = perf_summary['Name'].map(latest_avails)
+        color_map = {
+            'Underutilized': '#10b981',
+            'Partially Busy': '#f59e0b',
+            'Fully Busy': '#ef4444',
+            'Unknown': '#6b7280'
+        }
+        # Use StatusCategory for colors
+        perf_summary = perf_summary.sort_values('AvgPerformance', ascending=False)
+        if not perf_summary.empty:
+            fig_perf = px.bar(
+                perf_summary,
+                x='Name',
+                y='AvgPerformance',
+                color='StatusCategory',
+                color_discrete_map=color_map,
+                labels={'Name': 'Employee', 'AvgPerformance': 'Avg Performance (%)'},
+                title='Average Performance by Employee'
+            )
+            fig_perf.update_layout(yaxis_range=[0, 100], showlegend=True, height=320)
+            st.plotly_chart(fig_perf, use_container_width=True)
+    except Exception:
+        # don't break dashboard if chart fails
+        pass
+
     # Export All Employees (create ZIP of per-employee CSVs)
     exp_col1, exp_col2 = st.columns([5, 1])
     with exp_col2:
@@ -926,7 +984,13 @@ def show_employee_dashboard(df):
                     emp_rows = df[df['Name'] == name].copy()
                     if 'Date' in emp_rows.columns:
                         emp_rows['Date'] = emp_rows['Date'].astype(str)
-                    csv_bytes = emp_rows.to_csv(index=False).encode('utf-8')
+                    # Ensure Availability is formatted in exported CSVs
+                    if 'Availability' in emp_rows.columns:
+                        emp_rows_export = emp_rows.copy()
+                        emp_rows_export['Availability'] = emp_rows_export['Availability'].apply(format_availability_for_csv)
+                    else:
+                        emp_rows_export = emp_rows
+                    csv_bytes = emp_rows_export.to_csv(index=False).encode('utf-8-sig')
                     safe_name = re.sub(r"[^A-Za-z0-9_\- ]+", "", str(name)).strip() or "employee"
                     zf.writestr(f"{safe_name}_report.csv", csv_bytes)
             buf.seek(0)
@@ -938,7 +1002,7 @@ def show_employee_dashboard(df):
                 key="download_all_zip"
             )
 
-    selected_employee = st.selectbox("Select an employee to view detailed performance", employees, key="employee_selector")
+    selected_employee = st.selectbox("Select an employee to view detailed performance", ["All"] + employees, key="employee_selector")
 
     if not selected_employee:
         st.info("Select an employee to view their dashboard.")
@@ -1013,11 +1077,15 @@ def show_employee_dashboard(df):
         if 'Date' in export_df.columns:
             export_df['Date'] = export_df['Date'].astype(str)
         export_df = export_df.sort_values('Date', ascending=False) if 'Date' in export_df.columns else export_df
-        
-        csv = export_df.to_csv(index=False)
+        # Format Availability for CSV export
+        if 'Availability' in export_df.columns:
+            export_df = export_df.copy()
+            export_df['Availability'] = export_df['Availability'].apply(format_availability_for_csv)
+
+        csv_bytes = export_df.to_csv(index=False).encode('utf-8-sig')
         st.download_button(
             label=f"📥 Export",
-            data=csv,
+            data=csv_bytes,
             file_name=f"{selected_employee}_performance_report_{datetime.now().strftime('%Y%m%d')}.csv",
             mime="text/csv",
             use_container_width=True,
@@ -1186,10 +1254,10 @@ def show_employee_dashboard(df):
         st.dataframe(recent_performance_df, use_container_width=True)
         
         # Download trend data
-        trend_csv = trend_df.to_csv(index=False)
+        trend_csv_bytes = trend_df.to_csv(index=False).encode('utf-8-sig')
         st.download_button(
             label="📥 Download Performance Trend Data",
-            data=trend_csv,
+            data=trend_csv_bytes,
             file_name=f"{selected_employee}_performance_trend_{datetime.now().strftime('%Y%m%d')}.csv",
             mime="text/csv",
             key="download_trend_data"
@@ -1253,10 +1321,15 @@ def show_data_table(df):
 
     # Download button
     if not display_df.empty:
-        csv = display_df.to_csv(index=False)
+        df_export = display_df.copy()
+        # Ensure Availability column exports with emoji labels
+        if 'Availability' in df_export.columns:
+            df_export['Availability'] = df_export['Availability'].apply(format_availability_for_csv)
+
+        csv_bytes = df_export.to_csv(index=False).encode('utf-8-sig')
         st.download_button(
             label="📥 Download Data as CSV",
-            data=csv,
+            data=csv_bytes,
             file_name=f"employee_progress_{datetime.now().strftime('%Y%m%d')}.csv",
             mime="text/csv"
         )
