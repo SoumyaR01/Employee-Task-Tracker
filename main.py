@@ -1068,16 +1068,16 @@ def show_employee_dashboard(df):
         </div>
         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-top: 15px;">
             <div style="text-align: center;">
-                <p style="color: rgba(255,255,255,0.8); margin: 0; font-size: 13px;">Productivity</p>
-                <p style="color: white; margin: 5px 0 0 0; font-size: 24px; font-weight: bold;">{productivity_score}%</p>
+                <p style="color: {card_text_color}; opacity: 0.9; margin: 0; font-size: 13px;">Productivity</p>
+                <p style="color: {card_text_color}; margin: 5px 0 0 0; font-size: 24px; font-weight: bold;">{productivity_score}%</p>
             </div>
             <div style="text-align: center;">
-                <p style="color: rgba(255,255,255,0.8); margin: 0; font-size: 13px;">Quality</p>
-                <p style="color: white; margin: 5px 0 0 0; font-size: 24px; font-weight: bold;">{quality_score}%</p>
+                <p style="color: {card_text_color}; opacity: 0.9; margin: 0; font-size: 13px;">Quality</p>
+                <p style="color: {card_text_color}; margin: 5px 0 0 0; font-size: 24px; font-weight: bold;">{quality_score}%</p>
             </div>
             <div style="text-align: center;">
-                <p style="color: rgba(255,255,255,0.8); margin: 0; font-size: 13px;">Efficiency</p>
-                <p style="color: white; margin: 5px 0 0 0; font-size: 24px; font-weight: bold;">{efficiency_score}%</p>
+                <p style="color: {card_text_color}; opacity: 0.9; margin: 0; font-size: 13px;">Efficiency</p>
+                <p style="color: {card_text_color}; margin: 5px 0 0 0; font-size: 24px; font-weight: bold;">{efficiency_score}%</p>
             </div>
         </div>
     </div>
