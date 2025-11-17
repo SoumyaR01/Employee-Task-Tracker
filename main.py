@@ -13,14 +13,12 @@ import re
 from openpyxl import load_workbook
 import io
 import zipfile
-
 st.set_page_config(
     page_title="Employee Progress Tracker",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded",
 )
-
 # Helper function to convert image to base64
 def get_base64_image(image_path):
     """Convert image to base64 for CSS background"""
@@ -29,7 +27,6 @@ def get_base64_image(image_path):
             return base64.b64encode(img_file.read()).decode()
     except:
         return None
-
 # Custom CSS (dark/black background)
 st.markdown("""
 <style>
@@ -170,7 +167,6 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
-
 # Constants
 EXCEL_FILE_PATH = r'D:\Employee Track Report\task_tracker.xlsx'
 CONFIG_FILE = 'config.json'
@@ -192,15 +188,14 @@ DATA_COLUMNS = [
 ]
 SUMMARY_SHEET_NAME = '📈 Employee Progress Dashboard'
 PERFORMANCE_SHEET_NAME = 'Employee Performance'
+WEEKLY_SHEET_NAME = '📊 Weekly Progress Dashboard'
 EMPLOYEE_SHEET_SUFFIX = ' Dashboard'
-
 def sanitize_sheet_name(name: str) -> str:
     """Return a workbook-safe base sheet name (<=31 chars, invalid chars removed)."""
     safe = re.sub(r'[\\/*?:\[\]]', '_', str(name)).strip()
     if not safe:
         safe = 'Unnamed'
     return safe[:31]
-
 def build_employee_sheet_name(base_name: str, used_names: set[str]) -> str:
     """Construct a unique sheet name for an employee while respecting Excel limits."""
     suffix = EMPLOYEE_SHEET_SUFFIX
@@ -217,7 +212,6 @@ def build_employee_sheet_name(base_name: str, used_names: set[str]) -> str:
         candidate = f"{fallback}{extra}{suffix}"
     used_names.add(candidate)
     return candidate
-
 def ensure_numeric_columns(df: pd.DataFrame) -> pd.DataFrame:
     """Guarantee the performance and effort columns exist and are numeric."""
     df = df.copy()
@@ -231,7 +225,6 @@ def ensure_numeric_columns(df: pd.DataFrame) -> pd.DataFrame:
             .astype(float)
         )
     return df
-
 # ==================== PERFORMANCE CALCULATION ====================
 def calculate_performance(tasks_list):
     """
@@ -269,10 +262,6 @@ def calculate_performance(tasks_list):
    
     performance = (total_priority_weight / total_effort) * 100
     return min(round(performance, 2), 100.0) # Cap at 100%
-
-import pandas as pd
-from openpyxl import load_workbook
-
 def update_dashboard_sheets(excel_path: str, full_df: pd.DataFrame) -> None:
     """Regenerate the summary and individual employee dashboard sheets."""
     if full_df is None or full_df.empty:
@@ -299,6 +288,8 @@ def update_dashboard_sheets(excel_path: str, full_df: pd.DataFrame) -> None:
         if sheet_name == SUMMARY_SHEET_NAME:
             del book[sheet_name]
         elif sheet_name == PERFORMANCE_SHEET_NAME:
+            del book[sheet_name]
+        elif sheet_name == WEEKLY_SHEET_NAME:
             del book[sheet_name]
         elif sheet_name.endswith(EMPLOYEE_SHEET_SUFFIX) and sheet_name != SUMMARY_SHEET_NAME:
             del book[sheet_name]
@@ -446,11 +437,132 @@ def update_dashboard_sheets(excel_path: str, full_df: pd.DataFrame) -> None:
             ws_perf.cell(row=row_idx, column=7, value=last_update_value)
             ws_perf.cell(row=row_idx, column=8).value = f'=HYPERLINK("#\'{SUMMARY_SHEET_NAME}\'!A{data_start_row + rank - 1}", "Open Dashboard")'
         ws_perf.auto_filter.ref = f"A1:H{len(summary_records) + 1}"
+
+    # Create Weekly Progress Dashboard
+    today = datetime.now().date()
+    week_start = today - timedelta(days=6)
+    weekly_df = full_df[
+        (full_df['Date'].dt.date >= week_start) &
+        (full_df['Date'].dt.date <= today)
+    ].copy()
+
+    weekly_summary_records = []
+    for name in unique_names:
+        emp_weekly_mask = weekly_df['Name'].astype(str).str.strip() == name
+        emp_weekly = weekly_df[emp_weekly_mask]
+        total_tasks_week = len(emp_weekly)
+        if 'Task Status' in emp_weekly.columns:
+            completed_week = int((emp_weekly['Task Status'] == 'Completed').sum())
+        else:
+            completed_week = 0
+        pending_week = max(total_tasks_week - completed_week, 0)
+        completion_rate_week = round((completed_week / total_tasks_week * 100) if total_tasks_week else 0.0, 2)
+        avg_perf_week = round(emp_weekly['Employee Performance (%)'].mean(), 2)
+        total_effort_week = round(emp_weekly['Effort (in hours)'].sum(), 1)
+        workload_status = 'Unknown'
+        if 'Availability' in emp_weekly.columns and not emp_weekly.empty:
+            avail_counts = emp_weekly['Availability'].value_counts()
+            if not avail_counts.empty:
+                workload_status = avail_counts.index[0]  # Most common availability
+        weekly_summary_records.append({
+            'name': name,
+            'total_tasks': total_tasks_week,
+            'completed_tasks': completed_week,
+            'pending_tasks': pending_week,
+            'completion_rate': completion_rate_week,
+            'avg_performance': avg_perf_week,
+            'total_effort': total_effort_week,
+            'workload_status': workload_status
+        })
+
+    # Sort by average performance descending
+    weekly_summary_records.sort(key=lambda record: record['avg_performance'], reverse=True)
+
+    # Overall weekly metrics
+    overall_total_tasks = len(weekly_df)
+    overall_completed = int((weekly_df['Task Status'] == 'Completed').sum()) if 'Task Status' in weekly_df.columns else 0
+    overall_completion = round((overall_completed / overall_total_tasks * 100) if overall_total_tasks else 0.0, 2)
+    overall_avg_perf = round(weekly_df['Employee Performance (%)'].mean(), 2)
+    overall_total_effort = round(weekly_df['Effort (in hours)'].sum(), 1)
+
+    ws_weekly = book.create_sheet(WEEKLY_SHEET_NAME)
+    ws_weekly.freeze_panes = "A7"  # Freeze above the table
+
+    # Title
+    ws_weekly.merge_cells('A1:I1')
+    ws_weekly.cell(row=1, column=1).value = f"📊 Weekly Progress Dashboard - Week of {week_start.strftime('%Y-%m-%d')} to {today.strftime('%Y-%m-%d')}"
+    ws_weekly.cell(row=1, column=1).font = openpyxl.styles.Font(bold=True, size=14)
+
+    # Back to Summary Link
+    ws_weekly.cell(row=2, column=1, value="Back to Overall Dashboard")
+    ws_weekly.cell(row=2, column=2).value = f'=HYPERLINK("#\'{SUMMARY_SHEET_NAME}\'!A1", "View All-Time Summary")'
+
+    # Overall Metrics Section
+    ws_weekly.cell(row=3, column=1, value="Overall Weekly Metrics")
+    ws_weekly.cell(row=3, column=1).font = openpyxl.styles.Font(bold=True)
+    ws_weekly.merge_cells('A3:B3')
+
+    metrics_start_row = 4
+    overall_metrics = [
+        ('Total Tasks', overall_total_tasks),
+        ('Completed Tasks', overall_completed),
+        ('Overall Completion Rate (%)', overall_completion),
+        ('Average Performance (%)', overall_avg_perf),
+        ('Total Effort (Hours)', overall_total_effort)
+    ]
+    for idx, (label, value) in enumerate(overall_metrics):
+        row = metrics_start_row + idx
+        ws_weekly.cell(row=row, column=1, value=label)
+        ws_weekly.cell(row=row, column=2, value=value)
+
+    # Weekly Table Headers (starting after overall metrics)
+    table_start_row = metrics_start_row + len(overall_metrics) + 1
+    weekly_headers = [
+        'Employee Name',
+        'Total Tasks (Week)',
+        'Completed',
+        'Pending',
+        'Completion Rate (%)',
+        'Avg Performance (%)',
+        'Total Effort (hrs)',
+        'Workload Status',
+        'Individual Dashboard'
+    ]
+    for col_idx, header in enumerate(weekly_headers, start=1):
+        ws_weekly.cell(row=table_start_row, column=col_idx, value=header)
+        ws_weekly.cell(row=table_start_row, column=col_idx).font = openpyxl.styles.Font(bold=True)
+
+    # Column widths for weekly sheet
+    weekly_col_widths = [28, 18, 14, 14, 20, 20, 16, 16, 24]
+    for idx, width in enumerate(weekly_col_widths, start=1):
+        column_letter = ws_weekly.cell(row=table_start_row, column=idx).column_letter
+        ws_weekly.column_dimensions[column_letter].width = width
+
+    # Populate weekly table
+    for offset, record in enumerate(weekly_summary_records):
+        row_idx = table_start_row + 1 + offset
+        ws_weekly.cell(row=row_idx, column=1, value=record['name'])
+        ws_weekly.cell(row=row_idx, column=2, value=record['total_tasks'])
+        ws_weekly.cell(row=row_idx, column=3, value=record['completed_tasks'])
+        ws_weekly.cell(row=row_idx, column=4, value=record['pending_tasks'])
+        ws_weekly.cell(row=row_idx, column=5, value=record['completion_rate'])
+        ws_weekly.cell(row=row_idx, column=6, value=record['avg_performance'])
+        ws_weekly.cell(row=row_idx, column=7, value=record['total_effort'])
+        ws_weekly.cell(row=row_idx, column=8, value=record['workload_status'])
+        base_name = sanitize_sheet_name(record['name'])
+        employee_sheet_name = build_employee_sheet_name(base_name, used_sheet_names)
+        hyperlink_formula = f'=HYPERLINK("#\'{employee_sheet_name}\'!A1", "View Dashboard")'
+        ws_weekly.cell(row=row_idx, column=9).value = hyperlink_formula
+
+    # Auto-filter for weekly table
+    if weekly_summary_records:
+        last_row = table_start_row + len(weekly_summary_records)
+        ws_weekly.auto_filter.ref = f"A{table_start_row}:I{last_row}"
+
     try:
         book.save(excel_path)
     except Exception as save_error:
         logging.error(f"Failed to save workbook with updated dashboard sheets: {save_error}")
-
 # Helper Functions
 def load_config():
     """Load configuration from file"""
@@ -465,12 +577,10 @@ def load_config():
         'admin_email': '',
         'employee_emails': []
     }
-
 def save_config(config):
     """Save configuration to file"""
     with open(CONFIG_FILE, 'w') as f:
         json.dump(config, f, indent=4)
-
 def read_excel_data(excel_path=None):
     """Read data from local Excel file"""
     if excel_path is None:
@@ -496,7 +606,6 @@ def read_excel_data(excel_path=None):
     except Exception as error:
         st.error(f"Error reading Excel file: {error}")
         return None
-
 def append_to_excel(data_list, excel_path=None):
     """Append data to local Excel file with retry logic for concurrent access
     Args:
@@ -638,7 +747,6 @@ def append_to_excel(data_list, excel_path=None):
                 return False
    
     return False
-
 def get_missing_reporters(df, today):
     """Get list of employees who haven't reported today"""
     if df is None or df.empty:
@@ -659,7 +767,6 @@ def get_missing_reporters(df, today):
     # Find missing reporters
     missing = [emp for emp in all_employees if emp not in submitted_employees]
     return missing
-
 #Dashboard Functions
 def show_metrics(df):
     """Display key metrics"""
@@ -703,7 +810,6 @@ def show_metrics(df):
             <div class="metric-label">Completed Tasks</div>
         </div>
         """, unsafe_allow_html=True)
-
 def show_filters(df):
     """Display filter options"""
     if df is None or df.empty:
@@ -763,7 +869,6 @@ def show_filters(df):
     if selected_priority != 'All' and 'Task Priority' in filtered_df.columns:
         filtered_df = filtered_df[filtered_df['Task Priority'] == selected_priority]
     return filtered_df
-
 def show_charts(df):
     """Display analytics charts"""
     if df is None or df.empty:
@@ -810,7 +915,6 @@ def show_charts(df):
         )
         fig.update_layout(xaxis_title="Date", yaxis_title="Submissions")
         st.plotly_chart(fig, use_container_width=True)
-
 def get_status_color_and_label(availability):
     """Return status label and color based on availability status"""
     if availability == "Underutilized":
@@ -821,7 +925,6 @@ def get_status_color_and_label(availability):
         return "🔴 Fully Busy", "#ef4444"
     else:
         return "⚪ Unknown", "#6b7280"
-
 def format_availability_for_csv(availability):
     """Format availability value to emoji + label for CSV exports."""
     try:
@@ -837,7 +940,6 @@ def format_availability_for_csv(availability):
         return "⚪ Unknown"
     except Exception:
         return "⚪ Unknown"
-
 def show_employee_dashboard(df):
     """Interactive dashboard for selected employee using performance metrics."""
     if df is None or df.empty or 'Name' not in df.columns:
@@ -1185,7 +1287,6 @@ def show_employee_dashboard(df):
         st.dataframe(styled_df, use_container_width=True, height=320)
     else:
         st.info("No detailed task records to display.")
-
 def show_data_table(df):
     """Display data table"""
     st.subheader("📋 Recent Submissions")
@@ -1231,7 +1332,6 @@ def show_data_table(df):
             file_name=f"employee_progress_{datetime.now().strftime('%Y%m%d')}.csv",
             mime="text/csv"
         )
-
 #Settings Page
 def show_settings():
     """Display settings page"""
@@ -1386,7 +1486,6 @@ def show_settings():
             else:
                 st.error(f"❌ File does NOT exist at: `{excel_path}`")
                 st.info("💡 The file will be created automatically when you submit your first report.")
-
 # Submit Report Page
 def show_submit_report():
     """Display form for submitting work progress reports with multiple tasks"""
@@ -1598,9 +1697,9 @@ def show_submit_report():
                         'Task Priority': task_priority,
                         'Task Status': task_status,
                         'Plan for next day': plan_for_next_day,
-                        'Support Request': comments if comments else '',
-                        'Availability': availability if availability else '',
-                        'Effort (in hours)': effort,
+                                'Support Request': comments if comments else '',
+                            'Availability': availability if availability else '',
+                            'Effort (in hours)': effort,
                         # 'Employee Performance (%)' calculated below
                     })
            
@@ -1633,7 +1732,6 @@ def show_submit_report():
                     st.rerun()
                 else:
                     st.error("❌ Failed to save report. Please try again or contact administrator.")
-
 # Main App
 def main():
     """Main application"""
@@ -1733,6 +1831,5 @@ To enable automated reminders:
                         st.success("✅ All employees have submitted their reports today!")
                 else:
                     st.error("Failed to load data")
-
 if __name__ == "__main__":
     main()
