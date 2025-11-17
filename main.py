@@ -938,10 +938,64 @@ def show_employee_dashboard(df):
                 key="download_all_zip"
             )
 
-    selected_employee = st.selectbox("Select an employee to view detailed performance", employees, key="employee_selector")
+    selected_employee = st.selectbox("Select an employee to view detailed performance", ["All"] + employees, key="employee_selector")
 
     if not selected_employee:
         st.info("Select an employee to view their dashboard.")
+        return
+
+    # Handle "All" employees view
+    if selected_employee == "All":
+        st.subheader("📊 Overall Employee Performance Summary")
+        
+        # Calculate overall metrics
+        total_all_tasks = len(df)
+        completed_all_tasks = int((df.get('Task Status') == 'Completed').sum()) if 'Task Status' in df.columns else 0
+        avg_all_performance = round(df['Employee Performance (%)'].mean(), 2)
+        
+        # Create summary table for all employees
+        summary_data = []
+        for emp_name in employees:
+            emp_data = df[df['Name'] == emp_name]
+            if not emp_data.empty:
+                emp_tasks = len(emp_data)
+                emp_completed = int((emp_data.get('Task Status') == 'Completed').sum()) if 'Task Status' in emp_data.columns else 0
+                emp_avg_perf = round(emp_data['Employee Performance (%)'].mean(), 2)
+                emp_availability = emp_data[emp_data['Availability'].notna()]['Availability'].iloc[-1] if 'Availability' in emp_data.columns and not emp_data[emp_data['Availability'].notna()].empty else "Unknown"
+                emp_project = emp_data['Project Name'].mode()[0] if 'Project Name' in emp_data.columns and not emp_data['Project Name'].empty else "N/A"
+                
+                summary_data.append({
+                    'Employee': emp_name,
+                    'Department': emp_project,
+                    'Total Tasks': emp_tasks,
+                    'Completed': emp_completed,
+                    'Avg Performance (%)': emp_avg_perf,
+                    'Status': emp_availability
+                })
+        
+        summary_df = pd.DataFrame(summary_data)
+        st.dataframe(summary_df, use_container_width=True)
+        
+        # Overall metrics
+        metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
+        with metric_col1:
+            st.metric("Total Tasks", total_all_tasks)
+        with metric_col2:
+            st.metric("Completed Tasks", completed_all_tasks)
+        with metric_col3:
+            st.metric("Overall Avg Performance", f"{avg_all_performance}%")
+        with metric_col4:
+            st.metric("Total Employees", len(employees))
+        
+        # Download overall summary
+        summary_csv = summary_df.to_csv(index=False)
+        st.download_button(
+            label="📥 Download Overall Summary",
+            data=summary_csv,
+            file_name=f"overall_employee_summary_{datetime.now().strftime('%Y%m%d')}.csv",
+            mime="text/csv",
+            key="download_overall_summary"
+        )
         return
 
     emp_df = df[df['Name'] == selected_employee].copy()
@@ -1005,10 +1059,10 @@ def show_employee_dashboard(df):
     </div>
     """, unsafe_allow_html=True)
     
-    # Export individual employee data
-    col_export_individual = st.columns([5, 1])
+    # Export individual employee data - Full Dashboard Report
+    col_export_individual = st.columns([4, 1, 1])
     with col_export_individual[1]:
-        # Prepare export data
+        # Data export (raw tasks)
         export_df = emp_df.copy()
         if 'Date' in export_df.columns:
             export_df['Date'] = export_df['Date'].astype(str)
@@ -1016,12 +1070,68 @@ def show_employee_dashboard(df):
         
         csv = export_df.to_csv(index=False)
         st.download_button(
-            label=f"📥 Export",
+            label=f"📊 Data",
             data=csv,
-            file_name=f"{selected_employee}_performance_report_{datetime.now().strftime('%Y%m%d')}.csv",
+            file_name=f"{selected_employee}_tasks_{datetime.now().strftime('%Y%m%d')}.csv",
             mime="text/csv",
             use_container_width=True,
-            key="export_individual_emp"
+            key="export_individual_data"
+        )
+    
+    with col_export_individual[2]:
+        # Full dashboard report
+        report_lines = [
+            f"Employee Performance Dashboard Report",
+            f"Employee: {selected_employee}",
+            f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            f"",
+            f"EMPLOYEE PROFILE",
+            f"Department/Project: {project_name}",
+            f"Status: {status_label}",
+            f"Last Update: {last_update}",
+            f"",
+            f"PERFORMANCE METRICS",
+            f"Total Tasks: {total_tasks}",
+            f"Completed Tasks: {completed_tasks}",
+            f"Pending Tasks: {pending_tasks}",
+            f"Completion Rate: {completion_rate}%",
+            f"Average Performance: {avg_performance}%",
+            f"Latest Performance: {latest_perf}%",
+            f"",
+            f"CALCULATED METRICS",
+            f"Productivity Score: {productivity_score}%",
+            f"Quality Score: {quality_score}%",
+            f"Efficiency Score: {efficiency_score}%",
+            f"",
+            f"TASK BREAKDOWN",
+        ]
+        
+        # Add task status breakdown
+        if 'Task Status' in emp_df.columns:
+            status_counts = emp_df['Task Status'].value_counts()
+            for status, count in status_counts.items():
+                report_lines.append(f"{status}: {count}")
+        
+        report_lines.extend([
+            f"",
+            f"PERFORMANCE TREND DATA",
+        ])
+        
+        # Add recent performance values
+        trend_df = emp_df[['Date', 'Employee Performance (%)']].dropna().sort_values('Date', ascending=False).head(20)
+        for idx, row in trend_df.iterrows():
+            date_str = row['Date'].strftime('%Y-%m-%d') if hasattr(row['Date'], 'strftime') else str(row['Date'])
+            perf_val = row['Employee Performance (%)']
+            report_lines.append(f"{date_str}: {perf_val}%")
+        
+        report_content = "\n".join(report_lines)
+        st.download_button(
+            label=f"📋 Report",
+            data=report_content,
+            file_name=f"{selected_employee}_dashboard_report_{datetime.now().strftime('%Y%m%d')}.txt",
+            mime="text/plain",
+            use_container_width=True,
+            key="export_individual_report"
         )
 
     metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
