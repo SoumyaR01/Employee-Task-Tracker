@@ -1096,7 +1096,7 @@ def show_employee_dashboard(df):
     col_export_individual = st.columns([5, 1])
     with col_export_individual[1]:
     # Prepare export data
-    export_df = emp_df.copy()
+        export_df = emp_df.copy()
     if 'Date' in export_df.columns:
         export_df['Date'] = export_df['Date'].astype(str)
     export_df = export_df.sort_values('Date', ascending=False) if 'Date' in export_df.columns else export_df
