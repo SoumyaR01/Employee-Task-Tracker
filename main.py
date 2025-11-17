@@ -1093,8 +1093,8 @@ def show_employee_dashboard(df):
     #     )
 
     # Export individual employee data
-    col_export_individual = st.columns([5, 1])
-    with col_export_individual[1]:
+col_export_individual = st.columns([5, 1])
+with col_export_individual[1]:
     # Prepare export data
     export_df = emp_df.copy()
     if 'Date' in export_df.columns:
