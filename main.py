@@ -897,23 +897,6 @@ def get_status_color_and_label(availability):
         return "⚪ Unknown", "#6b7280"
 
 
-def format_availability_for_csv(availability):
-    """Format availability value to emoji + label for CSV exports."""
-    try:
-        if availability is None:
-            return "⚪ Unknown"
-        a = str(availability).strip()
-        if a == "Underutilized":
-            return "🟢 Underutilized"
-        if a == "Partially Busy":
-            return "🟡 Partially Busy"
-        if a == "Fully Busy":
-            return "🔴 Fully Busy"
-        return "⚪ Unknown"
-    except Exception:
-        return "⚪ Unknown"
-
-
 def show_employee_dashboard(df):
     """Interactive dashboard for selected employee using performance metrics."""
     if df is None or df.empty or 'Name' not in df.columns:
@@ -933,47 +916,6 @@ def show_employee_dashboard(df):
     st.subheader("👤 Employee Performance Explorer")
     st.caption("Analyze and track employee performance metrics")
 
-    # Per-employee average performance chart
-    try:
-        perf_summary = (
-            df.groupby('Name')['Employee Performance (%)']
-            .mean()
-            .reset_index(name='AvgPerformance')
-        )
-        # latest availability per employee
-        latest_avails = {}
-        for name in perf_summary['Name'].tolist():
-            emp_rows = df[df['Name'] == name]
-            if 'Availability' in emp_rows.columns and not emp_rows[emp_rows['Availability'].notna()].empty:
-                latest_avails[name] = emp_rows[emp_rows['Availability'].notna()]['Availability'].iloc[-1]
-            else:
-                latest_avails[name] = 'Unknown'
-
-        perf_summary['StatusCategory'] = perf_summary['Name'].map(latest_avails)
-        color_map = {
-            'Underutilized': '#10b981',
-            'Partially Busy': '#f59e0b',
-            'Fully Busy': '#ef4444',
-            'Unknown': '#6b7280'
-        }
-        # Use StatusCategory for colors
-        perf_summary = perf_summary.sort_values('AvgPerformance', ascending=False)
-        if not perf_summary.empty:
-            fig_perf = px.bar(
-                perf_summary,
-                x='Name',
-                y='AvgPerformance',
-                color='StatusCategory',
-                color_discrete_map=color_map,
-                labels={'Name': 'Employee', 'AvgPerformance': 'Avg Performance (%)'},
-                title='Average Performance by Employee'
-            )
-            fig_perf.update_layout(yaxis_range=[0, 100], showlegend=True, height=320)
-            st.plotly_chart(fig_perf, use_container_width=True)
-    except Exception:
-        # don't break dashboard if chart fails
-        pass
-
     # Export All Employees (create ZIP of per-employee CSVs)
     exp_col1, exp_col2 = st.columns([5, 1])
     with exp_col2:
@@ -984,13 +926,7 @@ def show_employee_dashboard(df):
                     emp_rows = df[df['Name'] == name].copy()
                     if 'Date' in emp_rows.columns:
                         emp_rows['Date'] = emp_rows['Date'].astype(str)
-                    # Ensure Availability is formatted in exported CSVs
-                    if 'Availability' in emp_rows.columns:
-                        emp_rows_export = emp_rows.copy()
-                        emp_rows_export['Availability'] = emp_rows_export['Availability'].apply(format_availability_for_csv)
-                    else:
-                        emp_rows_export = emp_rows
-                    csv_bytes = emp_rows_export.to_csv(index=False).encode('utf-8-sig')
+                    csv_bytes = emp_rows.to_csv(index=False).encode('utf-8')
                     safe_name = re.sub(r"[^A-Za-z0-9_\- ]+", "", str(name)).strip() or "employee"
                     zf.writestr(f"{safe_name}_report.csv", csv_bytes)
             buf.seek(0)
@@ -1002,7 +938,7 @@ def show_employee_dashboard(df):
                 key="download_all_zip"
             )
 
-    selected_employee = st.selectbox("Select an employee to view detailed performance", ["All"] + employees, key="employee_selector")
+    selected_employee = st.selectbox("Select an employee to view detailed performance", employees, key="employee_selector")
 
     if not selected_employee:
         st.info("Select an employee to view their dashboard.")
@@ -1034,28 +970,14 @@ def show_employee_dashboard(df):
     project_name = emp_df['Project Name'].mode()[0] if 'Project Name' in emp_df.columns and not emp_df['Project Name'].empty else 'Multiple Projects'
     
     # Professional Employee Card Display
-    # Determine full-card background and text color based on status
-    def _is_light_hex(hex_color: str) -> bool:
-        try:
-            h = hex_color.lstrip('#')
-            r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
-            # Perceived luminance
-            lum = 0.299 * r + 0.587 * g + 0.114 * b
-            return lum > 186
-        except Exception:
-            return False
-
-    card_bg = status_color if status_label and status_label != "⚪ Unknown" else "#ffffff"
-    card_text_color = "#000000" if _is_light_hex(card_bg) else "#ffffff"
-
     st.markdown(f"""
-    <div style="background: {card_bg}; 
+    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
                 padding: 25px; border-radius: 15px; margin-bottom: 20px; 
-                box-shadow: 0 4px 15px rgba(0,0,0,0.2); color: {card_text_color};">
+                box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
             <div>
-                <h2 style="color: {card_text_color}; margin: 0; font-size: 28px;">{selected_employee}</h2>
-                <p style="color: {card_text_color}; margin: 5px 0 0 0; font-size: 16px;">
+                <h2 style="color: white; margin: 0; font-size: 28px;">{selected_employee}</h2>
+                <p style="color: rgba(255,255,255,0.9); margin: 5px 0 0 0; font-size: 16px;">
                     {project_name}
                 </p>
             </div>
@@ -1068,16 +990,16 @@ def show_employee_dashboard(df):
         </div>
         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-top: 15px;">
             <div style="text-align: center;">
-                <p style="color: {card_text_color}; opacity: 0.9; margin: 0; font-size: 13px;">Productivity</p>
-                <p style="color: {card_text_color}; margin: 5px 0 0 0; font-size: 24px; font-weight: bold;">{productivity_score}%</p>
+                <p style="color: rgba(255,255,255,0.8); margin: 0; font-size: 13px;">Productivity</p>
+                <p style="color: white; margin: 5px 0 0 0; font-size: 24px; font-weight: bold;">{productivity_score}%</p>
             </div>
             <div style="text-align: center;">
-                <p style="color: {card_text_color}; opacity: 0.9; margin: 0; font-size: 13px;">Quality</p>
-                <p style="color: {card_text_color}; margin: 5px 0 0 0; font-size: 24px; font-weight: bold;">{quality_score}%</p>
+                <p style="color: rgba(255,255,255,0.8); margin: 0; font-size: 13px;">Quality</p>
+                <p style="color: white; margin: 5px 0 0 0; font-size: 24px; font-weight: bold;">{quality_score}%</p>
             </div>
             <div style="text-align: center;">
-                <p style="color: {card_text_color}; opacity: 0.9; margin: 0; font-size: 13px;">Efficiency</p>
-                <p style="color: {card_text_color}; margin: 5px 0 0 0; font-size: 24px; font-weight: bold;">{efficiency_score}%</p>
+                <p style="color: rgba(255,255,255,0.8); margin: 0; font-size: 13px;">Efficiency</p>
+                <p style="color: white; margin: 5px 0 0 0; font-size: 24px; font-weight: bold;">{efficiency_score}%</p>
             </div>
         </div>
     </div>
@@ -1091,15 +1013,11 @@ def show_employee_dashboard(df):
         if 'Date' in export_df.columns:
             export_df['Date'] = export_df['Date'].astype(str)
         export_df = export_df.sort_values('Date', ascending=False) if 'Date' in export_df.columns else export_df
-        # Format Availability for CSV export
-        if 'Availability' in export_df.columns:
-            export_df = export_df.copy()
-            export_df['Availability'] = export_df['Availability'].apply(format_availability_for_csv)
-
-        csv_bytes = export_df.to_csv(index=False).encode('utf-8-sig')
+        
+        csv = export_df.to_csv(index=False)
         st.download_button(
             label=f"📥 Export",
-            data=csv_bytes,
+            data=csv,
             file_name=f"{selected_employee}_performance_report_{datetime.now().strftime('%Y%m%d')}.csv",
             mime="text/csv",
             use_container_width=True,
@@ -1268,10 +1186,10 @@ def show_employee_dashboard(df):
         st.dataframe(recent_performance_df, use_container_width=True)
         
         # Download trend data
-        trend_csv_bytes = trend_df.to_csv(index=False).encode('utf-8-sig')
+        trend_csv = trend_df.to_csv(index=False)
         st.download_button(
             label="📥 Download Performance Trend Data",
-            data=trend_csv_bytes,
+            data=trend_csv,
             file_name=f"{selected_employee}_performance_trend_{datetime.now().strftime('%Y%m%d')}.csv",
             mime="text/csv",
             key="download_trend_data"
@@ -1335,15 +1253,10 @@ def show_data_table(df):
 
     # Download button
     if not display_df.empty:
-        df_export = display_df.copy()
-        # Ensure Availability column exports with emoji labels
-        if 'Availability' in df_export.columns:
-            df_export['Availability'] = df_export['Availability'].apply(format_availability_for_csv)
-
-        csv_bytes = df_export.to_csv(index=False).encode('utf-8-sig')
+        csv = display_df.to_csv(index=False)
         st.download_button(
             label="📥 Download Data as CSV",
-            data=csv_bytes,
+            data=csv,
             file_name=f"employee_progress_{datetime.now().strftime('%Y%m%d')}.csv",
             mime="text/csv"
         )
