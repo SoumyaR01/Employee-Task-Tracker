@@ -689,7 +689,7 @@ def append_to_excel(data_list, excel_path=None):
     return False
 
 def get_missing_reporters(df, today):
-    """Get list of employees who haven't reported today"""
+        """Get list of employees who haven't reported today"""
     if df is None or df.empty:
         return []
 
