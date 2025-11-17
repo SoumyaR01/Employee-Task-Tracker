@@ -898,20 +898,20 @@ def get_status_color_and_label(availability):
 
 
 def format_availability_for_csv(availability):
-    """Format availability value to emoji + label for CSV exports."""
+    """Format availability value to HTML for CSV exports."""
     try:
         if availability is None:
-            return "⚪ Unknown\x1b[0m"
+            return "<span style='background-color:#6b7280;color:black;'>⚪ Unknown</span>"
         a = str(availability).strip()
         if a == "Underutilized":
-            return "\x1b[48;2;16;185;154m🟢 Underutilized\x1b[0m"
+            return "<span style='background-color:#10b981;color:white;'>🟢 Underutilized</span>"
         if a == "Partially Busy":
-            return "\x1b[48;2;245;158;11m🟡 Partially Busy\x1b[0m"
+            return "<span style='background-color:#f59e0b;color:black;'>🟡 Partially Busy</span>"
         if a == "Fully Busy":
-            return "\x1b[48;2;239;68;68m🔴 Fully Busy\x1b[0m"
-        return "⚪ Unknown\x1b[0m"
+            return "<span style='background-color:#ef4444;color:black;'>🔴 Fully Busy</span>"
+        return "<span style='background-color:#6b7280;color:black;'>⚪ Unknown</span>"
     except Exception:
-        return "⚪ Unknown\x1b[0m"
+        return "<span style='background-color:#6b7280;color:black;'>⚪ Unknown</span>"
 
 
 def show_employee_dashboard(df):
@@ -1095,10 +1095,10 @@ def show_employee_dashboard(df):
     # Export individual employee data
     col_export_individual = st.columns([5, 1])
     with col_export_individual[1]:
-    # Prepare export data
+        # Prepare export data
         export_df = emp_df.copy()
-    if 'Date' in export_df.columns:
-        export_df['Date'] = export_df['Date'].astype(str)
+        if 'Date' in export_df.columns:
+            export_df['Date'] = export_df['Date'].astype(str)
     export_df = export_df.sort_values('Date', ascending=False) if 'Date' in export_df.columns else export_df
     # Format Availability for CSV export
     if 'Availability' in export_df.columns:
