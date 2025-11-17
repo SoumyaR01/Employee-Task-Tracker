@@ -885,14 +885,16 @@ def show_charts(df):
         st.plotly_chart(fig, use_container_width=True)
 
 
-def get_status_color_and_label(performance):
-    """Return status label and color based on performance percentage"""
-    if performance >= 85:
+def get_status_color_and_label(availability):
+    """Return status label and color based on availability status"""
+    if availability == "Underutilized":
         return "🟢 Underutilized", "#10b981"
-    elif performance >= 65:
+    elif availability == "Partially Busy":
         return "🟡 Partially Busy", "#f59e0b"
-    else:
+    elif availability == "Fully Busy":
         return "🔴 Fully Busy", "#ef4444"
+    else:
+        return "⚪ Unknown", "#6b7280"
 
 
 def show_employee_dashboard(df):
@@ -960,8 +962,9 @@ def show_employee_dashboard(df):
     quality_score = round(min(avg_performance * 1.1, 100), 1)
     efficiency_score = round(min(avg_performance * 0.95, 100), 1)
     
-    # Get status based on performance
-    status_label, status_color = get_status_color_and_label(avg_performance)
+    # Get status based on most recent Availability field from CSV
+    latest_availability = emp_df[emp_df['Availability'].notna()]['Availability'].iloc[-1] if 'Availability' in emp_df.columns and not emp_df[emp_df['Availability'].notna()].empty else "Unknown"
+    status_label, status_color = get_status_color_and_label(latest_availability)
     
     # Get department/project
     project_name = emp_df['Project Name'].mode()[0] if 'Project Name' in emp_df.columns and not emp_df['Project Name'].empty else 'Multiple Projects'
