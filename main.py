@@ -1562,7 +1562,7 @@ def show_submit_report():
    
     st.markdown("---")
     st.subheader("📋 Today's Tasks")
-    st.info("💡 Add all the tasks you worked on today. You can add multiple tasks before submitting.")
+    st.info("💡 Record all tasks you worked on today. Multiple entries are allowed before submission.")
    
     # Handle add/remove task buttons
     col_add_remove = st.columns([1, 1, 4])
