@@ -59,19 +59,20 @@ st.markdown("""
 # ==================== IN-MEMORY DATA INITIALIZATION ====================
 def init_in_memory_data():
     if "employees" not in st.session_state:
-        st.session_state.employees = {
-            "EMP001": {"password": hashlib.sha256("pass123".encode()).hexdigest(), "name": "John Doe", "email": "john@company.com", "department": "Engineering", "role": "Developer"},
-            "EMP002": {"password": hashlib.sha256("pass123".encode()).hexdigest(), "name": "Jane Smith", "email": "jane@company.com", "department": "Marketing", "role": "Manager"},
-            "EMP003": {"password": hashlib.sha256("pass123".encode()).hexdigest(), "name": "Bob Johnson", "email": "bob@company.com", "department": "Sales", "role": "Executive"},
-            "EMP004": {"password": hashlib.sha256("pass123".encode()).hexdigest(), "name": "Alice Williams", "email": "alice@company.com", "department": "HR", "role": "Specialist"},
-            "EMP005": {"password": hashlib.sha256("pass123".encode()).hexdigest(), "name": "Charlie Brown", "email": "charlie@company.com", "department": "Engineering", "role": "Senior Developer"},
-            "ADMIN":  {"password": hashlib.sha256("admin123".encode()).hexdigest(), "name": "Administrator", "email": "admin@company.com", "department": "Management", "role": "Admin"},
-        }
-    # Persist employee list for other apps to use
-    try:
-        attendance_store.save_employees(st.session_state.employees)
-    except Exception:
-        pass
+        # Load persisted employees from attendance_store (this will not include demo accounts)
+        try:
+            employees = attendance_store.load_employees()
+        except Exception:
+            employees = {}
+        # Ensure ADMIN account exists for admin access
+        if "ADMIN" not in employees:
+            employees["ADMIN"] = {"password": hashlib.sha256("admin123".encode()).hexdigest(), "name": "Administrator", "email": "admin@company.com", "department": "Management", "role": "Admin"}
+        st.session_state.employees = employees
+        # Persist any changes (e.g., added ADMIN)
+        try:
+            attendance_store.save_employees(st.session_state.employees)
+        except Exception:
+            pass
 
     if "attendance" not in st.session_state:
         # Load persisted attendance records (if any)
@@ -308,12 +309,8 @@ def show_login():
                     st.rerun()
                 else:
                     st.error("Invalid credentials")
-
-        st.info("""
-        **Demo Credentials**  
-        Employees → EMP001 to EMP005 / pass123  
-        Admin → ADMIN / admin123
-        """)
+        # Note: demo accounts removed; use Signup to create an account or contact admin.
+        st.info("No demo accounts are available. Please create an account or contact your administrator.")
 
 # ==================== MAIN ====================
 def main():
