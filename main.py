@@ -1814,12 +1814,112 @@ def show_submit_report():
                     st.rerun()
                 else:
                     st.error("❌ Failed to save report. Please try again or contact administrator.")
+
+# ==================== LOGIN & SIGNUP PAGES ====================
+def show_login_page():
+    """Display login form"""
+    from attendance_store import verify_login
+    
+    st.title("🏢 Employee Progress Tracker")
+    st.markdown("---")
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.subheader("Login")
+        with st.form("login_form"):
+            emp_id = st.text_input("Office ID", placeholder="e.g. EMP001")
+            password = st.text_input("Password", type="password")
+            login_btn = st.form_submit_button("Login", use_container_width=True, type="primary")
+        
+        if login_btn:
+            if not emp_id or not password:
+                st.error("Please enter both Office ID and Password")
+            else:
+                success, name, role = verify_login(emp_id, password)
+                if success:
+                    st.session_state.logged_in = True
+                    st.session_state.emp_id = emp_id.upper()
+                    st.session_state.emp_name = name
+                    st.session_state.emp_role = role
+                    st.success("✅ Logged in successfully!")
+                    time.sleep(1)
+                    st.rerun()
+                else:
+                    st.error("Invalid Office ID or Password")
+        
+        st.markdown("---")
+        st.markdown("### New Employee?")
+        if st.button("Create Account", use_container_width=True):
+            st.session_state.show_signup = True
+            st.rerun()
+
+def show_signup_page():
+    """Display signup form"""
+    from attendance_store import check_employee_exists, create_employee
+    
+    st.title("🏢 Employee Progress Tracker")
+    st.markdown("---")
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.subheader("Create Account")
+        with st.form("signup_form"):
+            emp_id = st.text_input("Office ID", placeholder="e.g. EMP001")
+            name = st.text_input("Full Name", placeholder="Your full name")
+            email = st.text_input("Email (optional)", placeholder="your.email@company.com")
+            department = st.text_input("Department (optional)", placeholder="e.g. Engineering")
+            role = st.text_input("Role (optional)", placeholder="e.g. Developer")
+            password = st.text_input("Password", type="password", placeholder="Create a strong password")
+            confirm_pwd = st.text_input("Confirm Password", type="password")
+            signup_btn = st.form_submit_button("Create Account", use_container_width=True, type="primary")
+        
+        if signup_btn:
+            if not emp_id or not name or not password:
+                st.error("Office ID, Name, and Password are required")
+            elif password != confirm_pwd:
+                st.error("Passwords do not match")
+            elif len(password) < 6:
+                st.error("Password must be at least 6 characters long")
+            else:
+                if check_employee_exists(emp_id):
+                    st.error("Office ID already exists. Please use a different ID or login.")
+                else:
+                    success, msg = create_employee(emp_id, password, name, email, department, role)
+                    if success:
+                        st.success("✅ Account created successfully! Please log in.")
+                        time.sleep(2)
+                        st.session_state.show_signup = False
+                        st.rerun()
+                    else:
+                        st.error(f"❌ {msg}")
+        
+        st.markdown("---")
+        if st.button("Back to Login", use_container_width=True):
+            st.session_state.show_signup = False
+            st.rerun()
+
 # Main App
 def main():
     """Main application"""
-    # Sidebar navigation
+    # Initialize session state for login
+    if "logged_in" not in st.session_state:
+        st.session_state.logged_in = False
+    if "show_signup" not in st.session_state:
+        st.session_state.show_signup = False
+    
+    # Show login/signup if not logged in
+    if not st.session_state.logged_in:
+        if st.session_state.show_signup:
+            show_signup_page()
+        else:
+            show_login_page()
+        return
+    
+    # Sidebar navigation (only shown when logged in)
     with st.sidebar:
         st.title("📊 Progress Tracker")
+        st.success(f"👋 {st.session_state.emp_name}")
+        st.caption(f"ID: {st.session_state.emp_id}")
         st.markdown("---")
         page = st.radio(
             "Navigation",
@@ -1830,6 +1930,12 @@ def main():
         st.markdown("### 🔄 Quick Actions")
         if st.button("🔄 Refresh Data"):
             st.rerun()
+        if st.button("🚪 Logout"):
+            st.session_state.logged_in = False
+            st.session_state.emp_id = None
+            st.session_state.emp_name = None
+            st.session_state.emp_role = None
+            st.rerun()
         st.markdown("---")
         st.caption(f"Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     # Load configuration
@@ -1837,29 +1943,23 @@ def main():
     # Main content
     if page == "Daily Check-in":
         st.title("Daily Check-in")
-        st.markdown("Please enter your Office ID and Password to mark your attendance for the day.")
+        st.markdown(f"### Welcome, {st.session_state.emp_name}!")
+        st.markdown("Mark your attendance for today.")
         with st.form("daily_checkin"):
-            emp_id = st.text_input("Office ID", placeholder="e.g. EMP001")
-            pwd = st.text_input("Password", type="password")
             status_choice = st.radio("Select your work status for today:", ["Work from Home", "Work in Office", "On Leave"])
             notes = st.text_area("Notes (optional)")
-            submitted = st.form_submit_button("Check In")
+            submitted = st.form_submit_button("Check In", use_container_width=True, type="primary")
         if submitted:
             # Map to internal codes used by Attendance system
             mapping = {"Work from Home": "WFH", "Work in Office": "WFO", "On Leave": "On Leave"}
             code = mapping.get(status_choice, "No Status")
-            # Verify credentials using persisted employees file
+            # Append attendance using logged-in emp_id
             try:
-                from attendance_store import load_employees, append_attendance
-                import hashlib
-                employees = load_employees()
-                emp = employees.get(emp_id.upper()) if employees else None
-                if emp and emp.get("password") == hashlib.sha256(pwd.encode()).hexdigest():
-                    append_attendance(emp_id.upper(), code, notes or "")
-                    st.success(f"✅ Checked in as {status_choice}")
-                    st.experimental_rerun()
-                else:
-                    st.error("Invalid Office ID or Password")
+                from attendance_store import append_attendance
+                append_attendance(st.session_state.emp_id, code, notes or "")
+                st.success(f"✅ Checked in as {status_choice}")
+                time.sleep(1)
+                st.rerun()
             except Exception as e:
                 st.error(f"Failed to record attendance: {e}")
     elif page == "📝 Submit Report":
