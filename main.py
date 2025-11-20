@@ -1816,11 +1816,27 @@ def show_submit_report():
                     st.error("❌ Failed to save report. Please try again or contact administrator.")
 
 # ==================== LOGIN & SIGNUP PAGES ====================
+# def show_login_page():
+#     """Display login form"""
+#     from attendance_store import verify_login
+    
+#     st.title("🔒 Employee Login")
+#     st.markdown("---")
+    
+#     col1, col2, col3 = st.columns([1, 2, 1])
+#     with col2:
+#         st.subheader("Login")
+#         with st.form("login_form"):
+#             emp_id = st.text_input("Office ID", placeholder="Enter your Office ID (e.g. P-0125)")
+#             password = st.text_input("Password", type="password")
+#             login_btn = st.form_submit_button("Login", use_container_width=True, type="primary")
 def show_login_page():
-    """Display login form"""
     from attendance_store import verify_login
     
-    st.title("🔒 Employee Login")
+    st.markdown(
+        "<h1 style='text-align: center;'>🔒 Employee Login</h1>",
+        unsafe_allow_html=True
+    )
     st.markdown("---")
     
     col1, col2, col3 = st.columns([1, 2, 1])
@@ -1830,6 +1846,7 @@ def show_login_page():
             emp_id = st.text_input("Office ID", placeholder="Enter your Office ID (e.g. P-0125)")
             password = st.text_input("Password", type="password")
             login_btn = st.form_submit_button("Login", use_container_width=True, type="primary")
+
         
         if login_btn:
             if not emp_id or not password:
