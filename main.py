@@ -1962,14 +1962,14 @@ def show_employee_attendance_dashboard():
         name = meta.get("name", emp_upper)
         dept = meta.get("department", "")
         role = meta.get("role", "")
-        # Use the pre-formatted check_in_time from CSV (already in 12-hour format with AM/PM)
-        check_in_time_display = rec.get("check_in_time") or "—"
+        ts = rec.get("timestamp")
+        ts_str = ts.strftime('%I:%M %p') if hasattr(ts, 'strftime') else str(ts)
         row = {
             "ID": emp_upper,
             "Name": name,
             "Department": dept,
             "Role": role,
-            "Check-in Time": check_in_time_display,
+            "Check-in Time": ts_str,
             "Notes": rec.get("notes", "")
         }
         if rec.get("status") == "WFO":
@@ -2090,23 +2090,6 @@ def main():
         st.title("Daily Check-in")
         st.markdown(f"### Welcome, {st.session_state.emp_name}!")
         st.markdown("Mark your attendance for today.")
-        # Capture client/local device time (updates every second). Will be used if available.
-        try:
-            import streamlit.components.v1 as components
-            client_time_html = """
-            <script>
-            function send(){
-                const now = new Date();
-                const formatted = now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', hour12:true});
-                window.parent.postMessage({isStreamlitMessage:true, type:'streamlit:setComponentValue', value:formatted}, '*');
-            }
-            send();
-            setInterval(send, 1000);
-            </script>
-            """
-            client_time = components.html(client_time_html, height=0, key="client_time_capture")
-        except Exception:
-            client_time = None
         with st.form("daily_checkin"):
             status_choice = st.radio("Select your work status for today:", ["Work from Home", "Work in Office", "On Leave"])
             notes = st.text_area("Notes (optional)")
@@ -2118,8 +2101,7 @@ def main():
             # Append attendance using logged-in emp_id
             try:
                 from attendance_store import append_attendance
-                # Prefer client device time when available; fallback to server time handled by append_attendance
-                append_attendance(st.session_state.emp_id, code, notes or "", client_time=client_time)
+                append_attendance(st.session_state.emp_id, code, notes or "")
                 st.success(f"✅ Checked in as {status_choice}")
                 # Set a redirect flag — will be applied before the sidebar radio is created
                 st.session_state.next_page = "Employee Attendance Dashboard"
