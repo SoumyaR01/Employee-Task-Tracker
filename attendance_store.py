@@ -21,10 +21,18 @@ def ensure_files():
         with open(EMP_FILE, "w", encoding='utf-8') as f:
             json.dump({}, f, indent=2)
 
-def append_attendance(emp_id, status, notes=""):
+def append_attendance(emp_id, status, notes="", client_time=None):
+    """
+    Append an attendance record.
+    - `timestamp` is always the server-side ISO timestamp (for audit).
+    - `check_in_time` will prefer `client_time` (if provided), otherwise server-local formatted time.
+    """
     ensure_files()
     timestamp = datetime.now().isoformat()
-    check_in_time = datetime.now().strftime('%I:%M %p') if status in ["WFO", "WFH"] else ""
+    if client_time:
+        check_in_time = client_time
+    else:
+        check_in_time = datetime.now().strftime('%I:%M %p') if status in ["WFO", "WFH"] else ""
     with open(ATTENDANCE_FILE, "a", newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
         writer.writerow([emp_id, status, timestamp, check_in_time, notes])
