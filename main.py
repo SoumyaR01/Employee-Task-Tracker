@@ -1820,7 +1820,7 @@ def show_login_page():
     """Display login form"""
     from attendance_store import verify_login
     
-    st.title("🏢 Employee Progress Tracker")
+    st.title("🔒Employee Progress Tracker")
     st.markdown("---")
     
     col1, col2, col3 = st.columns([1, 2, 1])
