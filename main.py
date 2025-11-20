@@ -1953,7 +1953,7 @@ def show_login_page():
         st.markdown("<br>", unsafe_allow_html=True)
 
         # =================== SIGNUP BUTTON ====================
-        st.markdown("### New Employee?")
+        st.markdown("### Create your employee login")
         create = st.button("Create Account", use_container_width=True)
 
         if create:
