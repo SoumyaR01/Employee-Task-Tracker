@@ -1898,82 +1898,81 @@ def show_signup_page():
             st.session_state.show_signup = False
             st.rerun()
 
+def show_employee_attendance_dashboard():
+    """Display the Employee Attendance Dashboard with three tabs"""
+    import attendance_store
+    from datetime import datetime
 
-    def show_employee_attendance_dashboard():
-        """Display the Employee Attendance Dashboard with three tabs"""
-        import attendance_store
-        from datetime import datetime
+    st.title("Employee Attendance Dashboard")
+    st.markdown("View current attendance by category. Lists update dynamically based on latest check-ins.")
 
-        st.title("Employee Attendance Dashboard")
-        st.markdown("View current attendance by category. Lists update dynamically based on latest check-ins.")
+    # Load persisted data
+    records = attendance_store.load_attendance()
+    employees = attendance_store.load_employees()
 
-        # Load persisted data
-        records = attendance_store.load_attendance()
-        employees = attendance_store.load_employees()
+    if not records:
+        st.info("No attendance records yet. Employees can use Daily Check-in to record status.")
+        return
 
-        if not records:
-            st.info("No attendance records yet. Employees can use Daily Check-in to record status.")
-            return
-
-        # Build latest status per employee
-        latest = {}
-        for r in records:
-            emp = (r.get("emp_id") or "").upper()
-            ts = None
+    # Build latest status per employee
+    latest = {}
+    for r in records:
+        emp = (r.get("emp_id") or "").upper()
+        ts = None
+        try:
+            ts = datetime.fromisoformat(r.get("timestamp"))
+        except Exception:
             try:
-                ts = datetime.fromisoformat(r.get("timestamp"))
+                from dateutil import parser as _p
+                ts = _p.isoparse(r.get("timestamp"))
             except Exception:
-                try:
-                    from dateutil import parser as _p
-                    ts = _p.isoparse(r.get("timestamp"))
-                except Exception:
-                    ts = datetime.min
-            if emp:
-                if emp not in latest or ts > latest[emp]["timestamp"]:
-                    latest[emp] = {"status": r.get("status"), "timestamp": ts, "notes": r.get("notes", "")}
+                ts = datetime.min
+        if emp:
+            if emp not in latest or ts > latest[emp]["timestamp"]:
+                latest[emp] = {"status": r.get("status"), "timestamp": ts, "notes": r.get("notes", "")}
 
-        # Categorize
-        wfo_list = []
-        wfh_list = []
-        leave_list = []
+    # Categorize
+    wfo_list = []
+    wfh_list = []
+    leave_list = []
 
-        for emp_id, info in latest.items():
-            detail = employees.get(emp_id, {})
-            name = detail.get("name", emp_id)
-            dept = detail.get("department", "")
-            role = detail.get("role", "")
-            ts = info.get("timestamp")
-            ts_str = ts.strftime('%Y-%m-%d %I:%M %p') if hasattr(ts, 'strftime') else str(ts)
-            row = {"ID": emp_id, "Name": name, "Department": dept, "Role": role, "Last Update": ts_str, "Notes": info.get("notes", "")}
-            if info.get("status") == "WFO":
-                wfo_list.append(row)
-            elif info.get("status") == "WFH":
-                wfh_list.append(row)
-            elif info.get("status") == "On Leave":
-                leave_list.append(row)
+    for emp_id, info in latest.items():
+        detail = employees.get(emp_id, {})
+        name = detail.get("name", emp_id)
+        dept = detail.get("department", "")
+        role = detail.get("role", "")
+        ts = info.get("timestamp")
+        ts_str = ts.strftime('%Y-%m-%d %I:%M %p') if hasattr(ts, 'strftime') else str(ts)
+        row = {"ID": emp_id, "Name": name, "Department": dept, "Role": role, "Last Update": ts_str, "Notes": info.get("notes", "")}
+        if info.get("status") == "WFO":
+            wfo_list.append(row)
+        elif info.get("status") == "WFH":
+            wfh_list.append(row)
+        elif info.get("status") == "On Leave":
+            leave_list.append(row)
 
-        tab1, tab2, tab3 = st.tabs([f"No. of Employees in Office ({len(wfo_list)})", f"No. of Employees Remote ({len(wfh_list)})", f"No. of Employees On Leave ({len(leave_list)})"])
+    tab1, tab2, tab3 = st.tabs([f"No. of Employees in Office ({len(wfo_list)})", f"No. of Employees Remote ({len(wfh_list)})", f"No. of Employees On Leave ({len(leave_list)})"])
 
-        with tab1:
-            st.subheader(f"Employees in Office — {len(wfo_list)}")
-            if wfo_list:
-                st.dataframe(wfo_list, use_container_width=True)
-            else:
-                st.info("No employees are currently marked as in the office.")
+    with tab1:
+        st.subheader(f"Employees in Office — {len(wfo_list)}")
+        if wfo_list:
+            st.dataframe(wfo_list, use_container_width=True)
+        else:
+            st.info("No employees are currently marked as in the office.")
 
-        with tab2:
-            st.subheader(f"Employees Remote — {len(wfh_list)}")
-            if wfh_list:
-                st.dataframe(wfh_list, use_container_width=True)
-            else:
-                st.info("No employees are currently marked as remote.")
+    with tab2:
+        st.subheader(f"Employees Remote — {len(wfh_list)}")
+        if wfh_list:
+            st.dataframe(wfh_list, use_container_width=True)
+        else:
+            st.info("No employees are currently marked as remote.")
 
-        with tab3:
-            st.subheader(f"Employees On Leave — {len(leave_list)}")
-            if leave_list:
-                st.dataframe(leave_list, use_container_width=True)
-            else:
-                st.info("No employees are currently marked as on leave.")
+    with tab3:
+        st.subheader(f"Employees On Leave — {len(leave_list)}")
+        if leave_list:
+            st.dataframe(leave_list, use_container_width=True)
+        else:
+            st.info("No employees are currently marked as on leave.")
 
 # Main App
 def main():
