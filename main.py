@@ -1898,6 +1898,83 @@ def show_signup_page():
             st.session_state.show_signup = False
             st.rerun()
 
+
+    def show_employee_attendance_dashboard():
+        """Display the Employee Attendance Dashboard with three tabs"""
+        import attendance_store
+        from datetime import datetime
+
+        st.title("Employee Attendance Dashboard")
+        st.markdown("View current attendance by category. Lists update dynamically based on latest check-ins.")
+
+        # Load persisted data
+        records = attendance_store.load_attendance()
+        employees = attendance_store.load_employees()
+
+        if not records:
+            st.info("No attendance records yet. Employees can use Daily Check-in to record status.")
+            return
+
+        # Build latest status per employee
+        latest = {}
+        for r in records:
+            emp = (r.get("emp_id") or "").upper()
+            ts = None
+            try:
+                ts = datetime.fromisoformat(r.get("timestamp"))
+            except Exception:
+                try:
+                    from dateutil import parser as _p
+                    ts = _p.isoparse(r.get("timestamp"))
+                except Exception:
+                    ts = datetime.min
+            if emp:
+                if emp not in latest or ts > latest[emp]["timestamp"]:
+                    latest[emp] = {"status": r.get("status"), "timestamp": ts, "notes": r.get("notes", "")}
+
+        # Categorize
+        wfo_list = []
+        wfh_list = []
+        leave_list = []
+
+        for emp_id, info in latest.items():
+            detail = employees.get(emp_id, {})
+            name = detail.get("name", emp_id)
+            dept = detail.get("department", "")
+            role = detail.get("role", "")
+            ts = info.get("timestamp")
+            ts_str = ts.strftime('%Y-%m-%d %I:%M %p') if hasattr(ts, 'strftime') else str(ts)
+            row = {"ID": emp_id, "Name": name, "Department": dept, "Role": role, "Last Update": ts_str, "Notes": info.get("notes", "")}
+            if info.get("status") == "WFO":
+                wfo_list.append(row)
+            elif info.get("status") == "WFH":
+                wfh_list.append(row)
+            elif info.get("status") == "On Leave":
+                leave_list.append(row)
+
+        tab1, tab2, tab3 = st.tabs([f"No. of Employees in Office ({len(wfo_list)})", f"No. of Employees Remote ({len(wfh_list)})", f"No. of Employees On Leave ({len(leave_list)})"])
+
+        with tab1:
+            st.subheader(f"Employees in Office — {len(wfo_list)}")
+            if wfo_list:
+                st.dataframe(wfo_list, use_container_width=True)
+            else:
+                st.info("No employees are currently marked as in the office.")
+
+        with tab2:
+            st.subheader(f"Employees Remote — {len(wfh_list)}")
+            if wfh_list:
+                st.dataframe(wfh_list, use_container_width=True)
+            else:
+                st.info("No employees are currently marked as remote.")
+
+        with tab3:
+            st.subheader(f"Employees On Leave — {len(leave_list)}")
+            if leave_list:
+                st.dataframe(leave_list, use_container_width=True)
+            else:
+                st.info("No employees are currently marked as on leave.")
+
 # Main App
 def main():
     """Main application"""
@@ -1921,10 +1998,14 @@ def main():
         st.success(f"👋 {st.session_state.emp_name}")
         st.caption(f"ID: {st.session_state.emp_id}")
         st.markdown("---")
+        # use session-state key so we can programmatically change the selected page
+        if "main_page" not in st.session_state:
+            st.session_state.main_page = "Daily Check-in"
         page = st.radio(
             "Navigation",
-            ["Daily Check-in", "📝 Submit Report", "📈 Dashboard", "⚙️ Settings", "📧 Reminders"],
-            label_visibility="collapsed"
+            ["Daily Check-in", "Employee Attendance Dashboard", "📝 Submit Report", "📈 Dashboard", "⚙️ Settings", "📧 Reminders"],
+            label_visibility="collapsed",
+            key="main_page"
         )
         st.markdown("---")
         st.markdown("### 🔄 Quick Actions")
@@ -1958,10 +2039,14 @@ def main():
                 from attendance_store import append_attendance
                 append_attendance(st.session_state.emp_id, code, notes or "")
                 st.success(f"✅ Checked in as {status_choice}")
+                # Navigate to Employee Attendance Dashboard
+                st.session_state.main_page = "Employee Attendance Dashboard"
                 time.sleep(1)
                 st.rerun()
             except Exception as e:
                 st.error(f"Failed to record attendance: {e}")
+    elif page == "Employee Attendance Dashboard":
+        show_employee_attendance_dashboard()
     elif page == "📝 Submit Report":
         show_submit_report()
    
