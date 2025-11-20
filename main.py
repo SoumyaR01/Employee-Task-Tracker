@@ -1962,14 +1962,14 @@ def show_employee_attendance_dashboard():
         name = meta.get("name", emp_upper)
         dept = meta.get("department", "")
         role = meta.get("role", "")
-        ts = rec.get("timestamp")
-        ts_str = ts.strftime('%I:%M %p') if hasattr(ts, 'strftime') else str(ts)
+        # Use the pre-recorded check_in_time directly (device time if captured, server time if fallback)
+        check_in_time_display = rec.get("check_in_time") or "—"
         row = {
             "ID": emp_upper,
             "Name": name,
             "Department": dept,
             "Role": role,
-            "Check-in Time": ts_str,
+            "Check-in Time": check_in_time_display,
             "Notes": rec.get("notes", "")
         }
         if rec.get("status") == "WFO":
@@ -2090,6 +2090,20 @@ def main():
         st.title("Daily Check-in")
         st.markdown(f"### Welcome, {st.session_state.emp_name}!")
         st.markdown("Mark your attendance for today.")
+        
+        # Capture device time via hidden HTML component
+        st.components.v1.html("""
+        <script>
+            function captureTime() {
+                const now = new Date();
+                const time = now.toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit' });
+                window.parent.postMessage({streamlitMethod: 'setComponentValue', key: 'device_time', value: time}, '*');
+            }
+            captureTime();
+            setInterval(captureTime, 1000);
+        </script>
+        """, height=0)
+        
         with st.form("daily_checkin"):
             status_choice = st.radio("Select your work status for today:", ["Work from Home", "Work in Office", "On Leave"])
             notes = st.text_area("Notes (optional)")
@@ -2098,11 +2112,16 @@ def main():
             # Map to internal codes used by Attendance system
             mapping = {"Work from Home": "WFH", "Work in Office": "WFO", "On Leave": "On Leave"}
             code = mapping.get(status_choice, "No Status")
-            # Append attendance using logged-in emp_id
+            # Append attendance using logged-in emp_id with device time if available
             try:
                 from attendance_store import append_attendance
-                append_attendance(st.session_state.emp_id, code, notes or "")
+                # Get device time from session state (captured by JS), fallback to None to use server time
+                device_time = st.session_state.get("device_time")
+                append_attendance(st.session_state.emp_id, code, notes or "", client_time=device_time)
                 st.success(f"✅ Checked in as {status_choice}")
+                # Display the recorded time for confirmation
+                if device_time:
+                    st.info(f"📍 Check-in time recorded: {device_time}")
                 # Set a redirect flag — will be applied before the sidebar radio is created
                 st.session_state.next_page = "Employee Attendance Dashboard"
                 time.sleep(1)
