@@ -1963,15 +1963,28 @@ def show_employee_attendance_dashboard():
         dept = meta.get("department", "")
         role = meta.get("role", "")
         # Use the pre-recorded check_in_time directly (device time if captured, server time if fallback)
-        check_in_time_display = rec.get("check_in_time") or "—"
+        check_in = rec.get("check_in_time")
+        if check_in:
+            try:
+                if isinstance(check_in, str):
+                    check_in_dt = datetime.fromisoformat(check_in)
+                else:
+                    check_in_dt = check_in
+                ts_str = check_in_dt.strftime('%I:%M %p')
+            except Exception:
+                ts_str = str(check_in)
+        else:
+            ts_str = "N/A"
+        
         row = {
             "ID": emp_upper,
             "Name": name,
             "Department": dept,
             "Role": role,
-            "Check-in Time": check_in_time_display,
+            "Check-in Time": ts_str,
             "Notes": rec.get("notes", "")
         }
+        
         if rec.get("status") == "WFO":
             wfo_list.append(row)
         elif rec.get("status") == "WFH":
