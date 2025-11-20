@@ -2080,7 +2080,7 @@ def main():
             st.session_state.main_page = "Daily Check-in"
         page = st.radio(
             "Navigation",
-            ["Daily Check-in", "Employee Attendance Dashboard", "📝 Submit Report", "📈 Dashboard", "⚙️ Settings", "📧 Reminders"],
+            ["Daily Check-in", "Staff Attendance View", "📝 Submit Report", "📈 Dashboard", "⚙️ Settings", "📧 Reminders"],
             label_visibility="collapsed",
             key="main_page"
         )
