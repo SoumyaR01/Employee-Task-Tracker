@@ -1945,65 +1945,50 @@ def show_employee_attendance_dashboard():
                     "check_in_time": r.get("check_in_time")
                 }
 
-    # Categorize employees
+    # Categorize employees — only include those with today's attendance records
     wfo_list = []  # Work From Office
     wfh_list = []  # Work From Home
     leave_list = [] # On Leave
-    absent_list = []  # No check-in today
 
-    for emp_id, detail in employees.items():
-        if emp_id.upper() == "ADMIN":
-            continue
-        emp_upper = emp_id.upper()
-        name = detail.get("name", emp_id)
-        dept = detail.get("department", "")
-        role = detail.get("role", "")
-        
-        if emp_upper in today_records:
-            rec = today_records[emp_upper]
-            ts = rec.get("timestamp")
-            ts_str = ts.strftime('%I:%M %p') if hasattr(ts, 'strftime') else str(ts)
-            row = {
-                "ID": emp_upper,
-                "Name": name,
-                "Department": dept,
-                "Role": role,
-                "Check-in Time": ts_str,
-                "Notes": rec.get("notes", "")
-            }
-            if rec.get("status") == "WFO":
-                wfo_list.append(row)
-            elif rec.get("status") == "WFH":
-                wfh_list.append(row)
-            elif rec.get("status") == "On Leave":
-                leave_list.append(row)
-        else:
-            row = {
-                "ID": emp_upper,
-                "Name": name,
-                "Department": dept,
-                "Role": role,
-                "Check-in Time": "-",
-                "Notes": "Not checked in"
-            }
-            absent_list.append(row)
+    for emp_upper, rec in today_records.items():
+        # get employee metadata if available
+        meta = employees.get(emp_upper, {}) if isinstance(employees, dict) else {}
+        name = meta.get("name", emp_upper)
+        dept = meta.get("department", "")
+        role = meta.get("role", "")
+        ts = rec.get("timestamp")
+        ts_str = ts.strftime('%I:%M %p') if hasattr(ts, 'strftime') else str(ts)
+        row = {
+            "ID": emp_upper,
+            "Name": name,
+            "Department": dept,
+            "Role": role,
+            "Check-in Time": ts_str,
+            "Notes": rec.get("notes", "")
+        }
+        if rec.get("status") == "WFO":
+            wfo_list.append(row)
+        elif rec.get("status") == "WFH":
+            wfh_list.append(row)
+        elif rec.get("status") == "On Leave":
+            leave_list.append(row)
 
     # Summary Metrics
     st.markdown("### Today's Attendance Summary")
-    total_emps = len([e for e in employees.keys() if e.upper() != "ADMIN"])
+    # Metrics reflect today's actual check-ins only
+    total_today = len(today_records)
     present = len(wfo_list) + len(wfh_list) + len(leave_list)
-    absent = total_emps - present
-    attendance_rate = round((present / total_emps) * 100, 1) if total_emps else 0
+    attendance_rate = round((present / total_today) * 100, 1) if total_today else 0
 
     col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
-        st.markdown(f'<div class="metric-card"><div class="metric-value">{total_emps}</div><div class="metric-label">Total Employees</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="metric-card"><div class="metric-value">{total_today}</div><div class="metric-label">Checked-in Today</div></div>', unsafe_allow_html=True)
     with col2:
         st.markdown(f'<div class="metric-card status-green"><div class="metric-value">{present}</div><div class="metric-label">Present</div></div>', unsafe_allow_html=True)
     with col3:
         st.markdown(f'<div class="metric-card status-yellow"><div class="metric-value">{len(wfo_list)}</div><div class="metric-label">In Office</div></div>', unsafe_allow_html=True)
     with col4:
-        st.markdown(f'<div class="metric-card status-red"><div class="metric-value">{absent}</div><div class="metric-label">Absent</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="metric-card status-red"><div class="metric-value">0</div><div class="metric-label">Absent (not shown)</div></div>', unsafe_allow_html=True)
     with col5:
         st.markdown(f'<div class="metric-card"><div class="metric-value">{attendance_rate}%</div><div class="metric-label">Attendance Rate</div></div>', unsafe_allow_html=True)
 
@@ -2036,15 +2021,6 @@ def show_employee_attendance_dashboard():
             st.dataframe(leave_list, use_container_width=True, hide_index=True)
         else:
             st.info("No employees are currently marked as on leave.")
-
-    st.markdown("---")
-
-    # Absent employees
-    st.markdown("### Absent Today")
-    if absent_list:
-        st.dataframe(absent_list, use_container_width=True, hide_index=True)
-    else:
-        st.success("✅ All employees have checked in today!")
 
     st.markdown("---")
 
