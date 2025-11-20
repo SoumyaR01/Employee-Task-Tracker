@@ -1815,7 +1815,7 @@ def show_submit_report():
                 else:
                     st.error("❌ Failed to save report. Please try again or contact administrator.")
 
-==================== LOGIN & SIGNUP PAGES ====================
+#==================== LOGIN & SIGNUP PAGES ====================
 def show_login_page():
     from attendance_store import verify_login
     
