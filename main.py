@@ -1823,7 +1823,7 @@ def main():
         st.markdown("---")
         page = st.radio(
             "Navigation",
-            ["📝 Submit Report", "📈 Dashboard", "⚙️ Settings", "📧 Reminders"],
+            ["Daily Check-in", "📝 Submit Report", "📈 Dashboard", "⚙️ Settings", "📧 Reminders"],
             label_visibility="collapsed"
         )
         st.markdown("---")
@@ -1835,7 +1835,34 @@ def main():
     # Load configuration
     config = load_config()
     # Main content
-    if page == "📝 Submit Report":
+    if page == "Daily Check-in":
+        st.title("Daily Check-in")
+        st.markdown("Please enter your Office ID and Password to mark your attendance for the day.")
+        with st.form("daily_checkin"):
+            emp_id = st.text_input("Office ID", placeholder="e.g. EMP001")
+            pwd = st.text_input("Password", type="password")
+            status_choice = st.radio("Select your work status for today:", ["Work from Home", "Work in Office", "On Leave"])
+            notes = st.text_area("Notes (optional)")
+            submitted = st.form_submit_button("Check In")
+        if submitted:
+            # Map to internal codes used by Attendance system
+            mapping = {"Work from Home": "WFH", "Work in Office": "WFO", "On Leave": "On Leave"}
+            code = mapping.get(status_choice, "No Status")
+            # Verify credentials using persisted employees file
+            try:
+                from attendance_store import load_employees, append_attendance
+                import hashlib
+                employees = load_employees()
+                emp = employees.get(emp_id.upper()) if employees else None
+                if emp and emp.get("password") == hashlib.sha256(pwd.encode()).hexdigest():
+                    append_attendance(emp_id.upper(), code, notes or "")
+                    st.success(f"✅ Checked in as {status_choice}")
+                    st.experimental_rerun()
+                else:
+                    st.error("Invalid Office ID or Password")
+            except Exception as e:
+                st.error(f"Failed to record attendance: {e}")
+    elif page == "📝 Submit Report":
         show_submit_report()
    
     elif page == "📈 Dashboard":
