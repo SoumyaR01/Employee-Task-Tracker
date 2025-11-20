@@ -8,55 +8,179 @@ from pathlib import Path
 import time
 import os
 import logging
-
-
+import base64
+import re
+from openpyxl import load_workbook
 st.set_page_config(
     page_title="Employee Progress Tracker",
     page_icon="📊",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
 
-# Custom CSS
+# Helper function to convert image to base64
+def get_base64_image(image_path):
+    """Convert image to base64 for CSS background"""
+    try:
+        with open(image_path, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode()
+    except:
+        return None
+
+# Custom CSS (dark/black background)
 st.markdown("""
 <style>
+    /* Background styling */
+    .stApp {
+        background: #000000; /* black */
+        background-attachment: fixed;
+        color: #e6eef2; /* light default text color for readability */
+    }
+
+    /* Subtle pattern overlay (very light) */
+    .stApp::before {
+        content: "";
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 0;
+    }
+
+    /* Main content area */
     .main > div {
         padding: 1rem;
+        position: relative;
+        z-index: 1;
     }
+
+    /* Block container styling (dark) */
+    .block-container {
+        padding: 2rem 1rem;
+        background: rgba(10, 10, 10, 0.75);
+        border-radius: 15px;
+        backdrop-filter: blur(6px);
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.6);
+        color: #e6eef2; /* ensure text inside blocks is light */
+    }
+
+    /* Metric cards */
     .metric-card {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         padding: 20px;
         border-radius: 10px;
-        color: white;
+        color: white !important;
         text-align: center;
         margin: 10px 0;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        transition: transform 0.25s ease;
     }
+
+    .metric-card:hover {
+        transform: translateY(-4px);
+    }
+
     .metric-value {
         font-size: 2.5rem;
         font-weight: bold;
     }
+
     .metric-label {
         font-size: 1rem;
-        opacity: 0.9;
+        opacity: 0.95;
     }
+
+    /* Filter container (dark) */
     .filter-container {
-        background: #f8f9fa;
+        background: linear-gradient(180deg, rgba(20,20,20,0.6) 0%, rgba(30,30,30,0.6) 100%);
         padding: 20px;
         border-radius: 10px;
         margin-bottom: 20px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.6);
+        color: #e6eef2;
     }
+
+    /* Button styling */
     .stButton > button {
         width: 100%;
-        border-radius: 5px;
+        border-radius: 6px;
         height: 3rem;
         font-weight: 600;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white !important;
+        border: none;
+        transition: all 0.2s ease;
     }
+
+    .stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 18px rgba(102, 126, 234, 0.18);
+    }
+
+    /* Sidebar styling */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #4c5bd4 0%, #6b4bb8 100%);
+    }
+
+    [data-testid="stSidebar"] * {
+        color: white !important;
+    }
+
+    /* Input fields (dark theme) */
+    .stTextInput > div > div > input,
+    .stTextArea > div > div > textarea,
+    .stSelectbox > div > div > select {
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.12);
+        transition: border-color 0.3s ease;
+        background: #0f1113;
+        color: #e6eef2;
+    }
+
+    .stTextInput > div > div > input:focus,
+    .stTextArea > div > div > textarea:focus,
+    .stSelectbox > div > div > select:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.06);
+    }
+
+    /* Logo container styling */
+    .logo-container {
+        background: transparent;
+        padding: 20px;
+        border-radius: 15px;
+        box-shadow: none;
+        margin-bottom: 20px;
+        text-align: center;
+    }
+
+    /* Constrain logo image size so it doesn't take the entire viewport */
+    .logo-container img {
+        max-width: 480px;
+        width: 100%;
+        height: auto;
+        display: inline-block;
+    }
+
+    /* Expander styling */
+    .streamlit-expanderHeader {
+        background: linear-gradient(135deg, #1e293b 0%, #111827 100%);
+        border-radius: 8px;
+        font-weight: 600;
+        color: #e6eef2 !important;
+    }
+
     @media (max-width: 768px) {
         .main > div {
             padding: 0.5rem;
         }
         .metric-value {
             font-size: 1.8rem;
+        }
+        .block-container {
+            padding: 1rem 0.5rem;
         }
     }
 </style>
@@ -65,6 +189,306 @@ st.markdown("""
 # Constants
 EXCEL_FILE_PATH = r'D:\Employee Track Report\task_tracker.xlsx'
 CONFIG_FILE = 'config.json'
+DATA_COLUMNS = [
+    'Date',
+    'Work Mode',
+    'Emp Id',
+    'Name',
+    'Project Name',
+    'Task Title',
+    'Task Assigned By',
+    'Task Priority',
+    'Task Status',
+    'Plan for next day',
+    'Support Request',
+    'Effort (in hours)',
+    'Employee Performance (%)'
+]
+SUMMARY_SHEET_NAME = '📈 Employee Progress Dashboard'
+PERFORMANCE_SHEET_NAME = 'Employee Performance'
+EMPLOYEE_SHEET_SUFFIX = ' Dashboard'
+
+
+def sanitize_sheet_name(name: str) -> str:
+    """Return a workbook-safe base sheet name (<=31 chars, invalid chars removed)."""
+    safe = re.sub(r'[\\/*?:\[\]]', '_', str(name)).strip()
+    if not safe:
+        safe = 'Unnamed'
+    return safe[:31]
+
+
+def build_employee_sheet_name(base_name: str, used_names: set[str]) -> str:
+    """Construct a unique sheet name for an employee while respecting Excel limits."""
+    suffix = EMPLOYEE_SHEET_SUFFIX
+    max_base_len = max(0, 31 - len(suffix))
+    trimmed_base = base_name[:max_base_len] if max_base_len else base_name[:31]
+    candidate = f"{trimmed_base}{suffix}"
+    counter = 2
+    while candidate in used_names:
+        extra = f" {counter}"
+        counter += 1
+        allowed_len = max(0, 31 - len(suffix) - len(extra))
+        trimmed_base = base_name[:allowed_len] if allowed_len else ''
+        fallback = trimmed_base if trimmed_base else 'Employee'
+        candidate = f"{fallback}{extra}{suffix}"
+    used_names.add(candidate)
+    return candidate
+
+
+def ensure_numeric_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """Guarantee the performance and effort columns exist and are numeric."""
+    df = df.copy()
+    numeric_cols = ['Employee Performance (%)', 'Effort (in hours)']
+    for col in numeric_cols:
+        if col not in df.columns:
+            df[col] = 0.0
+        df[col] = (
+            pd.to_numeric(df[col], errors='coerce')
+            .fillna(0.0)
+            .astype(float)
+        )
+    return df
+
+
+# ==================== PERFORMANCE CALCULATION ====================
+def calculate_performance(tasks_list):
+    """
+    Calculate employee performance using formula:
+    Average % = (Sum of Task Priority / Total Effort in Hours) * 100
+    
+    Priority weights: Low=1, Medium=2, High=3, Critical=4
+    """
+    if not tasks_list:
+        return 0.0
+    
+    priority_weights = {
+        'Low': 1,
+        'Medium': 2,
+        'High': 3,
+        'Critical': 4
+    }
+    
+    total_priority_weight = 0
+    total_effort = 0
+    
+    for task in tasks_list:
+        priority = task.get('Task Priority', 'Low')
+        try:
+            effort = float(task.get('Effort (in hours)', 0))
+        except Exception:
+            effort = 0.0
+        
+        weight = priority_weights.get(priority, 1)
+        total_priority_weight += weight
+        total_effort += effort
+    
+    if total_effort == 0:
+        return 0.0
+    
+    performance = (total_priority_weight / total_effort) * 100
+    return min(round(performance, 2), 100.0)  # Cap at 100%
+
+
+def update_dashboard_sheets(excel_path: str, full_df: pd.DataFrame) -> None:
+    """Regenerate the summary and individual employee dashboard sheets."""
+    if full_df is None or full_df.empty:
+        logging.info("Skipping dashboard sheet update because there is no data.")
+        return
+
+    if 'Name' not in full_df.columns:
+        logging.warning("Cannot build dashboard sheets because 'Name' column is missing.")
+        return
+
+    try:
+        full_df = ensure_numeric_columns(full_df)
+        if 'Date' in full_df.columns:
+            full_df['Date'] = pd.to_datetime(full_df['Date'], errors='coerce')
+    except Exception as parse_error:
+        logging.error(f"Failed to normalise data for dashboard sheets: {parse_error}")
+        return
+
+    try:
+        book = load_workbook(excel_path)
+    except Exception as workbook_error:
+        logging.error(f"Unable to open workbook '{excel_path}' to update dashboard sheets: {workbook_error}")
+        return
+
+    # Clean up existing dashboard-related sheets
+    all_sheetnames = list(book.sheetnames)
+    for sheet_name in all_sheetnames:
+        if sheet_name == SUMMARY_SHEET_NAME:
+            del book[sheet_name]
+        elif sheet_name == PERFORMANCE_SHEET_NAME:
+            del book[sheet_name]
+        elif sheet_name.endswith(EMPLOYEE_SHEET_SUFFIX) and sheet_name != SUMMARY_SHEET_NAME:
+            del book[sheet_name]
+
+    # Prepare data for summary
+    summary_records = []
+    unique_names = (
+        full_df['Name']
+        .dropna()
+        .astype(str)
+        .str.strip()
+    )
+    unique_names = [name for name in unique_names.unique() if name]
+
+    for name in unique_names:
+        emp_mask = full_df['Name'].astype(str).str.strip() == name
+        emp_data = full_df[emp_mask]
+        total_tasks = len(emp_data)
+        if 'Task Status' in emp_data.columns:
+            completed_tasks = int((emp_data['Task Status'] == 'Completed').sum())
+        else:
+            completed_tasks = 0
+        pending_tasks = max(total_tasks - completed_tasks, 0)
+        completion_rate = round((completed_tasks / total_tasks * 100) if total_tasks else 0.0, 2)
+        avg_perf = round(emp_data['Employee Performance (%)'].mean(), 2)
+        last_update = None
+        if 'Date' in emp_data.columns and not emp_data['Date'].dropna().empty:
+            last_update = emp_data['Date'].dropna().max()
+
+        summary_records.append({
+            'name': name,
+            'total_tasks': total_tasks,
+            'completed_tasks': completed_tasks,
+            'pending_tasks': pending_tasks,
+            'completion_rate': completion_rate,
+            'avg_performance': avg_perf,
+            'last_update': last_update
+        })
+
+    # Sort by average performance descending, then by completion rate
+    summary_records.sort(key=lambda record: (record['avg_performance'], record['completion_rate']), reverse=True)
+
+    ws_summary = book.create_sheet(SUMMARY_SHEET_NAME)
+    summary_headers = [
+        'Employee Name',
+        'Total Tasks',
+        'Completed Tasks',
+        'Pending Tasks',
+        'Completion Rate (%)',
+        'Employee Performance (%)',
+        'Last Update',
+        'Individual Dashboard'
+    ]
+    for col_idx, header in enumerate(summary_headers, start=1):
+        ws_summary.cell(row=1, column=col_idx, value=header)
+
+    ws_summary.freeze_panes = "A2"
+    col_widths = [28, 14, 16, 14, 20, 20, 16, 24]
+    for idx, width in enumerate(col_widths, start=1):
+        column_letter = ws_summary.cell(row=1, column=idx).column_letter
+        ws_summary.column_dimensions[column_letter].width = width
+
+    used_sheet_names: set[str] = set(book.sheetnames)
+    data_start_row = 2
+
+    for offset, record in enumerate(summary_records):
+        row_idx = data_start_row + offset
+        ws_summary.cell(row=row_idx, column=1, value=record['name'])
+        ws_summary.cell(row=row_idx, column=2, value=record['total_tasks'])
+        ws_summary.cell(row=row_idx, column=3, value=record['completed_tasks'])
+        ws_summary.cell(row=row_idx, column=4, value=record['pending_tasks'])
+        ws_summary.cell(row=row_idx, column=5, value=record['completion_rate'])
+        ws_summary.cell(row=row_idx, column=6, value=record['avg_performance'])
+        last_update_value = ""
+        if record['last_update'] is not None and not pd.isna(record['last_update']):
+            if isinstance(record['last_update'], pd.Timestamp):
+                last_update_value = record['last_update'].date().isoformat()
+            else:
+                last_update_value = str(record['last_update'])
+        ws_summary.cell(row=row_idx, column=7, value=last_update_value)
+
+        base_name = sanitize_sheet_name(record['name'])
+        employee_sheet_name = build_employee_sheet_name(base_name, used_sheet_names)
+        hyperlink_formula = f'=HYPERLINK("#\'{employee_sheet_name}\'!A1", "View Dashboard")'
+        ws_summary.cell(row=row_idx, column=8).value = hyperlink_formula
+
+        # Build individual employee sheet
+        ws_emp = book.create_sheet(employee_sheet_name)
+        ws_emp.freeze_panes = "A8"
+
+        ws_emp.cell(row=1, column=1, value=f"Employee Dashboard")
+        ws_emp.cell(row=2, column=1, value="Employee Name")
+        ws_emp.cell(row=2, column=2, value=record['name'])
+        ws_emp.cell(row=3, column=1, value="Total Tasks")
+        ws_emp.cell(row=3, column=2, value=record['total_tasks'])
+        ws_emp.cell(row=4, column=1, value="Completed Tasks")
+        ws_emp.cell(row=4, column=2, value=record['completed_tasks'])
+        ws_emp.cell(row=5, column=1, value="Pending Tasks")
+        ws_emp.cell(row=5, column=2, value=record['pending_tasks'])
+        ws_emp.cell(row=6, column=1, value="Completion Rate (%)")
+        ws_emp.cell(row=6, column=2, value=record['completion_rate'])
+        ws_emp.cell(row=7, column=1, value="Avg Performance (%)")
+        ws_emp.cell(row=7, column=2, value=record['avg_performance'])
+        ws_emp.cell(row=2, column=4, value="Last Update")
+        ws_emp.cell(row=2, column=5, value=last_update_value)
+        ws_emp.cell(row=3, column=4, value="Back to Dashboard")
+        ws_emp.cell(row=3, column=5).value = f'=HYPERLINK("#\'{SUMMARY_SHEET_NAME}\'!A1", "View All Employees")'
+
+        ws_emp.cell(row=9, column=1, value="Task Details")
+        header_row = 10
+        detail_start_row = header_row + 1
+
+        emp_details = full_df[emp_mask].copy()
+        emp_details = emp_details.sort_values(by='Date') if 'Date' in emp_details.columns else emp_details
+        for col_idx, col_name in enumerate(DATA_COLUMNS, start=1):
+            ws_emp.cell(row=header_row, column=col_idx, value=col_name)
+
+        for row_offset, (_, detail_row) in enumerate(emp_details.iterrows()):
+            excel_row_idx = detail_start_row + row_offset
+            for col_idx, col_name in enumerate(DATA_COLUMNS, start=1):
+                cell_value = detail_row.get(col_name)
+                if pd.isna(cell_value):
+                    cell_value = ""
+                elif isinstance(cell_value, pd.Timestamp):
+                    cell_value = cell_value.date()
+                ws_emp.cell(row=excel_row_idx, column=col_idx, value=cell_value)
+
+        for col_idx in range(1, len(DATA_COLUMNS) + 1):
+            column_letter = ws_emp.cell(row=header_row, column=col_idx).column_letter
+            ws_emp.column_dimensions[column_letter].width = 18
+
+    if summary_records:
+        ws_summary.auto_filter.ref = f"A1:H{data_start_row + len(summary_records) - 1}"
+        ws_perf = book.create_sheet(PERFORMANCE_SHEET_NAME)
+        perf_headers = [
+            'Rank',
+            'Employee Name',
+            'Total Tasks',
+            'Completed Tasks',
+            'Completion Rate (%)',
+            'Employee Performance (%)',
+            'Last Update',
+            'Dashboard Link'
+        ]
+        perf_col_widths = [8, 28, 14, 16, 20, 20, 16, 24]
+        for col_idx, header in enumerate(perf_headers, start=1):
+            ws_perf.cell(row=1, column=col_idx, value=header)
+            column_letter = ws_perf.cell(row=1, column=col_idx).column_letter
+            width = perf_col_widths[col_idx - 1] if col_idx - 1 < len(perf_col_widths) else 18
+            ws_perf.column_dimensions[column_letter].width = width
+        ws_perf.freeze_panes = "A2"
+
+        for rank, record in enumerate(summary_records, start=1):
+            row_idx = rank + 1
+            ws_perf.cell(row=row_idx, column=1, value=rank)
+            ws_perf.cell(row=row_idx, column=2, value=record['name'])
+            ws_perf.cell(row=row_idx, column=3, value=record['total_tasks'])
+            ws_perf.cell(row=row_idx, column=4, value=record['completed_tasks'])
+            ws_perf.cell(row=row_idx, column=5, value=record['completion_rate'])
+            ws_perf.cell(row=row_idx, column=6, value=record['avg_performance'])
+            last_update_value = ws_summary.cell(data_start_row + rank - 1, column=7).value
+            ws_perf.cell(row=row_idx, column=7, value=last_update_value)
+            ws_perf.cell(row=row_idx, column=8).value = f'=HYPERLINK("#\'{SUMMARY_SHEET_NAME}\'!A{data_start_row + rank - 1}", "Open Dashboard")'
+
+        ws_perf.auto_filter.ref = f"A1:H{len(summary_records) + 1}"
+
+    try:
+        book.save(excel_path)
+    except Exception as save_error:
+        logging.error(f"Failed to save workbook with updated dashboard sheets: {save_error}")
 
 # Helper Functions
 
@@ -75,6 +499,7 @@ def load_config():
             return json.load(f)
     return {
         'excel_file_path': EXCEL_FILE_PATH,
+        'logo_path': '/home/pinku/PTF Track/logo/PTF1.png',
         'reminder_time': '18:00',
         'reminder_days': [0, 1, 2, 3, 4, 5],  # Mon-Sat
         'admin_email': '',
@@ -94,12 +519,7 @@ def read_excel_data(excel_path=None):
     try:
         if not os.path.exists(excel_path):
             # Create empty Excel file with headers if it doesn't exist
-            columns = [
-                'Date', 'Work Mode', 'Emp Id', 'Name', 'Project Name', 
-                'Task Title', 'Task Assigned By', 'Task Priority', 
-                'Task Status', 'Plan for next day', 'Comments'
-            ]
-            df = pd.DataFrame(columns=columns)
+            df = pd.DataFrame(columns=DATA_COLUMNS)
             df.to_excel(excel_path, index=False, engine='openpyxl')
             return df
         
@@ -110,7 +530,8 @@ def read_excel_data(excel_path=None):
         if df.empty:
             return pd.DataFrame()
         
-        return df
+        # Ensure 'Employee Performance (%)' column exists
+        return ensure_numeric_columns(df)
     
     except Exception as error:
         st.error(f"Error reading Excel file: {error}")
@@ -162,23 +583,22 @@ def append_to_excel(data_list, excel_path=None):
             new_rows = pd.DataFrame(data_list)
             
             # Define column order
-            columns = [
-                'Date', 'Work Mode', 'Emp Id', 'Name', 'Project Name', 
-                'Task Title', 'Task Assigned By', 'Task Priority', 
-                'Task Status', 'Plan for next day', 'Comments'
-            ]
+            columns = DATA_COLUMNS
             
             # Combine with existing data
             if existing_df.empty:
-                combined_df = new_rows
+                for col in columns:
+                    if col not in new_rows.columns:
+                        new_rows[col] = 0.0 if col == 'Employee Performance (%)' else ''
+                combined_df = new_rows[columns]
             else:
                 # Ensure column order matches
                 # Add missing columns if any
                 for col in columns:
                     if col not in existing_df.columns:
-                        existing_df[col] = ''
+                        existing_df[col] = 0.0 if col == 'Employee Performance (%)' else ''
                     if col not in new_rows.columns:
-                        new_rows[col] = ''
+                        new_rows[col] = 0.0 if col == 'Employee Performance (%)' else ''
                 
                 # Reorder columns
                 existing_df = existing_df[columns]
@@ -187,7 +607,9 @@ def append_to_excel(data_list, excel_path=None):
                 combined_df = pd.concat([existing_df, new_rows], ignore_index=True)
             
             # Ensure all columns are in the right order
-            combined_df = combined_df[columns]
+            if not existing_df.empty:
+                combined_df = combined_df[columns]
+            combined_df = ensure_numeric_columns(combined_df)
             
             # Write to Excel
             try:
@@ -217,6 +639,13 @@ def append_to_excel(data_list, excel_path=None):
                     st.error(f"📁 File path: {excel_path}")
                     st.error(f"💡 Error type: {type(write_error).__name__}")
                     return False
+
+            # Update dashboard sheets after successful main sheet write
+            try:
+                update_dashboard_sheets(excel_path, combined_df)
+            except Exception as dash_error:
+                logging.error(f"Failed to update dashboard sheets: {dash_error}")
+                # Continue without failing the main append
             
             return True
         
@@ -418,7 +847,7 @@ def show_charts(df):
                 names=status_counts.index,
                 color_discrete_sequence=px.colors.qualitative.Set3
             )
-            st.plotly_chart(fig, width="stretch")
+            st.plotly_chart(fig, use_container_width=True)
 
     with col2:
         st.subheader("⚡ Priority Distribution")
@@ -436,7 +865,7 @@ def show_charts(df):
                 }
             )
             fig.update_layout(showlegend=False, xaxis_title="Priority", yaxis_title="Count")
-            st.plotly_chart(fig, width="stretch")
+            st.plotly_chart(fig, use_container_width=True)
 
     # Weekly trend
     st.subheader("📊 Weekly Submission Trend")
@@ -450,7 +879,138 @@ def show_charts(df):
             markers=True
         )
         fig.update_layout(xaxis_title="Date", yaxis_title="Submissions")
-        st.plotly_chart(fig, width="stretch")
+        st.plotly_chart(fig, use_container_width=True)
+
+
+def show_employee_dashboard(df):
+    """Interactive dashboard for selected employee using performance metrics."""
+    if df is None or df.empty or 'Name' not in df.columns:
+        st.info("No employee data available for detailed view.")
+        return
+
+    df = ensure_numeric_columns(df)
+    df = df.copy()
+    if 'Date' in df.columns:
+        df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
+
+    employees = sorted([name for name in df['Name'].dropna().unique() if str(name).strip()])
+    if not employees:
+        st.info("No employees found in the dataset.")
+        return
+
+    st.subheader("👤 Employee Performance Explorer")
+    selected_employee = st.selectbox("Select an employee to view detailed performance", employees)
+
+    if not selected_employee:
+        st.info("Select an employee to view their dashboard.")
+        return
+
+    emp_df = df[df['Name'] == selected_employee].copy()
+    if emp_df.empty:
+        st.warning("No records found for the selected employee.")
+        return
+
+    total_tasks = len(emp_df)
+    completed_tasks = int((emp_df.get('Task Status') == 'Completed').sum()) if 'Task Status' in emp_df.columns else 0
+    pending_tasks = max(total_tasks - completed_tasks, 0)
+    avg_performance = round(emp_df['Employee Performance (%)'].mean(), 2)
+    latest_perf = round(emp_df.sort_values('Date')['Employee Performance (%)'].iloc[-1], 2) if not emp_df['Employee Performance (%)'].empty else 0
+    last_update = emp_df['Date'].dropna().max().date().isoformat() if 'Date' in emp_df.columns and not emp_df['Date'].dropna().empty else "N/A"
+
+    metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
+    with metric_col1:
+        st.metric("Total Tasks", total_tasks)
+    with metric_col2:
+        st.metric("Completed Tasks", completed_tasks)
+    with metric_col3:
+        st.metric("Avg Performance (%)", avg_performance)
+    with metric_col4:
+        st.metric("Last Update", last_update)
+
+    chart_col1, chart_col2 = st.columns([1, 1])
+
+    with chart_col1:
+        st.caption("Current Performance Gauge")
+        gauge_fig = go.Figure(
+            go.Indicator(
+                mode="gauge+number",
+                value=latest_perf,
+                title={'text': "Latest Performance"},
+                gauge={
+                    'axis': {'range': [0, 100]},
+                    'bar': {'color': "#764ba2"},
+                    'steps': [
+                        {'range': [0, 50], 'color': "#ff7675"},
+                        {'range': [50, 80], 'color': "#ffeaa7"},
+                        {'range': [80, 100], 'color': "#55efc4"},
+                    ]
+                }
+            )
+        )
+        gauge_fig.update_layout(height=280, margin=dict(l=40, r=40, t=60, b=40))
+        st.plotly_chart(gauge_fig, use_container_width=True)
+
+    with chart_col2:
+        st.caption("Performance Trend")
+        trend_df = emp_df[['Date', 'Employee Performance (%)']].dropna()
+        if not trend_df.empty and trend_df['Date'].notna().any():
+            trend_fig = px.line(
+                trend_df.sort_values('Date'),
+                x='Date',
+                y='Employee Performance (%)',
+                markers=True
+            )
+            trend_fig.update_layout(
+                xaxis_title="Date",
+                yaxis_title="Performance (%)",
+                yaxis_range=[0, 100]
+            )
+            st.plotly_chart(trend_fig, use_container_width=True)
+        else:
+            st.info("No performance history available for this employee.")
+
+    st.caption("Task Breakdown")
+    breakdown_col1, breakdown_col2 = st.columns(2)
+    with breakdown_col1:
+        if 'Task Status' in emp_df.columns:
+            status_counts = emp_df['Task Status'].value_counts()
+            if not status_counts.empty:
+                status_fig = px.pie(
+                    values=status_counts.values,
+                    names=status_counts.index,
+                    color_discrete_sequence=px.colors.sequential.RdBu
+                )
+                st.plotly_chart(status_fig, use_container_width=True)
+            else:
+                st.info("No task status data available for this employee.")
+        else:
+            st.info("Task status column not available.")
+    with breakdown_col2:
+        if 'Task Priority' in emp_df.columns:
+            priority_counts = emp_df['Task Priority'].value_counts()
+            if not priority_counts.empty:
+                priority_fig = px.bar(
+                    x=priority_counts.index,
+                    y=priority_counts.values,
+                    text=priority_counts.values,
+                    color=priority_counts.index,
+                    color_discrete_sequence=px.colors.sequential.PuBu
+                )
+                priority_fig.update_layout(showlegend=False, xaxis_title="Priority", yaxis_title="Tasks")
+                priority_fig.update_traces(textposition='outside')
+                st.plotly_chart(priority_fig, use_container_width=True)
+            else:
+                st.info("No task priority data available for this employee.")
+        else:
+            st.info("Task priority column not available.")
+
+    st.subheader("📋 Recent Tasks")
+    display_columns = [col for col in DATA_COLUMNS if col in emp_df.columns]
+    if display_columns:
+        display_df = emp_df.sort_values('Date', ascending=False)[display_columns]
+        st.dataframe(display_df, use_container_width=True, height=320)
+    else:
+        st.info("No detailed task records to display.")
 
 def show_data_table(df):
     """Display data table"""
@@ -478,7 +1038,7 @@ def show_data_table(df):
     # Show data
     st.dataframe(
         display_df.head(rows_to_show),
-        width="stretch",
+        use_container_width=True,
         height=400
     )
 
@@ -613,7 +1173,7 @@ def show_settings():
                     if df is not None:
                         st.success(f"✅ Successfully read file! Found {len(df)} records")
                         if not df.empty:
-                            st.dataframe(df.head(), width="stretch")
+                            st.dataframe(df.head(), use_container_width=True)
                         else:
                             st.info("📋 Excel file is empty. Start submitting reports to add data.")
                     else:
@@ -668,32 +1228,51 @@ def show_settings():
 
 def show_submit_report():
     """Display form for submitting work progress reports with multiple tasks"""
+    config = load_config()
+    
     # Logo Section - Centered at top
-    logo_path = Path("logo/PTF1.png")
-    if os.path.exists(logo_path):
-        # Use equal columns to center the logo
-        col1, col2, col3 = st.columns([1.4, 1, 1])
-        with col2:
-            st.image(logo_path, width=200)
-    else:
-        # Fallback if logo not found
-        col1, col2, col3 = st.columns([1, 1, 1])
-        with col2:
-            st.markdown("""
-            <div style="width: 200px; height: 100px; background: #f0f0f0; 
+    # Try multiple path approaches for compatibility
+    # logo_found = False
+    # possible_paths = [
+    #     "logo/PTF1.png",  # Simple relative path (usually works on Streamlit Cloud)
+    #     Path("logo/PTF1.png"),  # Path object version
+    #     Path(__file__).parent / "logo" / "PTF1.png",  # Relative to script
+    # ]
+
+    # --- Logo Section (Fixed for Streamlit Cloud) ---
+    # Use a single HTML block to ensure the image is centered and constrained
+    logo_url = "https://raw.githubusercontent.com/SoumyaR01/Employee-Task-Tracker/main/logo/ptf.png"
+
+    # Render using an HTML <img> so CSS sizing/centering is reliable inside Streamlit's layout
+    try:
+        st.markdown(
+            f'<div class="logo-container" style="text-align:center;">'
+            f'  <img src="{logo_url}" alt="PTF Logo" '
+            f'       style="max-width:360px; width:100%; height:auto; display:block; margin:0 auto; border-radius:8px;"/>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+    except Exception:
+        # Fallback placeholder if remote image cannot be loaded
+        st.markdown(
+            """
+        <div class="logo-container" style="text-align: center;">
+            <div style="width: 100%; max-width:360px; height: auto; padding: 12px 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
                         display: flex; align-items: center; justify-content: center; 
-                        border-radius: 5px; border: 2px dashed #ccc; margin: 0 auto;">
-                <p style="color: #999; font-size: 12px; text-align: center;">Logo</p>
+                        border-radius: 10px; border: 2px solid #667eea; margin:0 auto;">
+                <p style="color: white; font-size: 18px; font-weight: bold; margin: 0;">PTF</p>
             </div>
-            """, unsafe_allow_html=True)
+        </div>
+        """,
+            unsafe_allow_html=True,
+        )
     
     # Title Section - Centered below logo
-    st.markdown("<h1 style='text-align: center; margin-top: 10px;'>PTF Daily Work Progress Report</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; color: #666;'>Submit all your tasks for today in one report</p>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; margin-top: 10px; color: #2c3e50;'>PTF Daily Work Progress Report</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: #7f8c8d; font-size: 1.1rem;'>Submit all your tasks for today in one report</p>", unsafe_allow_html=True)
     
     st.markdown("---")
 
-    config = load_config()
     excel_path = config.get('excel_file_path', EXCEL_FILE_PATH)
 
     # Initialize session state for task count if not exists
@@ -731,11 +1310,11 @@ def show_submit_report():
     # Handle add/remove task buttons
     col_add_remove = st.columns([1, 1, 4])
     with col_add_remove[0]:
-        if st.button("➕ Add Task", width="stretch"):
+        if st.button("➕ Add Task", use_container_width=True):
             st.session_state.num_tasks += 1
             st.rerun()
     with col_add_remove[1]:
-        if st.button("➖ Remove Task", width="stretch") and st.session_state.num_tasks > 1:
+        if st.button("➖ Remove Task", use_container_width=True) and st.session_state.num_tasks > 1:
             st.session_state.num_tasks -= 1
             st.rerun()
     
@@ -779,9 +1358,17 @@ def show_submit_report():
                     help="Select current task status",
                     key=f"status_{i}"
                 )
+                effort = st.number_input(
+                    "Effort (in hours)*",
+                    min_value=0.0,
+                    value=1.0,  # Default to 1 hour
+                    step=0.5,
+                    help="Hours spent on this task (must be >0)",
+                    key=f"effort_{i}"
+                )
                 comments = st.text_area(
-                    "Comments",
-                    placeholder="Any additional comments or notes...",
+                    "Support Request",
+                    placeholder="Provide any supporting information...",
                     height=80,
                     help="Optional comments",
                     key=f"comments_{i}"
@@ -797,7 +1384,7 @@ def show_submit_report():
         help="Required field"
     )
     
-    submitted = st.button("✅ Submit Daily Report", width="stretch")
+    submitted = st.button("✅ Submit Daily Report", use_container_width=True)
     
     if submitted:
         # Validate employee information
@@ -822,16 +1409,17 @@ def show_submit_report():
             invalid_tasks = []
             
             for i in range(st.session_state.num_tasks):
-                # Get values from session_state (widgets with keys store values there)
+                # Get values from session_state (widgets with keys store values there with keys)
                 project_name = st.session_state.get(f"project_{i}", "")
                 task_title = st.session_state.get(f"title_{i}", "")
                 task_assigned_by = st.session_state.get(f"assigned_{i}", "")
                 task_priority = st.session_state.get(f"priority_{i}", "")
                 task_status = st.session_state.get(f"status_{i}", "")
+                effort = st.session_state.get(f"effort_{i}", 0.0)
                 comments = st.session_state.get(f"comments_{i}", "")
                 
                 # Validate task
-                if not all([project_name, task_title, task_assigned_by, task_priority, task_status]):
+                if not all([project_name, task_title, task_assigned_by, task_priority, task_status]) or effort <= 0:
                     invalid_tasks.append(i + 1)
                 else:
                     task_data_list.append({
@@ -845,9 +1433,17 @@ def show_submit_report():
                         'Task Priority': task_priority,
                         'Task Status': task_status,
                         'Plan for next day': plan_for_next_day,
-                        'Comments': comments if comments else ''
+                            'Support Request': comments if comments else '',
+                        'Effort (in hours)': effort,
+                        # 'Employee Performance (%)' calculated below
                     })
             
+            # Calculate overall performance for the day using the new priority/effort formula
+            if task_data_list:
+                performance = calculate_performance(task_data_list)
+                for row in task_data_list:
+                    row['Employee Performance (%)'] = performance
+
             if invalid_tasks:
                 st.error(f"❌ Please fill in all required fields for task(s): {', '.join(map(str, invalid_tasks))}")
             elif not task_data_list:
@@ -864,7 +1460,7 @@ def show_submit_report():
                     st.session_state.num_tasks = 1
                     # Clear form values by clearing session state keys
                     for i in range(10):  # Clear up to 10 task slots
-                        for key_suffix in ['project', 'title', 'assigned', 'priority', 'status', 'comments']:
+                        for key_suffix in ['project', 'title', 'assigned', 'priority', 'status', 'Support Request', 'effort']:
                             key = f"{key_suffix}_{i}"
                             if key in st.session_state:
                                 del st.session_state[key]
@@ -913,6 +1509,28 @@ def main():
         # Load data
         with st.spinner("Loading data..."):
             df = read_excel_data(excel_path)
+            if df is not None and not df.empty:
+                try:
+                    workbook = load_workbook(excel_path)
+                    summary_needs_refresh = SUMMARY_SHEET_NAME not in workbook.sheetnames
+
+                    if not summary_needs_refresh:
+                        ws_summary = workbook[SUMMARY_SHEET_NAME]
+                        summary_headers = [
+                            cell.value for cell in next(ws_summary.iter_rows(min_row=1, max_row=1))
+                            if cell.value
+                        ]
+                        if "Employee Performance (%)" not in summary_headers:
+                            summary_needs_refresh = True
+                    if summary_needs_refresh:
+                        update_dashboard_sheets(excel_path, df)
+                except Exception as dashboard_error:
+                    logging.warning(f"Dashboard sheet auto-refresh failed: {dashboard_error}")
+                finally:
+                    try:
+                        workbook.close()
+                    except Exception:
+                        pass
 
         if df is None:
             st.error("Failed to load data. Check the Excel file path in Settings.")
@@ -934,6 +1552,11 @@ def main():
 
         # Show charts
         show_charts(filtered_df)
+
+        st.markdown("---")
+
+        # Show employee specific dashboard
+        show_employee_dashboard(filtered_df if filtered_df is not None and not filtered_df.empty else df)
 
         st.markdown("---")
 
