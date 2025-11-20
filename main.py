@@ -2001,11 +2001,11 @@ def show_employee_attendance_dashboard():
     with col2:
         st.markdown(f'<div class="metric-card status-green"><div class="metric-value">{present}</div><div class="metric-label">Present</div></div>', unsafe_allow_html=True)
     with col3:
-        st.markdown(f'<div class="metric-card status-yellow"><div class="metric-value">{len(wfo_list)}</div><div class="metric-label">In Office</div></div>', unsafe_home_html=True)
+        st.markdown(f'<div class="metric-card status-yellow"><div class="metric-value">{len(wfo_list)}</div><div class="metric-label">In Office</div></div>', unsafe_allow_html=True)
     with col4:
-        st.markdown(f'<div class="metric-card status-red"><div class="metric-value">{absent}</div><div class="metric-label">Absent</div></div>', unsafe_html=True)
+        st.markdown(f'<div class="metric-card status-red"><div class="metric-value">{absent}</div><div class="metric-label">Absent</div></div>', unsafe_allow_html=True)
     with col5:
-        st.markdown(f'<div class="metric-card"><div class="metric-value">{attendance_rate}%</div><div class="metric-label">Attendance Rate</div></div>', unsafe_html=True)
+        st.markdown(f'<div class="metric-card"><div class="metric-value">{attendance_rate}%</div><div class="metric-label">Attendance Rate</div></div>', unsafe_allow_html=True)
 
     st.markdown("---")
 
