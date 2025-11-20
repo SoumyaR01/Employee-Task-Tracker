@@ -8,44 +8,7 @@ BASE_DIR = os.path.dirname(__file__)
 EMP_FILE = os.path.join(BASE_DIR, "employees.json")
 ATTENDANCE_FILE = os.path.join(BASE_DIR, "attendance_records.csv")
 
-# Default demo employees
-DEFAULT_EMPLOYEES = {
-    "EMP001": {
-        "password": hashlib.sha256("pass123".encode()).hexdigest(),
-        "name": "John Doe",
-        "email": "john@company.com",
-        "department": "Engineering",
-        "role": "Developer"
-    },
-    "EMP002": {
-        "password": hashlib.sha256("pass123".encode()).hexdigest(),
-        "name": "Jane Smith",
-        "email": "jane@company.com",
-        "department": "Marketing",
-        "role": "Manager"
-    },
-    "EMP003": {
-        "password": hashlib.sha256("pass123".encode()).hexdigest(),
-        "name": "Bob Johnson",
-        "email": "bob@company.com",
-        "department": "Sales",
-        "role": "Executive"
-    },
-    "EMP004": {
-        "password": hashlib.sha256("pass123".encode()).hexdigest(),
-        "name": "Alice Williams",
-        "email": "alice@company.com",
-        "department": "HR",
-        "role": "Specialist"
-    },
-    "EMP005": {
-        "password": hashlib.sha256("pass123".encode()).hexdigest(),
-        "name": "Charlie Brown",
-        "email": "charlie@company.com",
-        "department": "Engineering",
-        "role": "Senior Developer"
-    }
-}
+DEMO_IDS = {"EMP001", "EMP002", "EMP003", "EMP004", "EMP005"}
 
 def ensure_files():
     # Ensure attendance CSV exists with header
@@ -53,10 +16,10 @@ def ensure_files():
         with open(ATTENDANCE_FILE, "w", newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
             writer.writerow(["emp_id", "status", "timestamp", "check_in_time", "notes"]) 
-    # Ensure employees json exists with defaults
+    # Ensure employees json exists (start empty)
     if not os.path.exists(EMP_FILE):
         with open(EMP_FILE, "w", encoding='utf-8') as f:
-            json.dump(DEFAULT_EMPLOYEES, f, indent=2)
+            json.dump({}, f, indent=2)
 
 def append_attendance(emp_id, status, notes=""):
     ensure_files()
@@ -92,9 +55,25 @@ def load_employees():
     ensure_files()
     try:
         with open(EMP_FILE, "r", encoding='utf-8') as f:
-            return json.load(f)
+            data = json.load(f)
+            # Remove any pre-seeded demo IDs if present
+            if not isinstance(data, dict):
+                data = {}
+            removed = False
+            for did in list(DEMO_IDS):
+                if did in data:
+                    data.pop(did, None)
+                    removed = True
+            if removed:
+                # persist cleaned file
+                try:
+                    with open(EMP_FILE, "w", encoding='utf-8') as wf:
+                        json.dump(data, wf, indent=2)
+                except Exception:
+                    pass
+            return data
     except Exception:
-        return DEFAULT_EMPLOYEES
+        return {}
 
 def verify_login(emp_id, password):
     """
