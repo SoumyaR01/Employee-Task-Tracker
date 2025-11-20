@@ -1815,25 +1815,125 @@ def show_submit_report():
                 else:
                     st.error("❌ Failed to save report. Please try again or contact administrator.")
 
+# #==================== LOGIN & SIGNUP PAGES ====================
+# def show_login_page():
+#     from attendance_store import verify_login
+    
+#     st.markdown(
+#         "<h1 style='text-align: center;'>🔒 Employee Login</h1>",
+#         unsafe_allow_html=True
+#     )
+#     st.markdown("---")
+    
+#     col1, col2, col3 = st.columns([1, 2, 1])
+#     with col2:
+#         st.subheader("Login")
+#         with st.form("login_form"):
+#             emp_id = st.text_input("Office ID", placeholder="Enter your Office ID (e.g. P-0125)")
+#             password = st.text_input("Password", type="password")
+#             login_btn = st.form_submit_button("Login", use_container_width=True, type="primary")
+
+        
+#         if login_btn:
+#             if not emp_id or not password:
+#                 st.error("Please enter both Office ID and Password")
+#             else:
+#                 success, name, role = verify_login(emp_id, password)
+#                 if success:
+#                     st.session_state.logged_in = True
+#                     st.session_state.emp_id = emp_id.upper()
+#                     st.session_state.emp_name = name
+#                     st.session_state.emp_role = role
+#                     st.success("✅ Logged in successfully!")
+#                     time.sleep(1)
+#                     st.rerun()
+#                 else:
+#                     st.error("Invalid Office ID or Password")
+        
+#         st.markdown("---")
+#         st.markdown("### New Employee?")
+#         if st.button("Create Account", use_container_width=True):
+#             st.session_state.show_signup = True
+#             st.rerun()
+
 #==================== LOGIN & SIGNUP PAGES ====================
 def show_login_page():
     from attendance_store import verify_login
+
+    # =================== ADVANCED UI CSS ====================
+    st.markdown("""
+        <style>
+
+        /* Center main login card */
+        .login-card {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 35px;
+            border-radius: 18px;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+        }
+
+        /* Center title */
+        .center-title {
+            text-align: center;
+            font-size: 42px;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        /* Gradient buttons */
+        .stButton button {
+            border-radius: 10px !important;
+            height: 48px;
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        /* Login button */
+        .login-btn button {
+            background: linear-gradient(90deg, #ff4b4b, #ff1a1a) !important;
+            color: white !important;
+        }
+
+        /* Create account button */
+        .create-btn button {
+            background: linear-gradient(90deg, #6366F1, #A855F7) !important;
+            color: white !important;
+        }
+
+        /* Input boxes */
+        input {
+            border-radius: 10px !important;
+            height: 45px !important;
+            font-size: 16px !important;
+        }
+
+        </style>
+    """, unsafe_allow_html=True)
+
+    # =================== PAGE TITLE ====================
+    st.markdown("<h1 class='center-title'>🔒 Employee Login</h1>", unsafe_allow_html=True)
+    st.markdown("<hr>", unsafe_allow_html=True)
+
+    # =================== CENTERED LAYOUT ====================
+    col1, col2, col3 = st.columns([1, 1.6, 1])
     
-    st.markdown(
-        "<h1 style='text-align: center;'>🔒 Employee Login</h1>",
-        unsafe_allow_html=True
-    )
-    st.markdown("---")
-    
-    col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        st.subheader("Login")
+        st.markdown("<div class='login-card'>", unsafe_allow_html=True)
+
+        st.subheader("Login to Your Account")
+
         with st.form("login_form"):
             emp_id = st.text_input("Office ID", placeholder="Enter your Office ID (e.g. P-0125)")
             password = st.text_input("Password", type="password")
-            login_btn = st.form_submit_button("Login", use_container_width=True, type="primary")
 
-        
+            login_btn = st.form_submit_button("Login", use_container_width=True)
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        # =================== LOGIN LOGIC ====================
         if login_btn:
             if not emp_id or not password:
                 st.error("Please enter both Office ID and Password")
@@ -1844,15 +1944,19 @@ def show_login_page():
                     st.session_state.emp_id = emp_id.upper()
                     st.session_state.emp_name = name
                     st.session_state.emp_role = role
-                    st.success("✅ Logged in successfully!")
+                    st.success("Login successful!")
                     time.sleep(1)
                     st.rerun()
                 else:
                     st.error("Invalid Office ID or Password")
-        
-        st.markdown("---")
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # =================== SIGNUP BUTTON ====================
         st.markdown("### New Employee?")
-        if st.button("Create Account", use_container_width=True):
+        create = st.button("Create Account", use_container_width=True)
+
+        if create:
             st.session_state.show_signup = True
             st.rerun()
 
