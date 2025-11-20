@@ -25,14 +25,18 @@ def append_attendance(emp_id, status, notes="", client_time=None):
     """
     Append an attendance record.
     - `timestamp` is always the server-side ISO timestamp (for audit).
-    - `check_in_time` will prefer `client_time` (if provided), otherwise server-local formatted time.
+    - `check_in_time` stores the actual check-in time in ISO format for accurate display.
     """
     ensure_files()
-    timestamp = datetime.now().isoformat()
+    now = datetime.now()
+    timestamp = now.isoformat()
+    
+    # Store check_in_time in ISO format so it can be parsed correctly later
     if client_time:
         check_in_time = client_time
     else:
-        check_in_time = datetime.now().strftime('%I:%M %p') if status in ["WFO", "WFH"] else ""
+        check_in_time = now.isoformat()  # Changed from strftime to isoformat
+    
     with open(ATTENDANCE_FILE, "a", newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
         writer.writerow([emp_id, status, timestamp, check_in_time, notes])
