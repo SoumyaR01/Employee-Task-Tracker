@@ -2136,12 +2136,12 @@ def main():
                 if device_time:
                     st.info(f"📍 Check-in time recorded: {device_time}")
                 # Set a redirect flag — will be applied before the sidebar radio is created
-                st.session_state.next_page = "Employee Attendance Dashboard"
+                st.session_state.next_page = "Staff Attendance View"
                 time.sleep(1)
                 st.rerun()
             except Exception as e:
                 st.error(f"Failed to record attendance: {e}")
-    elif page == "Employee Attendance Dashboard":
+    elif page == "Staff Attendance View":
         show_employee_attendance_dashboard()
     elif page == "📝 Submit Report":
         show_submit_report()
