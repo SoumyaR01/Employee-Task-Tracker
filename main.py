@@ -1962,14 +1962,14 @@ def show_employee_attendance_dashboard():
         name = meta.get("name", emp_upper)
         dept = meta.get("department", "")
         role = meta.get("role", "")
-        ts = rec.get("timestamp")
-        ts_str = ts.strftime('%I:%M %p') if hasattr(ts, 'strftime') else str(ts)
+            # Use the pre-formatted check_in_time from CSV (already in 12-hour format with AM/PM)
+            check_in_time_display = rec.get("check_in_time") or "—"
         row = {
             "ID": emp_upper,
             "Name": name,
             "Department": dept,
             "Role": role,
-            "Check-in Time": ts_str,
+                "Check-in Time": check_in_time_display,
             "Notes": rec.get("notes", "")
         }
         if rec.get("status") == "WFO":
