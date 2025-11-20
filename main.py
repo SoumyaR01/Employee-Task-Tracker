@@ -1998,6 +1998,10 @@ def main():
         st.success(f"👋 {st.session_state.emp_name}")
         st.caption(f"ID: {st.session_state.emp_id}")
         st.markdown("---")
+        # If a redirect was requested in the previous run, apply it now BEFORE creating the radio widget
+        if "next_page" in st.session_state:
+            # move the requested page into the radio's session key so the widget shows the target
+            st.session_state.main_page = st.session_state.pop("next_page")
         # use session-state key so we can programmatically change the selected page
         if "main_page" not in st.session_state:
             st.session_state.main_page = "Daily Check-in"
@@ -2039,8 +2043,8 @@ def main():
                 from attendance_store import append_attendance
                 append_attendance(st.session_state.emp_id, code, notes or "")
                 st.success(f"✅ Checked in as {status_choice}")
-                # Navigate to Employee Attendance Dashboard
-                st.session_state.main_page = "Employee Attendance Dashboard"
+                # Set a redirect flag — will be applied before the sidebar radio is created
+                st.session_state.next_page = "Employee Attendance Dashboard"
                 time.sleep(1)
                 st.rerun()
             except Exception as e:
