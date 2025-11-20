@@ -3,6 +3,8 @@ from datetime import datetime
 import pandas as pd
 import hashlib
 import plotly.express as px
+import attendance_store
+from dateutil import parser as _dateparser
 
 # ==================== PAGE CONFIGURATION ====================
 st.set_page_config(
@@ -65,8 +67,29 @@ def init_in_memory_data():
             "EMP005": {"password": hashlib.sha256("pass123".encode()).hexdigest(), "name": "Charlie Brown", "email": "charlie@company.com", "department": "Engineering", "role": "Senior Developer"},
             "ADMIN":  {"password": hashlib.sha256("admin123".encode()).hexdigest(), "name": "Administrator", "email": "admin@company.com", "department": "Management", "role": "Admin"},
         }
+    # Persist employee list for other apps to use
+    try:
+        attendance_store.save_employees(st.session_state.employees)
+    except Exception:
+        pass
+
     if "attendance" not in st.session_state:
-        st.session_state.attendance = []  # List of dicts: {"emp_id", "status", "timestamp", "check_in_time", "notes"}
+        # Load persisted attendance records (if any)
+        raw = attendance_store.load_attendance()
+        parsed = []
+        for r in raw:
+            try:
+                ts = _dateparser.isoparse(r.get("timestamp")) if r.get("timestamp") else datetime.now()
+            except Exception:
+                ts = datetime.now()
+            parsed.append({
+                "emp_id": r.get("emp_id"),
+                "status": r.get("status"),
+                "timestamp": ts,
+                "check_in_time": r.get("check_in_time"),
+                "notes": r.get("notes", "")
+            })
+        st.session_state.attendance = parsed
 
 init_in_memory_data()
 
@@ -94,6 +117,11 @@ def update_attendance(emp_id, status, notes=""):
         if not (r["emp_id"] == emp_id and r["timestamp"].strftime('%Y-%m-%d') == today)
     ]
     st.session_state.attendance.append(record)
+    # Append to persistent store for cross-app visibility
+    try:
+        attendance_store.append_attendance(emp_id, status, notes)
+    except Exception:
+        pass
 
 def get_latest_status_all():
     df = pd.DataFrame(st.session_state.attendance)
