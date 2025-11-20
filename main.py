@@ -1851,7 +1851,7 @@ def show_login_page():
                     st.error("Invalid Office ID or Password")
         
         st.markdown("---")
-        st.markdown("### Create your employee login")
+        st.markdown("### New Employee?")
         if st.button("Create Account", use_container_width=True):
             st.session_state.show_signup = True
             st.rerun()
