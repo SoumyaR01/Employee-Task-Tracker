@@ -1827,7 +1827,7 @@ def show_login_page():
     with col2:
         st.subheader("Login")
         with st.form("login_form"):
-            emp_id = st.text_input("Office ID", placeholder="e.g. EMP001")
+            emp_id = st.text_input("Office ID", placeholder="Enter your Office ID (e.g. P-0125)")
             password = st.text_input("Password", type="password")
             login_btn = st.form_submit_button("Login", use_container_width=True, type="primary")
         
