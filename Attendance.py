@@ -108,7 +108,7 @@ def update_attendance(emp_id, status, notes=""):
         "emp_id": emp_id,
         "status": status,
         "timestamp": timestamp,
-        "check_in_time": timestamp.strftime('%H:%M:%S') if status in ["WFO", "WFH"] else None,
+        "check_in_time": timestamp.isoformat(),  # Changed: Store ISO format instead of time string
         "notes": notes
     }
     # Remove previous record for today (optional: allow only one per day)
@@ -120,7 +120,7 @@ def update_attendance(emp_id, status, notes=""):
     st.session_state.attendance.append(record)
     # Append to persistent store for cross-app visibility
     try:
-        attendance_store.append_attendance(emp_id, status, notes)
+        attendance_store.append_attendance(emp_id, status, notes)  # This will store current time in ISO format
     except Exception:
         pass
 
