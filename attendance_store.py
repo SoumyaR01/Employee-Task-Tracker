@@ -24,7 +24,7 @@ def ensure_files():
 def append_attendance(emp_id, status, notes=""):
     ensure_files()
     timestamp = datetime.now().isoformat()
-    check_in_time = datetime.now().strftime('%H:%M:%S') if status in ["WFO", "WFH"] else ""
+    check_in_time = datetime.now().strftime('%I:%M %p') if status in ["WFO", "WFH"] else ""
     with open(ATTENDANCE_FILE, "a", newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
         writer.writerow([emp_id, status, timestamp, check_in_time, notes])
