@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
+from streamlit_echarts import st_echarts
 from datetime import datetime, timedelta
 import json
 from pathlib import Path
@@ -11,15 +10,188 @@ import logging
 import base64
 import re
 from openpyxl import load_workbook
+import openpyxl
+from openpyxl.styles import PatternFill
 import io
 import zipfile
-from openpyxl.styles import PatternFill
+import hashlib
+
 st.set_page_config(
     page_title="Employee Progress Tracker",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+# File paths for local storage
+USERS_FILE = 'users.json'
+ADMINS_FILE = 'admins.json'
+ATTENDANCE_FILE = 'attendance.json'
+
+# Helper functions for authentication and data management
+def hash_password(password: str) -> str:
+    """Hash password using SHA256"""
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def load_users():
+    """Load users from JSON file"""
+    if Path(USERS_FILE).exists():
+        try:
+            with open(USERS_FILE, 'r') as f:
+                return json.load(f)
+        except:
+            return {}
+    return {}
+
+def save_users(users):
+    """Save users to JSON file"""
+    with open(USERS_FILE, 'w') as f:
+        json.dump(users, f, indent=2)
+
+def load_admins():
+    """Load admins from JSON file"""
+    if Path(ADMINS_FILE).exists():
+        try:
+            with open(ADMINS_FILE, 'r') as f:
+                return json.load(f)
+        except:
+            return {}
+    # Create default admin if file doesn't exist
+    default_admins = {
+        "admin": {
+            "username": "admin",
+            "password": hash_password("admin123"),
+            "name": "System Administrator"
+        }
+    }
+    save_admins(default_admins)
+    return default_admins
+
+def save_admins(admins):
+    """Save admins to JSON file"""
+    with open(ADMINS_FILE, 'w') as f:
+        json.dump(admins, f, indent=2)
+
+def load_attendance():
+    """Load attendance records from JSON file"""
+    if Path(ATTENDANCE_FILE).exists():
+        try:
+            with open(ATTENDANCE_FILE, 'r') as f:
+                return json.load(f)
+        except:
+            return {}
+    return {}
+
+def save_attendance(attendance):
+    """Save attendance records to JSON file"""
+    with open(ATTENDANCE_FILE, 'w') as f:
+        json.dump(attendance, f, indent=2)
+
+def add_user(username, password, name, emp_id, email=None, department=None, role=None):
+    """Add new user"""
+    users = load_users()
+    if username in users:
+        raise Exception("User already exists")
+    
+    users[username] = {
+        "username": username,
+        "password": hash_password(password),
+        "name": name,
+        "emp_id": emp_id,
+        "email": email,
+        "department": department,
+        "role": role,
+        "created_at": datetime.now().isoformat()
+    }
+    save_users(users)
+    return users[username]
+
+def verify_user(username, password):
+    """Verify user credentials"""
+    users = load_users()
+    if username in users:
+        if users[username]["password"] == hash_password(password):
+            return users[username]
+    return None
+
+def verify_admin(username, password):
+    """Verify admin credentials"""
+    admins = load_admins()
+    if username in admins:
+        if admins[username]["password"] == hash_password(password):
+            return admins[username]
+    return None
+
+def checkin_attendance(emp_id, date_str, time_str):
+    """Record check-in"""
+    attendance = load_attendance()
+    key = f"{emp_id}_{date_str}"
+    
+    if key not in attendance:
+        attendance[key] = {
+            "emp_id": emp_id,
+            "date": date_str,
+            "checkin_time": time_str,
+            "checkout_time": None
+        }
+    else:
+        attendance[key]["checkin_time"] = time_str
+    
+    save_attendance(attendance)
+    return attendance[key]
+
+def checkout_attendance(emp_id, date_str, time_str):
+    """Record check-out"""
+    attendance = load_attendance()
+    key = f"{emp_id}_{date_str}"
+    
+    if key in attendance:
+        attendance[key]["checkout_time"] = time_str
+    else:
+        attendance[key] = {
+            "emp_id": emp_id,
+            "date": date_str,
+            "checkin_time": None,
+            "checkout_time": time_str
+        }
+    
+    save_attendance(attendance)
+    return attendance[key]
+
+def get_attendance_record(emp_id, date_str):
+    """Get attendance record for specific date"""
+    attendance = load_attendance()
+    key = f"{emp_id}_{date_str}"
+    return attendance.get(key, None)
+
+def get_user_attendance_history(emp_id, limit=30):
+    """Get attendance history for a user"""
+    attendance = load_attendance()
+    user_records = []
+    
+    for key, record in attendance.items():
+        if record["emp_id"] == emp_id:
+            user_records.append(record)
+    
+    # Sort by date descending
+    user_records.sort(key=lambda x: x["date"], reverse=True)
+    return user_records[:limit]
+
+def get_all_users():
+    """Get all registered users"""
+    return load_users()
+
+def get_today_attendance():
+    """Get today's attendance records"""
+    today_str = datetime.now().date().isoformat()
+    attendance = load_attendance()
+    today_records = []
+    
+    for key, record in attendance.items():
+        if record["date"] == today_str:
+            today_records.append(record)
+    
+    return today_records
 # Helper function to convert image to base64
 def get_base64_image(image_path):
     """Convert image to base64 for CSS background"""
@@ -169,7 +341,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 # Constants
-EXCEL_FILE_PATH = r'D:\Employee Track Report\task_tracker.xlsx'
+EXCEL_FILE_PATH = r'task_tracker.xlsx'
 CONFIG_FILE = 'config.json'
 DATA_COLUMNS = [
     'Date',
@@ -871,55 +1043,234 @@ def show_filters(df):
         filtered_df = filtered_df[filtered_df['Task Priority'] == selected_priority]
     return filtered_df
 def show_charts(df):
-    """Display analytics charts"""
+    """Display analytics charts using ECharts with smooth animations"""
     if df is None or df.empty:
         st.info("No data available for charts")
         return
+    
     col1, col2 = st.columns(2)
+    
     with col1:
         st.subheader("📈 Task Status Distribution")
         if 'Task Status' in df.columns:
             status_counts = df['Task Status'].value_counts()
-            fig = px.pie(
-                values=status_counts.values,
-                names=status_counts.index,
-                color_discrete_sequence=px.colors.qualitative.Set3
-            )
-            st.plotly_chart(fig, use_container_width=True)
+            
+            # ECharts Pie Chart with animation
+            pie_option = {
+                "tooltip": {
+                    "trigger": "item",
+                    "formatter": "{b}: {c} ({d}%)",
+                    "backgroundColor": "rgba(0,0,0,0.8)",
+                    "borderColor": "#667eea",
+                    "borderWidth": 1,
+                    "textStyle": {"color": "#fff", "fontSize": 14}
+                },
+                "legend": {
+                    "orient": "vertical",
+                    "left": "left",
+                    "textStyle": {"color": "#e6eef2", "fontSize": 12}
+                },
+                "series": [{
+                    "name": "Task Status",
+                    "type": "pie",
+                    "radius": ["40%", "70%"],
+                    "avoidLabelOverlap": False,
+                    "itemStyle": {
+                        "borderRadius": 10,
+                        "borderColor": "#000",
+                        "borderWidth": 2
+                    },
+                    "label": {
+                        "show": True,
+                        "formatter": "{b}\n{d}%",
+                        "color": "#e6eef2",
+                        "fontSize": 12
+                    },
+                    "emphasis": {
+                        "label": {
+                            "show": True,
+                            "fontSize": 16,
+                            "fontWeight": "bold"
+                        },
+                        "itemStyle": {
+                            "shadowBlur": 10,
+                            "shadowOffsetX": 0,
+                            "shadowColor": "rgba(102, 126, 234, 0.5)"
+                        }
+                    },
+                    "labelLine": {
+                        "show": True,
+                        "lineStyle": {"color": "#e6eef2"}
+                    },
+                    "data": [
+                        {"value": int(count), "name": status, 
+                         "itemStyle": {"color": ["#10b981", "#3b82f6", "#f59e0b", "#ef4444"][i % 4]}}
+                        for i, (status, count) in enumerate(status_counts.items())
+                    ],
+                    "animationType": "scale",
+                    "animationEasing": "elasticOut"
+                }]
+            }
+            st_echarts(options=pie_option, height="400px", key="status_pie")
+    
     with col2:
         st.subheader("⚡ Priority Distribution")
         if 'Task Priority' in df.columns:
             priority_counts = df['Task Priority'].value_counts()
-            fig = px.bar(
-                x=priority_counts.index,
-                y=priority_counts.values,
-                color=priority_counts.index,
-                color_discrete_map={
-                    'Low': '#90EE90',
-                    'Medium': '#FFD700',
-                    'High': '#FFA500',
-                    'Critical': '#FF6347'
-                }
-            )
-            fig.update_layout(showlegend=False, xaxis_title="Priority", yaxis_title="Count")
-            st.plotly_chart(fig, use_container_width=True)
+            
+            color_map = {
+                'Low': '#10b981',
+                'Medium': '#f59e0b',
+                'High': '#ff6347',
+                'Critical': '#dc2626'
+            }
+            
+            # ECharts Bar Chart with animation
+            bar_option = {
+                "tooltip": {
+                    "trigger": "axis",
+                    "axisPointer": {"type": "shadow"},
+                    "backgroundColor": "rgba(0,0,0,0.8)",
+                    "borderColor": "#667eea",
+                    "borderWidth": 1,
+                    "textStyle": {"color": "#fff", "fontSize": 14}
+                },
+                "grid": {
+                    "left": "3%",
+                    "right": "4%",
+                    "bottom": "3%",
+                    "containLabel": True
+                },
+                "xAxis": [{
+                    "type": "category",
+                    "data": list(priority_counts.index),
+                    "axisTick": {"alignWithLabel": True},
+                    "axisLabel": {"color": "#e6eef2", "fontSize": 12},
+                    "axisLine": {"lineStyle": {"color": "#e6eef2"}}
+                }],
+                "yAxis": [{
+                    "type": "value",
+                    "axisLabel": {"color": "#e6eef2", "fontSize": 12},
+                    "axisLine": {"lineStyle": {"color": "#e6eef2"}},
+                    "splitLine": {"lineStyle": {"color": "rgba(230, 238, 242, 0.1)"}}
+                }],
+                "series": [{
+                    "name": "Tasks",
+                    "type": "bar",
+                    "barWidth": "60%",
+                    "data": [
+                        {
+                            "value": int(count),
+                            "itemStyle": {
+                                "color": color_map.get(priority, "#667eea"),
+                                "borderRadius": [10, 10, 0, 0]
+                            }
+                        }
+                        for priority, count in priority_counts.items()
+                    ],
+                    "label": {
+                        "show": True,
+                        "position": "top",
+                        "color": "#e6eef2",
+                        "fontSize": 14,
+                        "fontWeight": "bold"
+                    },
+                    "emphasis": {
+                        "itemStyle": {
+                            "shadowBlur": 10,
+                            "shadowOffsetX": 0,
+                            "shadowColor": "rgba(102, 126, 234, 0.5)"
+                        }
+                    }
+                }]
+            }
+            st_echarts(options=bar_option, height="400px", key="priority_bar")
+    
     # Weekly trend
     st.subheader("📊 Weekly Submission Trend")
     if 'Date' in df.columns:
         df['Date'] = pd.to_datetime(df['Date'])
         daily_counts = df.groupby(df['Date'].dt.date).size().reset_index(name='count')
-        fig = px.line(
-            daily_counts,
-            x='Date',
-            y='count',
-            markers=True
-        )
-        fig.update_layout(xaxis_title="Date", yaxis_title="Submissions")
-        st.plotly_chart(fig, use_container_width=True)
+        
+        # ECharts Line Chart with smooth animations
+        line_option = {
+            "tooltip": {
+                "trigger": "axis",
+                "backgroundColor": "rgba(0,0,0,0.8)",
+                "borderColor": "#667eea",
+                "borderWidth": 1,
+                "textStyle": {"color": "#fff", "fontSize": 14},
+                "axisPointer": {
+                    "type": "cross",
+                    "label": {"backgroundColor": "#667eea"}
+                }
+            },
+            "legend": {
+                "data": ["Submissions"],
+                "textStyle": {"color": "#e6eef2", "fontSize": 12}
+            },
+            "grid": {
+                "left": "3%",
+                "right": "4%",
+                "bottom": "3%",
+                "containLabel": True
+            },
+            "xAxis": [{
+                "type": "category",
+                "boundaryGap": False,
+                "data": [str(d) for d in daily_counts['Date']],
+                "axisLabel": {"color": "#e6eef2", "fontSize": 10, "rotate": 45},
+                "axisLine": {"lineStyle": {"color": "#e6eef2"}}
+            }],
+            "yAxis": [{
+                "type": "value",
+                "axisLabel": {"color": "#e6eef2", "fontSize": 12},
+                "axisLine": {"lineStyle": {"color": "#e6eef2"}},
+                "splitLine": {"lineStyle": {"color": "rgba(230, 238, 242, 0.1)"}}
+            }],
+            "series": [{
+                "name": "Submissions",
+                "type": "line",
+                "smooth": True,
+                "symbol": "circle",
+                "symbolSize": 8,
+                "lineStyle": {
+                    "width": 3,
+                    "color": {
+                        "type": "linear",
+                        "x": 0, "y": 0, "x2": 1, "y2": 0,
+                        "colorStops": [
+                            {"offset": 0, "color": "#667eea"},
+                            {"offset": 1, "color": "#764ba2"}
+                        ]
+                    }
+                },
+                "itemStyle": {"color": "#764ba2"},
+                "areaStyle": {
+                    "color": {
+                        "type": "linear",
+                        "x": 0, "y": 0, "x2": 0, "y2": 1,
+                        "colorStops": [
+                            {"offset": 0, "color": "rgba(102, 126, 234, 0.3)"},
+                            {"offset": 1, "color": "rgba(118, 75, 162, 0.1)"}
+                        ]
+                    }
+                },
+                "emphasis": {
+                    "itemStyle": {
+                        "shadowBlur": 10,
+                        "shadowOffsetX": 0,
+                        "shadowColor": "rgba(102, 126, 234, 0.5)"
+                    }
+                },
+                "data": [int(x) for x in daily_counts['count']]
+            }]
+        }
+        st_echarts(options=line_option, height="400px", key="submissions_line")
 def get_status_color_and_label(availability):
     """Return status label and color based on availability status"""
     if availability == "Underutilized":
-        return "🟢 Underutilized", "#10b981"
+        return "🟢 Underutilized", "#15b982"
     elif availability == "Partially Busy":
         return "🟡 Partially Busy", "#f59e0b"
     elif availability == "Fully Busy":
@@ -941,6 +1292,71 @@ def format_availability_for_csv(availability):
         return "⚪ Unknown"
     except Exception:
         return "⚪ Unknown"
+
+
+def df_to_colored_excel_bytes(df: pd.DataFrame) -> bytes:
+    """Return an XLSX file (bytes) with Availability column cells colour-filled.
+
+    The function writes the DataFrame to an in-memory Excel file using pandas/openpyxl,
+    then applies PatternFill colors to the Availability column based on known values.
+    """
+    out = io.BytesIO()
+    # Use pandas to write initial sheet
+    try:
+        with pd.ExcelWriter(out, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='Sheet1')
+            # writer.save() is handled by context manager
+    except Exception:
+        # Fallback: attempt a direct openpyxl workbook creation
+        out = io.BytesIO()
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        # write headers
+        headers = list(df.columns)
+        ws.append(headers)
+        for _, row in df.iterrows():
+            ws.append([row.get(h, '') for h in headers])
+        wb.save(out)
+        out.seek(0)
+
+    out.seek(0)
+    wb = load_workbook(out)
+    ws = wb.active
+
+    # Find Availability column index
+    headers = [c.value for c in next(ws.iter_rows(min_row=1, max_row=1))]
+    try:
+        avail_idx = headers.index('Availability') + 1
+    except ValueError:
+        avail_idx = None
+
+    # Define fills (hex without '#')
+    fills = {
+        'Underutilized': PatternFill(fill_type='solid', start_color='10B981', end_color='15b982'),
+        'Partially Busy': PatternFill(fill_type='solid', start_color='F59E0B', end_color='f59e0b'),
+        'Fully Busy': PatternFill(fill_type='solid', start_color='EF4444', end_color='ef4444'),
+        'Unknown': PatternFill(fill_type='solid', start_color='6B7280', end_color='6b7280')
+    }
+
+    if avail_idx:
+        for row in ws.iter_rows(min_row=2, min_col=avail_idx, max_col=avail_idx):
+            cell = row[0]
+            val = '' if cell.value is None else str(cell.value).strip()
+            # Map common exported formats (emoji+label) back to base labels
+            if 'Underutilized' in val:
+                cell.fill = fills['Underutilized']
+            elif 'Partially' in val:
+                cell.fill = fills['Partially Busy']
+            elif 'Fully' in val:
+                cell.fill = fills['Fully Busy']
+            else:
+                cell.fill = fills['Unknown']
+
+    # Save workbook to bytes
+    out2 = io.BytesIO()
+    wb.save(out2)
+    out2.seek(0)
+    return out2.getvalue()
 def show_employee_dashboard(df):
     """Interactive dashboard for selected employee using performance metrics."""
     if df is None or df.empty or 'Name' not in df.columns:
@@ -981,17 +1397,82 @@ def show_employee_dashboard(df):
         # Use StatusCategory for colors
         perf_summary = perf_summary.sort_values('AvgPerformance', ascending=False)
         if not perf_summary.empty:
-            fig_perf = px.bar(
-                perf_summary,
-                x='Name',
-                y='AvgPerformance',
-                color='StatusCategory',
-                color_discrete_map=color_map,
-                labels={'Name': 'Employee', 'AvgPerformance': 'Avg Performance (%)'},
-                title='Average Performance by Employee'
-            )
-            fig_perf.update_layout(yaxis_range=[0, 100], showlegend=True, height=320)
-            st.plotly_chart(fig_perf, use_container_width=True)
+            # ECharts Bar Chart for Employee Performance
+            perf_option = {
+                "tooltip": {
+                    "trigger": "axis",
+                    "axisPointer": {"type": "shadow"},
+                    "backgroundColor": "rgba(0,0,0,0.8)",
+                    "borderColor": "#667eea",
+                    "borderWidth": 1,
+                    "textStyle": {"color": "#fff", "fontSize": 14}
+                },
+                "legend": {
+                    "data": list(color_map.keys()),
+                    "textStyle": {"color": "#e6eef2", "fontSize": 12},
+                    "top": "5%"
+                },
+                "grid": {
+                    "left": "3%",
+                    "right": "4%",
+                    "bottom": "15%",
+                    "top": "15%",
+                    "containLabel": True
+                },
+                "xAxis": [{
+                    "type": "category",
+                    "data": perf_summary['Name'].tolist(),
+                    "axisTick": {"alignWithLabel": True},
+                    "axisLabel": {
+                        "color": "#e6eef2",
+                        "fontSize": 11,
+                        "rotate": 30,
+                        "interval": 0
+                    },
+                    "axisLine": {"lineStyle": {"color": "#e6eef2"}}
+                }],
+                "yAxis": [{
+                    "type": "value",
+                    "max": 100,
+                    "axisLabel": {
+                        "color": "#e6eef2",
+                        "fontSize": 12,
+                        "formatter": "{value}%"
+                    },
+                    "axisLine": {"lineStyle": {"color": "#e6eef2"}},
+                    "splitLine": {"lineStyle": {"color": "rgba(230, 238, 242, 0.1)"}}
+                }],
+                "series": [{
+                    "name": status,
+                    "type": "bar",
+                    "barWidth": "50%",
+                    "data": [
+                        {
+                            "value": float(row['AvgPerformance']),
+                            "itemStyle": {
+                                "color": color,
+                                "borderRadius": [8, 8, 0, 0]
+                            }
+                        } if row['StatusCategory'] == status else 0
+                        for _, row in perf_summary.iterrows()
+                    ],
+                    "label": {
+                        "show": True,
+                        "position": "top",
+                        "color": "#e6eef2",
+                        "fontSize": 11,
+                        "fontWeight": "bold"
+                    },
+                    "emphasis": {
+                        "itemStyle": {
+                            "shadowBlur": 15,
+                            "shadowOffsetX": 0,
+                            "shadowColor": "rgba(102, 126, 234, 0.6)"
+                        }
+                    }
+                } for status, color in color_map.items()]
+            }
+            st_echarts(options=perf_option, height="400px", key="employee_perf_bar")
     except Exception:
         # don't break dashboard if chart fails
         pass
@@ -1023,9 +1504,11 @@ def show_employee_dashboard(df):
                 key="download_all_zip"
             )
     selected_employee = st.selectbox("Select an employee to view detailed performance", ["All"] + employees, key="employee_selector")
-    if not selected_employee:
-        st.info("Select an employee to view their dashboard.")
+    
+    if selected_employee == "All" or not selected_employee:
+        st.info("Select a specific employee to view their detailed dashboard.")
         return
+    
     emp_df = df[df['Name'] == selected_employee].copy()
     if emp_df.empty:
         st.warning("No records found for the selected employee.")
@@ -1107,48 +1590,19 @@ def show_employee_dashboard(df):
             use_container_width=True,
             key="export_individual_emp"
         )
-
-        # Excel export with real cell fills based on Availability/Status
-        export_df_xlsx = emp_df.copy()
-        if 'Date' in export_df_xlsx.columns:
-            export_df_xlsx['Date'] = export_df_xlsx['Date'].astype(str)
-        status_col_name = None
-        for candidate in ['Availability', 'Status']:
-            if candidate in export_df_xlsx.columns:
-                status_col_name = candidate
-                break
-        if status_col_name is None:
-            status_col_name = 'Status'
-            export_df_xlsx[status_col_name] = 'Unknown'
-        xbuf = io.BytesIO()
-        with pd.ExcelWriter(xbuf, engine='openpyxl') as writer:
-            export_df_xlsx.to_excel(writer, index=False, sheet_name='Data')
-            ws = writer.book['Data']
-            status_col_idx = list(export_df_xlsx.columns).index(status_col_name) + 1
-            green = PatternFill(start_color='FF00B050', end_color='FF00B050', fill_type='solid')
-            yellow = PatternFill(start_color='FFFFFF00', end_color='FFFFFF00', fill_type='solid')
-            red = PatternFill(start_color='FFFF0000', end_color='FFFF0000', fill_type='solid')
-            gray = PatternFill(start_color='FFD9D9D9', end_color='FFD9D9D9', fill_type='solid')
-            for r in range(2, len(export_df_xlsx) + 2):
-                cell = ws.cell(row=r, column=status_col_idx)
-                val = str(cell.value).strip() if cell.value is not None else 'Unknown'
-                if val == 'Underutilized':
-                    cell.fill = green
-                elif val == 'Partially Busy':
-                    cell.fill = yellow
-                elif val == 'Fully Busy':
-                    cell.fill = red
-                else:
-                    cell.fill = gray
-        xbuf.seek(0)
-        st.download_button(
-            label=f"📗 Export Excel (colored {status_col_name})",
-            data=xbuf,
-            file_name=f"{selected_employee}_performance_report_{datetime.now().strftime('%Y%m%d')}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True,
-            key="export_individual_emp_xlsx"
-        )
+        try:
+            excel_bytes = df_to_colored_excel_bytes(export_df)
+            st.download_button(
+                label=f"📥 Export Excel",
+                data=excel_bytes,
+                file_name=f"{selected_employee}_performance_report_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+                key="export_individual_emp_xlsx"
+            )
+        except Exception:
+            # Non-fatal: if excel generation fails, keep CSV available
+            pass
     metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
     with metric_col1:
         st.metric("Total Tasks", total_tasks)
@@ -1161,40 +1615,156 @@ def show_employee_dashboard(df):
     chart_col1, chart_col2 = st.columns([1, 1])
     with chart_col1:
         st.caption("Current Performance Gauge")
-        gauge_fig = go.Figure(
-            go.Indicator(
-                mode="gauge+number",
-                value=latest_perf,
-                title={'text': "Latest Performance"},
-                gauge={
-                    'axis': {'range': [0, 100]},
-                    'bar': {'color': "#764ba2"},
-                    'steps': [
-                        {'range': [0, 50], 'color': "#ff7675"},
-                        {'range': [50, 80], 'color': "#ffeaa7"},
-                        {'range': [80, 100], 'color': "#55efc4"},
-                    ]
-                }
-            )
-        )
-        gauge_fig.update_layout(height=280, margin=dict(l=40, r=40, t=60, b=40))
-        st.plotly_chart(gauge_fig, use_container_width=True)
+        # ECharts Gauge with smooth animation
+        gauge_option = {
+            "tooltip": {
+                "formatter": "{b}: {c}%",
+                "backgroundColor": "rgba(0,0,0,0.8)",
+                "borderColor": "#667eea",
+                "textStyle": {"color": "#fff", "fontSize": 14}
+            },
+            "series": [{
+                "type": "gauge",
+                "startAngle": 180,
+                "endAngle": 0,
+                "center": ["50%", "75%"],
+                "radius": "90%",
+                "min": 0,
+                "max": 100,
+                "splitNumber": 10,
+                "axisLine": {
+                    "lineStyle": {
+                        "width": 6,
+                        "color": [
+                            [0.5, "#ff7675"],
+                            [0.8, "#ffeaa7"],
+                            [1, "#55efc4"]
+                        ]
+                    }
+                },
+                "pointer": {
+                    "icon": "path://M12.8,0.7l12,40.1H0.7L12.8,0.7z",
+                    "length": "12%",
+                    "width": 20,
+                    "offsetCenter": [0, "-60%"],
+                    "itemStyle": {"color": "#764ba2"}
+                },
+                "axisTick": {
+                    "length": 12,
+                    "lineStyle": {"color": "auto", "width": 2}
+                },
+                "splitLine": {
+                    "length": 20,
+                    "lineStyle": {"color": "auto", "width": 5}
+                },
+                "axisLabel": {
+                    "color": "#e6eef2",
+                    "fontSize": 12,
+                    "distance": -60,
+                    "formatter": "{value}%"
+                },
+                "title": {
+                    "offsetCenter": [0, "-10%"],
+                    "fontSize": 14,
+                    "color": "#e6eef2"
+                },
+                "detail": {
+                    "fontSize": 28,
+                    "offsetCenter": [0, "-35%"],
+                    "valueAnimation": True,
+                    "formatter": "{value}%",
+                    "color": "#764ba2"
+                },
+                "data": [{
+                    "value": float(latest_perf),
+                    "name": "Latest Performance"
+                }]
+            }]
+        }
+        st_echarts(options=gauge_option, height="300px", key=f"gauge_{selected_employee}")
+    
     with chart_col2:
         st.caption("Performance Snapshot")
         trend_df = emp_df[['Date', 'Employee Performance (%)']].dropna()
         if not trend_df.empty and trend_df['Date'].notna().any():
-            trend_fig = px.line(
-                trend_df.sort_values('Date'),
-                x='Date',
-                y='Employee Performance (%)',
-                markers=True
-            )
-            trend_fig.update_layout(
-                xaxis_title="Date",
-                yaxis_title="Performance (%)",
-                yaxis_range=[0, 100]
-            )
-            st.plotly_chart(trend_fig, use_container_width=True)
+            trend_df = trend_df.sort_values('Date')
+            
+            # Format dates safely
+            date_labels = []
+            for d in trend_df['Date']:
+                if isinstance(d, str):
+                    date_labels.append(d)
+                elif hasattr(d, 'date'):
+                    date_labels.append(str(d.date()))
+                else:
+                    date_labels.append(str(d))
+            
+            # ECharts Line Chart
+            snapshot_option = {
+                "tooltip": {
+                    "trigger": "axis",
+                    "backgroundColor": "rgba(0,0,0,0.8)",
+                    "borderColor": "#667eea",
+                    "textStyle": {"color": "#fff", "fontSize": 14}
+                },
+                "grid": {
+                    "left": "10%",
+                    "right": "5%",
+                    "bottom": "15%",
+                    "top": "10%"
+                },
+                "xAxis": {
+                    "type": "category",
+                    "data": date_labels,
+                    "axisLabel": {
+                        "color": "#e6eef2",
+                        "fontSize": 10,
+                        "rotate": 30
+                    },
+                    "axisLine": {"lineStyle": {"color": "#e6eef2"}}
+                },
+                "yAxis": {
+                    "type": "value",
+                    "min": 0,
+                    "max": 100,
+                    "axisLabel": {
+                        "color": "#e6eef2",
+                        "fontSize": 11,
+                        "formatter": "{value}%"
+                    },
+                    "axisLine": {"lineStyle": {"color": "#e6eef2"}},
+                    "splitLine": {"lineStyle": {"color": "rgba(230, 238, 242, 0.1)"}}
+                },
+                "series": [{
+                    "type": "line",
+                    "smooth": True,
+                    "symbol": "circle",
+                    "symbolSize": 8,
+                    "data": [float(x) for x in trend_df['Employee Performance (%)']],
+                    "lineStyle": {
+                        "width": 3,
+                        "color": "#764ba2"
+                    },
+                    "itemStyle": {"color": "#764ba2"},
+                    "areaStyle": {
+                        "color": {
+                            "type": "linear",
+                            "x": 0, "y": 0, "x2": 0, "y2": 1,
+                            "colorStops": [
+                                {"offset": 0, "color": "rgba(118, 75, 162, 0.3)"},
+                                {"offset": 1, "color": "rgba(118, 75, 162, 0.05)"}
+                            ]
+                        }
+                    },
+                    "emphasis": {
+                        "itemStyle": {
+                            "shadowBlur": 10,
+                            "shadowColor": "rgba(118, 75, 162, 0.5)"
+                        }
+                    }
+                }]
+            }
+            st_echarts(options=snapshot_option, height="300px", key=f"snapshot_{selected_employee}")
         else:
             st.info("No performance history available for this employee.")
     st.caption("Task Breakdown")
@@ -1203,30 +1773,141 @@ def show_employee_dashboard(df):
         if 'Task Status' in emp_df.columns:
             status_counts = emp_df['Task Status'].value_counts()
             if not status_counts.empty:
-                status_fig = px.pie(
-                    values=status_counts.values,
-                    names=status_counts.index,
-                    color_discrete_sequence=px.colors.sequential.RdBu
-                )
-                st.plotly_chart(status_fig, use_container_width=True)
+                # ECharts Pie for Task Status
+                status_pie_option = {
+                    "tooltip": {
+                        "trigger": "item",
+                        "formatter": "{b}: {c} ({d}%)",
+                        "backgroundColor": "rgba(0,0,0,0.8)",
+                        "borderColor": "#667eea",
+                        "textStyle": {"color": "#fff", "fontSize": 14}
+                    },
+                    "legend": {
+                        "orient": "horizontal",
+                        "bottom": "0%",
+                        "textStyle": {"color": "#e6eef2", "fontSize": 11}
+                    },
+                    "series": [{
+                        "name": "Task Status",
+                        "type": "pie",
+                        "radius": ["30%", "60%"],
+                        "center": ["50%", "45%"],
+                        "avoidLabelOverlap": True,
+                        "itemStyle": {
+                            "borderRadius": 8,
+                            "borderColor": "#000",
+                            "borderWidth": 2
+                        },
+                        "label": {
+                            "show": True,
+                            "formatter": "{d}%",
+                            "color": "#e6eef2",
+                            "fontSize": 12
+                        },
+                        "emphasis": {
+                            "label": {
+                                "show": True,
+                                "fontSize": 14,
+                                "fontWeight": "bold"
+                            },
+                            "itemStyle": {
+                                "shadowBlur": 10,
+                                "shadowOffsetX": 0,
+                                "shadowColor": "rgba(102, 126, 234, 0.5)"
+                            }
+                        },
+                        "data": [
+                            {
+                                "value": int(count),
+                                "name": status,
+                                "itemStyle": {
+                                    "color": ["#3b82f6", "#10b981", "#f59e0b", "#ef4444"][i % 4]
+                                }
+                            }
+                            for i, (status, count) in enumerate(status_counts.items())
+                        ],
+                        "animationType": "scale",
+                        "animationEasing": "elasticOut"
+                    }]
+                }
+                st_echarts(options=status_pie_option, height="300px", key=f"status_pie_{selected_employee}")
             else:
                 st.info("No task status data available for this employee.")
         else:
             st.info("Task status column not available.")
+    
     with breakdown_col2:
         if 'Task Priority' in emp_df.columns:
             priority_counts = emp_df['Task Priority'].value_counts()
             if not priority_counts.empty:
-                priority_fig = px.bar(
-                    x=priority_counts.index,
-                    y=priority_counts.values,
-                    text=priority_counts.values,
-                    color=priority_counts.index,
-                    color_discrete_sequence=px.colors.sequential.PuBu
-                )
-                priority_fig.update_layout(showlegend=False, xaxis_title="Priority", yaxis_title="Tasks")
-                priority_fig.update_traces(textposition='outside')
-                st.plotly_chart(priority_fig, use_container_width=True)
+                priority_color_map = {
+                    'Low': '#10b981',
+                    'Medium': '#f59e0b',
+                    'High': '#ff6347',
+                    'Critical': '#dc2626'
+                }
+                # ECharts Bar for Priority
+                priority_bar_option = {
+                    "tooltip": {
+                        "trigger": "axis",
+                        "axisPointer": {"type": "shadow"},
+                        "backgroundColor": "rgba(0,0,0,0.8)",
+                        "borderColor": "#667eea",
+                        "textStyle": {"color": "#fff", "fontSize": 14}
+                    },
+                    "grid": {
+                        "left": "15%",
+                        "right": "5%",
+                        "bottom": "10%",
+                        "top": "10%"
+                    },
+                    "xAxis": {
+                        "type": "category",
+                        "data": list(priority_counts.index),
+                        "axisLabel": {
+                            "color": "#e6eef2",
+                            "fontSize": 11
+                        },
+                        "axisLine": {"lineStyle": {"color": "#e6eef2"}}
+                    },
+                    "yAxis": {
+                        "type": "value",
+                        "axisLabel": {
+                            "color": "#e6eef2",
+                            "fontSize": 11
+                        },
+                        "axisLine": {"lineStyle": {"color": "#e6eef2"}},
+                        "splitLine": {"lineStyle": {"color": "rgba(230, 238, 242, 0.1)"}}
+                    },
+                    "series": [{
+                        "name": "Tasks",
+                        "type": "bar",
+                        "data": [
+                            {
+                                "value": int(count),
+                                "itemStyle": {
+                                    "color": priority_color_map.get(priority, "#667eea"),
+                                    "borderRadius": [8, 8, 0, 0]
+                                }
+                            }
+                            for priority, count in priority_counts.items()
+                        ],
+                        "label": {
+                            "show": True,
+                            "position": "top",
+                            "color": "#e6eef2",
+                            "fontSize": 13,
+                            "fontWeight": "bold"
+                        },
+                        "emphasis": {
+                            "itemStyle": {
+                                "shadowBlur": 10,
+                                "shadowColor": "rgba(102, 126, 234, 0.5)"
+                            }
+                        }
+                    }]
+                }
+                st_echarts(options=priority_bar_option, height="300px", key=f"priority_bar_{selected_employee}")
             else:
                 st.info("No task priority data available for this employee.")
         else:
@@ -1242,51 +1923,160 @@ def show_employee_dashboard(df):
         trend_df['Quality'] = (trend_df['Employee Performance (%)'] * 1.1).clip(upper=100)
         trend_df['Efficiency'] = (trend_df['Employee Performance (%)'] * 0.95).clip(upper=100)
        
-        # Create multi-line trend chart
-        trend_fig_full = go.Figure()
+        # Format dates safely
+        date_labels = []
+        for d in trend_df['Date']:
+            if isinstance(d, str):
+                date_labels.append(d)
+            elif hasattr(d, 'date'):
+                date_labels.append(str(d.date()))
+            else:
+                date_labels.append(str(d))
        
-        trend_fig_full.add_trace(go.Scatter(
-            x=trend_df['Date'],
-            y=trend_df['Productivity'],
-            mode='lines+markers',
-            name='Productivity',
-            line=dict(color='#3b82f6', width=3),
-            marker=dict(size=8)
-        ))
-       
-        trend_fig_full.add_trace(go.Scatter(
-            x=trend_df['Date'],
-            y=trend_df['Quality'],
-            mode='lines+markers',
-            name='Quality',
-            line=dict(color='#10b981', width=3),
-            marker=dict(size=8)
-        ))
-       
-        trend_fig_full.add_trace(go.Scatter(
-            x=trend_df['Date'],
-            y=trend_df['Efficiency'],
-            mode='lines+markers',
-            name='Efficiency',
-            line=dict(color='#f59e0b', width=3),
-            marker=dict(size=8)
-        ))
-       
-        trend_fig_full.update_layout(
-            title=f"{selected_employee}'s Performance Trend",
-            xaxis_title='Date',
-            yaxis_title='Performance (%)',
-            yaxis_range=[0, 100],
-            hovermode='x unified',
-            legend=dict(
-                orientation="h",
-                yanchor="bottom",
-                y=1.02,
-                xanchor="right",
-                x=1
-            )
-        )
-        st.plotly_chart(trend_fig_full, use_container_width=True)
+        # ECharts Multi-line Trend Chart
+        trend_option = {
+            "title": {
+                "text": f"{selected_employee}'s Performance Trend",
+                "textStyle": {"color": "#e6eef2", "fontSize": 16},
+                "left": "center"
+            },
+            "tooltip": {
+                "trigger": "axis",
+                "backgroundColor": "rgba(0,0,0,0.8)",
+                "borderColor": "#667eea",
+                "borderWidth": 1,
+                "textStyle": {"color": "#fff", "fontSize": 14},
+                "axisPointer": {
+                    "type": "cross",
+                    "label": {"backgroundColor": "#667eea"}
+                }
+            },
+            "legend": {
+                "data": ["Productivity", "Quality", "Efficiency"],
+                "textStyle": {"color": "#e6eef2", "fontSize": 12},
+                "top": "8%"
+            },
+            "grid": {
+                "left": "5%",
+                "right": "5%",
+                "bottom": "15%",
+                "top": "20%",
+                "containLabel": True
+            },
+            "xAxis": {
+                "type": "category",
+                "boundaryGap": False,
+                "data": date_labels,
+                "axisLabel": {
+                    "color": "#e6eef2",
+                    "fontSize": 10,
+                    "rotate": 30
+                },
+                "axisLine": {"lineStyle": {"color": "#e6eef2"}}
+            },
+            "yAxis": {
+                "type": "value",
+                "min": 0,
+                "max": 100,
+                "axisLabel": {
+                    "color": "#e6eef2",
+                    "fontSize": 11,
+                    "formatter": "{value}%"
+                },
+                "axisLine": {"lineStyle": {"color": "#e6eef2"}},
+                "splitLine": {"lineStyle": {"color": "rgba(230, 238, 242, 0.1)"}}
+            },
+            "series": [
+                {
+                    "name": "Productivity",
+                    "type": "line",
+                    "smooth": True,
+                    "symbol": "circle",
+                    "symbolSize": 8,
+                    "data": [float(x) for x in trend_df['Productivity']],
+                    "lineStyle": {
+                        "width": 3,
+                        "color": "#3b82f6"
+                    },
+                    "itemStyle": {"color": "#3b82f6"},
+                    "areaStyle": {
+                        "color": {
+                            "type": "linear",
+                            "x": 0, "y": 0, "x2": 0, "y2": 1,
+                            "colorStops": [
+                                {"offset": 0, "color": "rgba(59, 130, 246, 0.3)"},
+                                {"offset": 1, "color": "rgba(59, 130, 246, 0.05)"}
+                            ]
+                        }
+                    },
+                    "emphasis": {
+                        "itemStyle": {
+                            "shadowBlur": 10,
+                            "shadowColor": "rgba(59, 130, 246, 0.5)"
+                        }
+                    }
+                },
+                {
+                    "name": "Quality",
+                    "type": "line",
+                    "smooth": True,
+                    "symbol": "circle",
+                    "symbolSize": 8,
+                    "data": [float(x) for x in trend_df['Quality']],
+                    "lineStyle": {
+                        "width": 3,
+                        "color": "#10b981"
+                    },
+                    "itemStyle": {"color": "#10b981"},
+                    "areaStyle": {
+                        "color": {
+                            "type": "linear",
+                            "x": 0, "y": 0, "x2": 0, "y2": 1,
+                            "colorStops": [
+                                {"offset": 0, "color": "rgba(16, 185, 129, 0.3)"},
+                                {"offset": 1, "color": "rgba(16, 185, 129, 0.05)"}
+                            ]
+                        }
+                    },
+                    "emphasis": {
+                        "itemStyle": {
+                            "shadowBlur": 10,
+                            "shadowColor": "rgba(16, 185, 129, 0.5)"
+                        }
+                    }
+                },
+                {
+                    "name": "Efficiency",
+                    "type": "line",
+                    "smooth": True,
+                    "symbol": "circle",
+                    "symbolSize": 8,
+                    "data": [float(x) for x in trend_df['Efficiency']],
+                    "lineStyle": {
+                        "width": 3,
+                        "color": "#f59e0b"
+                    },
+                    "itemStyle": {"color": "#f59e0b"},
+                    "areaStyle": {
+                        "color": {
+                            "type": "linear",
+                            "x": 0, "y": 0, "x2": 0, "y2": 1,
+                            "colorStops": [
+                                {"offset": 0, "color": "rgba(245, 158, 11, 0.3)"},
+                                {"offset": 1, "color": "rgba(245, 158, 11, 0.05)"}
+                            ]
+                        }
+                    },
+                    "emphasis": {
+                        "itemStyle": {
+                            "shadowBlur": 10,
+                            "shadowColor": "rgba(245, 158, 11, 0.5)"
+                        }
+                    }
+                }
+            ]
+        }
+        st_echarts(options=trend_option, height="450px", key=f"trend_{selected_employee}")
        
         # Performance statistics table
         st.markdown('**Performance Statistics**')
@@ -1364,68 +2154,33 @@ def show_data_table(df):
     )
     # Download button
     if not display_df.empty:
-        # CSV: keep emoji labels for readability
-        df_export_csv = display_df.copy()
-        if 'Availability' in df_export_csv.columns:
-            df_export_csv['Availability'] = df_export_csv['Availability'].apply(format_availability_for_csv)
-        csv_bytes = df_export_csv.to_csv(index=False).encode('utf-8-sig')
+        df_export = display_df.copy()
+        # Ensure Availability column exports with emoji labels
+        if 'Availability' in df_export.columns:
+            df_export['Availability'] = df_export['Availability'].apply(format_availability_for_csv)
+        csv_bytes = df_export.to_csv(index=False).encode('utf-8-sig')
         st.download_button(
             label="📥 Download Data as CSV",
             data=csv_bytes,
             file_name=f"employee_progress_{datetime.now().strftime('%Y%m%d')}.csv",
             mime="text/csv"
         )
-
-        # Excel: apply real cell fills based on Availability/Status values
-        df_export_xlsx = display_df.copy()
-        status_col_name = None
-        for candidate in ['Availability', 'Status']:
-            if candidate in df_export_xlsx.columns:
-                status_col_name = candidate
-                break
-        if status_col_name is None:
-            status_col_name = 'Status'
-            df_export_xlsx[status_col_name] = 'Unknown'
-        xbuf = io.BytesIO()
-        with pd.ExcelWriter(xbuf, engine='openpyxl') as writer:
-            df_export_xlsx.to_excel(writer, index=False, sheet_name='Data')
-            ws = writer.book['Data']
-            status_col_idx = list(df_export_xlsx.columns).index(status_col_name) + 1
-            green = PatternFill(start_color='FF00B050', end_color='FF00B050', fill_type='solid')
-            yellow = PatternFill(start_color='FFFFFF00', end_color='FFFFFF00', fill_type='solid')
-            red = PatternFill(start_color='FFFF0000', end_color='FFFF0000', fill_type='solid')
-            gray = PatternFill(start_color='FFD9D9D9', end_color='FFD9D9D9', fill_type='solid')
-            for r in range(2, len(df_export_xlsx) + 2):
-                cell = ws.cell(row=r, column=status_col_idx)
-                val = str(cell.value).strip() if cell.value is not None else 'Unknown'
-                if val == 'Underutilized':
-                    cell.fill = green
-                elif val == 'Partially Busy':
-                    cell.fill = yellow
-                elif val == 'Fully Busy':
-                    cell.fill = red
-                else:
-                    cell.fill = gray
-        xbuf.seek(0)
-        st.download_button(
-            label=f"📗 Download Excel (colored {status_col_name})",
-            data=xbuf,
-            file_name=f"employee_progress_{datetime.now().strftime('%Y%m%d')}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-
+        try:
+            excel_bytes_all = df_to_colored_excel_bytes(df_export)
+            st.download_button(
+                label="📥 Download Data as Excel",
+                data=excel_bytes_all,
+                file_name=f"employee_progress_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+        except Exception:
+            pass
 #Settings Page
 def show_settings():
     """Display settings page"""
     st.title("⚙️ Settings")
     config = load_config()
     with st.form("settings_form"):
-        st.subheader("Excel File Configuration")
-        excel_file_path = st.text_input(
-            "Excel File Path",
-            value=config.get('excel_file_path', EXCEL_FILE_PATH),
-            help="Path to the local Excel file"
-        )
         st.markdown("---")
         st.subheader("Reminder Settings")
         col1, col2 = st.columns(2)
@@ -1462,7 +2217,6 @@ def show_settings():
         submitted = st.form_submit_button("💾 Save Settings")
         if submitted:
             # Update config
-            config['excel_file_path'] = excel_file_path
             config['reminder_time'] = reminder_time.strftime('%H:%M')
             config['reminder_days'] = reminder_days
             config['admin_email'] = admin_email
@@ -1487,87 +2241,7 @@ def show_settings():
             st.success("✅ Settings saved successfully!")
             time.sleep(1)
             st.rerun()
-    # Connection test
-    st.markdown("---")
-    st.subheader("🔌 Test Connection & Diagnostics")
-    if st.button("🔍 Test Excel File Connection & Check for Issues"):
-        excel_path = config.get('excel_file_path', EXCEL_FILE_PATH)
-       
-        with st.spinner("Running diagnostics..."):
-            # Check 1: File exists
-            st.write("**1. Checking if file exists...**")
-            if os.path.exists(excel_path):
-                st.success(f"✅ File exists at: `{excel_path}`")
-               
-                # Check 2: File permissions
-                st.write("**2. Checking file permissions...**")
-                if os.access(excel_path, os.R_OK):
-                    st.success("✅ File is readable")
-                else:
-                    st.error("❌ File is NOT readable. Check permissions.")
-               
-                if os.access(excel_path, os.W_OK):
-                    st.success("✅ File is writable")
-                else:
-                    st.error("❌ File is NOT writable. Check permissions.")
-               
-                # Check 3: Try to read the file
-                st.write("**3. Testing file read access...**")
-                try:
-                    df = read_excel_data(excel_path)
-                    if df is not None:
-                        st.success(f"✅ Successfully read file! Found {len(df)} records")
-                        if not df.empty:
-                            st.dataframe(df.head(), use_container_width=True)
-                        else:
-                            st.info("📋 Excel file is empty. Start submitting reports to add data.")
-                    else:
-                        st.error("❌ Failed to read file data.")
-                except PermissionError as pe:
-                    st.error(f"❌ **Permission Error**: Cannot read file")
-                    st.error(f" Error: {str(pe)}")
-                    st.warning("💡 **Solution**: Close the Excel file if it's open in Excel or another program.")
-                except Exception as e:
-                    st.error(f"❌ **Error reading file**: {type(e).__name__}")
-                    st.error(f" Error: {str(e)}")
-               
-                # Check 4: Try to write to the file (test write)
-                st.write("**4. Testing file write access...**")
-                try:
-                    # Save original data first
-                    original_df = df.copy() if df is not None and not df.empty else None
-                   
-                    # Try to open the file in write mode to check if it's locked
-                    # We'll write the original data back, so this is safe
-                    if original_df is not None:
-                        with pd.ExcelWriter(excel_path, engine='openpyxl', mode='w') as writer:
-                            original_df.to_excel(writer, index=False, sheet_name='Sheet1')
-                        st.success("✅ File write test successful! (Original data preserved)")
-                    else:
-                        # If file is empty, create a test write
-                        test_data = pd.DataFrame([{'Test': 'test'}])
-                        with pd.ExcelWriter(excel_path, engine='openpyxl', mode='w') as writer:
-                            test_data.to_excel(writer, index=False, sheet_name='Sheet1')
-                        # Remove test data
-                        empty_df = pd.DataFrame()
-                        with pd.ExcelWriter(excel_path, engine='openpyxl', mode='w') as writer:
-                            empty_df.to_excel(writer, index=False, sheet_name='Sheet1')
-                        st.success("✅ File write test successful!")
-                except PermissionError as pe:
-                    st.error(f"❌ **Permission Error**: Cannot write to file")
-                    st.error(f" Error: {str(pe)}")
-                    st.warning("💡 **Most Common Causes:**")
-                    st.warning(" 1. Excel file is open in Microsoft Excel")
-                    st.warning(" 2. Excel file is open in another program")
-                    st.warning(" 3. Another process is using the file")
-                    st.warning(" 4. Insufficient file permissions")
-                except Exception as e:
-                    st.error(f"❌ **Error writing to file**: {type(e).__name__}")
-                    st.error(f" Error: {str(e)}")
-               
-            else:
-                st.error(f"❌ File does NOT exist at: `{excel_path}`")
-                st.info("💡 The file will be created automatically when you submit your first report.")
+
 # Submit Report Page
 def show_submit_report():
     """Display form for submitting work progress reports with multiple tasks"""
@@ -1613,7 +2287,7 @@ def show_submit_report():
     st.markdown("<p style='text-align: center; color: #7f8c8d; font-size: 1.1rem;'>📤Submit your task report for today</p>", unsafe_allow_html=True)
    
     st.markdown("---")
-    excel_path = config.get('excel_file_path', EXCEL_FILE_PATH)
+    # DB-only mode: we no longer use a local Excel file path
     # Initialize session state for task count if not exists
     if 'num_tasks' not in st.session_state:
         st.session_state.num_tasks = 1
@@ -1796,10 +2470,10 @@ def show_submit_report():
                 st.error("❌ No valid tasks to submit. Please add at least one complete task.")
             else:
                 # Append all tasks to Excel file
-                with st.spinner(f"Saving your daily report with {len(task_data_list)} task(s)..."):
-                    success = append_to_excel(task_data_list, excel_path)
+                    with st.spinner(f"Saving your daily report with {len(task_data_list)} task(s)..."):
+                        success = append_to_excel(task_data_list)
                
-                if success:
+            if success:
                     st.success(f"✅ Your daily work progress report has been submitted successfully! ({len(task_data_list)} task(s) recorded)")
                     st.balloons()
                     # Reset task count for next submission
@@ -1812,411 +2486,939 @@ def show_submit_report():
                                 del st.session_state[key]
                     time.sleep(2)
                     st.rerun()
-                else:
+            else:
                     st.error("❌ Failed to save report. Please try again or contact administrator.")
+# Main App
 
-#==================== LOGIN & SIGNUP PAGES ====================
-def show_login_page():
-    from attendance_store import verify_login
+# --- Authentication and Routing ---
+def show_login_signup():
+    """Show beautiful login/signup page with modern design"""
     
-    st.markdown(
-        "<h1 style='text-align: center;'>🔒 Employee Login</h1>",
-        unsafe_allow_html=True
-    )
-    st.markdown("---")
-    
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.subheader("Login")
-        with st.form("login_form"):
-            emp_id = st.text_input("Office ID", placeholder="Enter your Office ID (e.g. P-0125)")
-            password = st.text_input("Password", type="password")
-            login_btn = st.form_submit_button("Login", use_container_width=True, type="primary")
-
+    # Custom CSS for modern authentication UI
+    st.markdown("""
+    <style>
+        /* Hide Streamlit branding */
+        #MainMenu {visibility: hidden;}
+        footer {visibility: hidden;}
+        header {visibility: hidden;}
+        .stDeployButton {display: none;}
         
-        if login_btn:
-            if not emp_id or not password:
-                st.error("Please enter both Office ID and Password")
-            else:
-                success, name, role = verify_login(emp_id, password)
-                if success:
-                    st.session_state.logged_in = True
-                    st.session_state.emp_id = emp_id.upper()
-                    st.session_state.emp_name = name
-                    st.session_state.emp_role = role
-                    st.success("✅ Logged in successfully!")
-                    time.sleep(1)
-                    st.rerun()
-                else:
-                    st.error("Invalid Office ID or Password")
-        
-        st.markdown("---")
-        st.markdown("### New Employee?")
-        if st.button("Create Account", use_container_width=True):
-            st.session_state.show_signup = True
-            st.rerun()
-
-
-
-
-def show_signup_page():
-    """Display signup form"""
-    from attendance_store import check_employee_exists, create_employee
-    
-    st.title("🏢 Employee Progress Tracker")
-    st.markdown("---")
-    
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.subheader("Create Account")
-        with st.form("signup_form"):
-            emp_id = st.text_input("Office ID", placeholder="e.g. EMP001")
-            name = st.text_input("Full Name", placeholder="Your full name")
-            email = st.text_input("Email (optional)", placeholder="your.email@company.com")
-            department = st.text_input("Department (optional)", placeholder="e.g. Engineering")
-            role = st.text_input("Role (optional)", placeholder="e.g. Developer")
-            password = st.text_input("Password", type="password", placeholder="Create a strong password")
-            confirm_pwd = st.text_input("Confirm Password", type="password")
-            signup_btn = st.form_submit_button("Create Account", use_container_width=True, type="primary")
-        
-        if signup_btn:
-            if not emp_id or not name or not password:
-                st.error("Office ID, Name, and Password are required")
-            elif password != confirm_pwd:
-                st.error("Passwords do not match")
-            elif len(password) < 6:
-                st.error("Password must be at least 6 characters long")
-            else:
-                if check_employee_exists(emp_id):
-                    st.error("Office ID already exists. Please use a different ID or login.")
-                else:
-                    success, msg = create_employee(emp_id, password, name, email, department, role)
-                    if success:
-                        st.success("✅ Account created successfully! Please log in.")
-                        time.sleep(2)
-                        st.session_state.show_signup = False
-                        st.rerun()
-                    else:
-                        st.error(f"❌ {msg}")
-        
-        st.markdown("---")
-        if st.button("Back to Login", use_container_width=True):
-            st.session_state.show_signup = False
-            st.rerun()
-
-def show_employee_attendance_dashboard():
-    """Display the Employee Attendance Dashboard with three tabs and metrics"""
-    import attendance_store
-    from datetime import datetime, timedelta
-    import pandas as pd
-
-    st.title("🏢 Employee Attendance Dashboard")
-    st.markdown("Real-time employee attendance tracking with check-in/out capabilities.")
-
-    # Load persisted data
-    records = attendance_store.load_attendance()
-    employees = attendance_store.load_employees()
-
-    if not employees:
-        st.error("No employees found.")
-        return
-
-    # Build latest status per employee (today only)
-    today = datetime.now().date()
-    today_records = {}  # {emp_id: latest_record}
-    
-    for r in records:
-        emp = (r.get("emp_id") or "").upper()
-        ts = None
-        try:
-            ts_str = r.get("timestamp")
-            if isinstance(ts_str, str):
-                ts = datetime.fromisoformat(ts_str)
-            else:
-                ts = ts_str if hasattr(ts_str, 'date') else datetime.now()
-        except Exception:
-            try:
-                from dateutil import parser as _p
-                ts = _p.isoparse(r.get("timestamp"))
-            except Exception:
-                ts = datetime.now()
-        
-        # Only include today's records
-        if ts.date() == today and emp:
-            if emp not in today_records or ts > today_records[emp]["timestamp"]:
-                today_records[emp] = {
-                    "status": r.get("status"),
-                    "timestamp": ts,
-                    "notes": r.get("notes", ""),
-                    "check_in_time": r.get("check_in_time")
-                }
-
-    # Categorize employees — only include those with today's attendance records
-    wfo_list = []  # Work From Office
-    wfh_list = []  # Work From Home
-    leave_list = [] # On Leave
-
-    for emp_upper, rec in today_records.items():
-        # get employee metadata if available
-        meta = employees.get(emp_upper, {}) if isinstance(employees, dict) else {}
-        name = meta.get("name", emp_upper)
-        dept = meta.get("department", "")
-        role = meta.get("role", "")
-        # Use the pre-recorded check_in_time directly (device time if captured, server time if fallback)
-        check_in = rec.get("check_in_time")
-        if check_in:
-            try:
-                if isinstance(check_in, str):
-                    check_in_dt = datetime.fromisoformat(check_in)
-                else:
-                    check_in_dt = check_in
-                ts_str = check_in_dt.strftime('%I:%M %p')
-            except Exception:
-                ts_str = str(check_in)
-        else:
-            ts_str = "N/A"
-        
-        row = {
-            "ID": emp_upper,
-            "Name": name,
-            "Department": dept,
-            "Role": role,
-            "Check-in Time": ts_str,
-            "Notes": rec.get("notes", "")
+        /* Main background */
+        .stApp {
+            background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
         }
         
-        if rec.get("status") == "WFO":
-            wfo_list.append(row)
-        elif rec.get("status") == "WFH":
-            wfh_list.append(row)
-        elif rec.get("status") == "On Leave":
-            leave_list.append(row)
-
-    # Summary Metrics
-    st.markdown("### Today's Attendance Summary")
-    # Metrics reflect today's actual check-ins only
-    total_today = len(today_records)
-    present = len(wfo_list) + len(wfh_list) + len(leave_list)
-    attendance_rate = round((present / total_today) * 100, 1) if total_today else 0
-
-    col1, col2, col3, col4, col5 = st.columns(5)
-    with col1:
-        st.markdown(f'<div class="metric-card"><div class="metric-value">{total_today}</div><div class="metric-label">Checked-in Today</div></div>', unsafe_allow_html=True)
-    with col2:
-        st.markdown(f'<div class="metric-card status-green"><div class="metric-value">{present}</div><div class="metric-label">Present</div></div>', unsafe_allow_html=True)
-    with col3:
-        st.markdown(f'<div class="metric-card status-yellow"><div class="metric-value">{len(wfo_list)}</div><div class="metric-label">In Office</div></div>', unsafe_allow_html=True)
-    with col4:
-        st.markdown(f'<div class="metric-card status-red"><div class="metric-value">0</div><div class="metric-label">Absent (not shown)</div></div>', unsafe_allow_html=True)
-    with col5:
-        st.markdown(f'<div class="metric-card"><div class="metric-value">{attendance_rate}%</div><div class="metric-label">Attendance Rate</div></div>', unsafe_allow_html=True)
-
-    st.markdown("---")
-
-    # Three Tabs
-    tab1, tab2, tab3 = st.tabs([
-        f"🏢 In Office ({len(wfo_list)})",
-        f"🏠 Remote ({len(wfh_list)})",
-        f"📋 On Leave ({len(leave_list)})"
-    ])
-
+        /* Center container */
+        .main .block-container {
+            max-width: 550px;
+            padding-top: 3rem;
+            padding-bottom: 3rem;
+        }
+        
+        /* Logo section */
+        .auth-header {
+            text-align: center;
+            margin-bottom: 2.5rem;
+            animation: fadeInDown 0.8s ease;
+        }
+        
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .auth-title {
+            font-size: 2.8rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.5rem;
+            letter-spacing: -0.5px;
+        }
+        
+        .auth-subtitle {
+            color: #94a3b8;
+            font-size: 1.1rem;
+            font-weight: 400;
+            margin-top: 0.5rem;
+        }
+        
+        /* Tabs styling */
+        .stTabs {
+            margin-bottom: 2rem;
+        }
+        
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 1rem;
+            background: rgba(15, 23, 42, 0.4);
+            border-radius: 12px;
+            padding: 0.5rem;
+            justify-content: center;
+        }
+        
+        .stTabs [data-baseweb="tab"] {
+            height: 50px;
+            color: #94a3b8;
+            background: transparent;
+            border-radius: 8px;
+            border: none;
+            font-size: 1.05rem;
+            font-weight: 500;
+            padding: 0 2rem;
+            transition: all 0.3s ease;
+        }
+        
+        .stTabs [data-baseweb="tab"]:hover {
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+        }
+        
+        .stTabs [aria-selected="true"] {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white !important;
+        }
+        
+        /* Form container */
+        .form-container {
+            background: rgba(15, 23, 42, 0.6);
+            border-radius: 20px;
+            padding: 2.5rem;
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            animation: fadeInUp 0.8s ease;
+        }
+        
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        /* Form title */
+        .form-title {
+            color: #e2e8f0;
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+        
+        /* Input fields */
+        .stTextInput label, .stRadio label {
+            color: #cbd5e1 !important;
+            font-weight: 500 !important;
+            font-size: 0.9rem !important;
+            margin-bottom: 0.5rem !important;
+        }
+        
+        .stTextInput > div > div > input {
+            background: rgba(30, 41, 59, 0.6) !important;
+            border: 1.5px solid rgba(148, 163, 184, 0.3) !important;
+            border-radius: 10px !important;
+            color: #e2e8f0 !important;
+            padding: 0.85rem 1.2rem !important;
+            font-size: 1rem !important;
+            transition: all 0.3s ease !important;
+        }
+        
+        .stTextInput > div > div > input::placeholder {
+            color: #64748b !important;
+        }
+        
+        .stTextInput > div > div > input:focus {
+            border-color: #667eea !important;
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.15) !important;
+            background: rgba(30, 41, 59, 0.8) !important;
+        }
+        
+        /* Radio buttons */
+        .stRadio > div {
+            background: rgba(30, 41, 59, 0.4);
+            padding: 0.8rem;
+            border-radius: 10px;
+            border: 1px solid rgba(148, 163, 184, 0.2);
+        }
+        
+        .stRadio > div > label > div[data-testid="stMarkdownContainer"] p {
+            color: #e2e8f0 !important;
+            font-size: 0.95rem !important;
+        }
+        
+        /* Buttons */
+        .stButton button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+            color: white !important;
+            border: none !important;
+            border-radius: 10px !important;
+            padding: 0.85rem 2rem !important;
+            font-size: 1.05rem !important;
+            font-weight: 600 !important;
+            width: 100% !important;
+            margin-top: 1.5rem !important;
+            transition: all 0.3s ease !important;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4) !important;
+        }
+        
+        .stButton button:hover {
+            transform: translateY(-2px) !important;
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.5) !important;
+        }
+        
+        .stButton button:active {
+            transform: translateY(0) !important;
+        }
+        
+        /* Alert messages */
+        .stAlert {
+            border-radius: 10px !important;
+            backdrop-filter: blur(10px);
+        }
+        
+        /* Success/Error messages */
+        [data-testid="stSuccess"], [data-testid="stError"], [data-testid="stInfo"] {
+            border-radius: 10px !important;
+        }
+        
+        /* Divider */
+        .divider {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(148, 163, 184, 0.3), transparent);
+            margin: 2rem 0;
+        }
+        
+        /* Footer text */
+        .footer-text {
+            text-align: center;
+            color: #94a3b8;
+            font-size: 0.9rem;
+            margin-top: 1.5rem;
+        }
+        
+        .footer-text a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        
+        .footer-text a:hover {
+            text-decoration: underline;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Logo and Header
+    st.markdown("""
+    <div class="auth-header">
+        <div class="auth-title">🔐 Employee Task Tracker</div>
+        <div class="auth-subtitle">Login or signup to continue</div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Tabs for User and Admin
+    tab1, tab2 = st.tabs(["� User Access", "�️ Admin Access"])
+    
+    # TAB 1: USER ACCESS (Toggle between Login and Signup)
     with tab1:
-        st.subheader(f"Employees in Office — {len(wfo_list)}")
-        if wfo_list:
-            st.dataframe(wfo_list, use_container_width=True, hide_index=True)
-        else:
-            st.info("No employees are currently marked as in the office.")
-
-    with tab2:
-        st.subheader(f"Employees Remote — {len(wfh_list)}")
-        if wfh_list:
-            st.dataframe(wfh_list, use_container_width=True, hide_index=True)
-        else:
-            st.info("No employees are currently marked as remote.")
-
-    with tab3:
-        st.subheader(f"Employees On Leave — {len(leave_list)}")
-        if leave_list:
-            st.dataframe(leave_list, use_container_width=True, hide_index=True)
-        else:
-            st.info("No employees are currently marked as on leave.")
-
-    st.markdown("---")
-
-    # Footer
-    st.caption(f"Last updated: {datetime.now().strftime('%Y-%m-%d %I:%M %p')}")
-    if st.button("🔄 Refresh Dashboard", use_container_width=True):
-        st.rerun()
-
-# Main App
-def main():
-    """Main application"""
-    # Initialize session state for login
-    if "logged_in" not in st.session_state:
-        st.session_state.logged_in = False
-    if "show_signup" not in st.session_state:
-        st.session_state.show_signup = False
-    
-    # Show login/signup if not logged in
-    if not st.session_state.logged_in:
-        if st.session_state.show_signup:
-            show_signup_page()
-        else:
-            show_login_page()
-        return
-    
-    # Sidebar navigation (only shown when logged in)
-    with st.sidebar:
-        st.title("📊 Progress Tracker")
-        st.success(f"👋 {st.session_state.emp_name}")
-        st.caption(f"ID: {st.session_state.emp_id}")
-        st.markdown("---")
-        # If a redirect was requested in the previous run, apply it now BEFORE creating the radio widget
-        if "next_page" in st.session_state:
-            # move the requested page into the radio's session key so the widget shows the target
-            st.session_state.main_page = st.session_state.pop("next_page")
-        # use session-state key so we can programmatically change the selected page
-        if "main_page" not in st.session_state:
-            st.session_state.main_page = "Daily Check-in"
+        st.markdown('<div class="form-container">', unsafe_allow_html=True)
         
-        # Validate that main_page is in the available options
-        valid_pages = ["Daily Check-in", "Staff Attendance View", "📝 Submit Report", "📈 Dashboard", "⚙️ Settings", "📧 Reminders"]
-        if st.session_state.main_page not in valid_pages:
-            st.session_state.main_page = "Daily Check-in"
+        # Toggle Switch for Login/Signup
+        st.markdown("""
+        <style>
+            /* Toggle container */
+            .toggle-container {
+                display: flex;
+                justify-content: center;
+                margin-bottom: 2rem;
+                gap: 0;
+            }
+            
+            /* Hide radio buttons */
+            div[data-testid="stRadio"] > div {
+                flex-direction: row !important;
+                justify-content: center !important;
+                gap: 0 !important;
+                background: rgba(30, 41, 59, 0.5) !important;
+                padding: 0.4rem !important;
+                border-radius: 12px !important;
+            }
+            
+            div[data-testid="stRadio"] label {
+                background: transparent !important;
+                padding: 0.7rem 2.5rem !important;
+                border-radius: 8px !important;
+                cursor: pointer !important;
+                transition: all 0.3s ease !important;
+                color: #94a3b8 !important;
+                font-weight: 500 !important;
+                font-size: 1rem !important;
+                margin: 0 !important;
+            }
+            
+            div[data-testid="stRadio"] label:hover {
+                color: #cbd5e1 !important;
+            }
+            
+            div[data-testid="stRadio"] label[data-checked="true"] {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+                color: white !important;
+                box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4) !important;
+            }
+        </style>
+        """, unsafe_allow_html=True)
         
-        page = st.radio(
-            "Navigation",
-            valid_pages,
-            label_visibility="collapsed",
-            key="main_page"
+        # Toggle between Login and Signup
+        user_mode = st.radio(
+            "Choose action",
+            ["🔑 Login", "📝 Sign Up"],
+            horizontal=True,
+            key="user_mode_toggle",
+            label_visibility="collapsed"
         )
+        
+        # Show Login Form
+        if user_mode == "🔑 Login":
+            st.markdown('<p class="form-title">Welcome Back!</p>', unsafe_allow_html=True)
+            st.markdown('<p class="footer-text" style="margin-top: 0; margin-bottom: 1.5rem;">Login with your Office ID and password</p>', unsafe_allow_html=True)
+            
+            login_office_id = st.text_input(
+                "Office ID *", 
+                key="login_office_id", 
+                placeholder="e.g. EMP001"
+            )
+            
+            login_password = st.text_input(
+                "Password *", 
+                type="password", 
+                key="login_password", 
+                placeholder="Enter your password"
+            )
+            
+            if st.button("🚀 Login", key="user_login_btn", type="primary"):
+                if not login_office_id or not login_password:
+                    st.error("⚠️ Please enter Office ID and Password")
+                else:
+                    try:
+                        user = verify_user(login_office_id, login_password)
+                        if user:
+                            st.success(f"✅ Welcome back, {user['name']}!")
+                            st.session_state['username'] = user['username']
+                            st.session_state['emp_id'] = user['emp_id']
+                            st.session_state['name'] = user['name']
+                            st.session_state['role'] = 'user'
+                            time.sleep(0.5)
+                            st.rerun()
+                        else:
+                            st.error("❌ Invalid credentials. Please check your Office ID and password.")
+                    except Exception as e:
+                        st.error(f"❌ Login error: {str(e)}")
+            
+            st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
+            st.markdown('<p class="footer-text">💡 Don\'t have an account? Toggle to <strong>Sign Up</strong> above</p>', unsafe_allow_html=True)
+        
+        # Show Signup Form
+        else:
+            st.markdown('<p class="form-title">Create Your Account</p>', unsafe_allow_html=True)
+            st.markdown('<p class="footer-text" style="margin-top: 0; margin-bottom: 1.5rem;">Fill in your details to get started</p>', unsafe_allow_html=True)
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                signup_office_id = st.text_input(
+                    "Office ID *", 
+                    key="signup_office_id", 
+                    placeholder="e.g. EMP001"
+                )
+                
+                signup_email = st.text_input(
+                    "Email", 
+                    key="signup_email", 
+                    placeholder="your.email@company.com"
+                )
+                
+                signup_role = st.text_input(
+                    "Role", 
+                    key="signup_role", 
+                    placeholder="e.g. Developer"
+                )
+            
+            with col2:
+                signup_name = st.text_input(
+                    "Full Name *", 
+                    key="signup_name", 
+                    placeholder="Your full name"
+                )
+                
+                signup_department = st.text_input(
+                    "Department", 
+                    key="signup_department", 
+                    placeholder="e.g. Engineering"
+                )
+            
+            signup_password = st.text_input(
+                "Password *", 
+                type="password", 
+                key="signup_password", 
+                placeholder="Create password (min 6 chars)"
+            )
+            
+            signup_confirm = st.text_input(
+                "Confirm Password *", 
+                type="password", 
+                key="signup_confirm", 
+                placeholder="Re-enter password"
+            )
+            
+            if st.button("✨ Create Account", key="user_signup_btn", type="primary"):
+                if not signup_office_id or not signup_name or not signup_password:
+                    st.error("⚠️ Please fill in Office ID, Full Name, and Password")
+                elif signup_password != signup_confirm:
+                    st.error("❌ Passwords do not match!")
+                elif len(signup_password) < 6:
+                    st.error("❌ Password must be at least 6 characters long")
+                else:
+                    try:
+                        new_user = add_user(
+                            username=signup_office_id,
+                            password=signup_password,
+                            name=signup_name,
+                            emp_id=signup_office_id,
+                            email=signup_email or None,
+                            department=signup_department or None,
+                            role=signup_role or None
+                        )
+                        st.success(f"✅ Account created successfully for {signup_name}!")
+                        st.info("🎉 Toggle to Login above to access your account")
+                        time.sleep(2)
+                        st.rerun()
+                    except Exception as e:
+                        if "already exists" in str(e).lower():
+                            st.error("❌ This Office ID is already registered. Please use a different ID.")
+                        else:
+                            st.error(f"❌ Error creating account: {str(e)}")
+            
+            st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
+            st.markdown('<p class="footer-text">💡 Already have an account? Toggle to <strong>Login</strong> above</p>', unsafe_allow_html=True)
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+    
+    # TAB 2: ADMIN ACCESS (Login Only)
+    with tab2:
+        st.markdown('<div class="form-container">', unsafe_allow_html=True)
+        st.markdown('<p class="form-title">Admin Login</p>', unsafe_allow_html=True)
+        st.markdown('<p class="footer-text" style="margin-top: 0; margin-bottom: 1.5rem;">For authorized administrators only</p>', unsafe_allow_html=True)
+        
+        admin_username = st.text_input(
+            "Admin Username *", 
+            key="admin_username", 
+            placeholder="Enter your admin username"
+        )
+        
+        admin_password = st.text_input(
+            "Admin Password *", 
+            type="password", 
+            key="admin_password", 
+            placeholder="Enter your admin password"
+        )
+        
+        if st.button("🔐 Admin Login", key="admin_login_btn", type="primary"):
+            if not admin_username or not admin_password:
+                st.error("⚠️ Please enter both username and password")
+            else:
+                try:
+                    admin = verify_admin(admin_username, admin_password)
+                    if admin:
+                        st.success(f"✅ Welcome, Admin {admin['name']}!")
+                        st.session_state['username'] = admin['username']
+                        st.session_state['name'] = admin['name']
+                        st.session_state['role'] = 'admin'
+                        time.sleep(0.5)
+                        st.rerun()
+                    else:
+                        st.error("❌ Invalid admin credentials. Please try again.")
+                except Exception as e:
+                    st.error(f"❌ Login error: {str(e)}")
+        
+        st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
+        st.markdown('<p class="footer-text">🔒 <strong>Note:</strong> Admin accounts must be created by system administrators.</p>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+def show_user_dashboard():
+    """User dashboard with attendance, submit report, and view previous reports"""
+    # Sidebar
+    with st.sidebar:
+        st.markdown(f"### 👤 Welcome, {st.session_state.get('name', 'User')}!")
+        st.markdown(f"**Employee ID:** {st.session_state.get('emp_id', 'N/A')}")
         st.markdown("---")
-        st.markdown("### 🔄 Quick Actions")
-        if st.button("🔄 Refresh Data"):
-            st.rerun()
-        if st.button("🚪 Logout"):
-            st.session_state.logged_in = False
-            st.session_state.emp_id = None
-            st.session_state.emp_name = None
-            st.session_state.emp_role = None
+        page = st.radio("Navigation", ["📅 Attendance", "📝 Submit Report", "📊 My Reports"], label_visibility="collapsed")
+        st.markdown("---")
+        if st.button("🚪 Logout", use_container_width=True):
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
             st.rerun()
         st.markdown("---")
         st.caption(f"Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    # Load configuration
-    config = load_config()
-    # Main content
-    if page == "Daily Check-in":
-        st.title("Daily Check-in")
-        st.markdown(f"### Welcome, {st.session_state.emp_name}!")
-        st.markdown("Mark your attendance for today.")
+    
+    emp_id = st.session_state.get('emp_id')
+    
+    if page == "📅 Attendance":
+        st.title("📅 Attendance Management")
+        st.markdown("---")
         
-        # Capture device time via hidden HTML component
-        st.components.v1.html("""
-        <script>
-            function captureTime() {
-                const now = new Date();
-                const time = now.toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit' });
-                window.parent.postMessage({streamlitMethod: 'setComponentValue', key: 'device_time', value: time}, '*');
-            }
-            captureTime();
-            setInterval(captureTime, 1000);
-        </script>
-        """, height=0)
+        today = datetime.now().date()
+        today_str = today.isoformat()
+        attendance = get_attendance_record(emp_id, today_str)
         
-        with st.form("daily_checkin"):
-            status_choice = st.radio("Select your work status for today:", ["Work from Home", "Work in Office", "On Leave"])
-            notes = st.text_area("Notes (optional)")
-            submitted = st.form_submit_button("Check In", use_container_width=True, type="primary")
-        if submitted:
-            # Map to internal codes used by Attendance system
-            mapping = {"Work from Home": "WFH", "Work in Office": "WFO", "On Leave": "On Leave"}
-            code = mapping.get(status_choice, "No Status")
-            # Append attendance using logged-in emp_id with device time if available
-            try:
-                from attendance_store import append_attendance
-                # Get device time from session state (captured by JS), fallback to None to use server time
-                device_time = st.session_state.get("device_time")
-                append_attendance(st.session_state.emp_id, code, notes or "", client_time=device_time)
-                st.success(f"✅ Checked in as {status_choice}")
-                # Display the recorded time for confirmation
-                if device_time:
-                    st.info(f"📍 Check-in time recorded: {device_time}")
-                # Set a redirect flag — will be applied before the sidebar radio is created
-                st.session_state.next_page = "Attendance Dashbord"
-                time.sleep(1)
-                st.rerun()
-            except Exception as e:
-                st.error(f"Failed to record attendance: {e}")
-    elif page == "Staff Attendance View":
-        show_employee_attendance_dashboard()
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("""
+            <div class="metric-card">
+                <div class="metric-label">Check-in Status</div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            if attendance and attendance.get("checkin_time"):
+                st.success(f"✅ Checked in at {attendance['checkin_time']}")
+                st.info(f"📍 Status: Present")
+            else:
+                st.warning("⚠️ Not checked in yet")
+                if st.button("🕐 Check-in Now", use_container_width=True):
+                    try:
+                        time_str = datetime.now().strftime('%H:%M:%S')
+                        checkin_attendance(emp_id, today_str, time_str)
+                        st.success("✅ Checked in successfully!")
+                        time.sleep(1)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error: {e}")
+        
+        with col2:
+            st.markdown("""
+            <div class="metric-card">
+                <div class="metric-label">Check-out Status</div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            if attendance and attendance.get("checkout_time"):
+                st.info(f"✅ Checked out at {attendance['checkout_time']}")
+            else:
+                if attendance and attendance.get("checkin_time"):
+                    if st.button("🕐 Check-out Now", use_container_width=True):
+                        try:
+                            time_str = datetime.now().strftime('%H:%M:%S')
+                            checkout_attendance(emp_id, today_str, time_str)
+                            st.success("✅ Checked out successfully!")
+                            time.sleep(1)
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error: {e}")
+                else:
+                    st.warning("⚠️ Please check-in first")
+        
+        st.markdown("---")
+        st.subheader("📊 Your Attendance History")
+        
+        # Get user's attendance history
+        user_attendance = get_user_attendance_history(emp_id, 30)
+        if user_attendance:
+            att_data = []
+            for a in user_attendance:
+                checkin_val = a.get('checkin_time', 'Not checked in')
+                checkout_val = a.get('checkout_time', 'Not checked out')
+                present = a.get('checkin_time') is not None
+                att_data.append({
+                    'Date': a['date'],
+                    'Check-in': checkin_val if checkin_val else 'Not checked in',
+                    'Check-out': checkout_val if checkout_val else 'Not checked out',
+                    'Status': '✅ Present' if present else '❌ Absent'
+                })
+            att_df = pd.DataFrame(att_data)
+            st.dataframe(att_df, use_container_width=True, height=400)
+        else:
+            st.info("No attendance records found")
+    
     elif page == "📝 Submit Report":
         show_submit_report()
-   
-    elif page == "📈 Dashboard":
-        st.title("📈 Employee Progress Dashboard")
-        excel_path = config.get('excel_file_path', EXCEL_FILE_PATH)
-        # Load data
-        with st.spinner("Loading data..."):
-            df = read_excel_data(excel_path)
-            if df is not None and not df.empty:
+    
+    elif page == "📊 My Reports":
+        st.title("📊 My Reports")
+        st.markdown("---")
+        
+        try:
+            # Load Excel data and filter by emp_id
+            df = read_excel_data()
+            if df is not None and not df.empty and 'Emp Id' in df.columns:
+                # Normalize types: sometimes Emp Id is numeric in Excel while session emp_id is string
                 try:
-                    workbook = load_workbook(excel_path)
-                    summary_needs_refresh = SUMMARY_SHEET_NAME not in workbook.sheetnames
-                    if not summary_needs_refresh:
-                        ws_summary = workbook[SUMMARY_SHEET_NAME]
-                        summary_headers = [
-                            cell.value for cell in next(ws_summary.iter_rows(min_row=1, max_row=1))
-                            if cell.value
-                        ]
-                        if "Employee Performance (%)" not in summary_headers:
-                            summary_needs_refresh = True
-                    if summary_needs_refresh:
-                        update_dashboard_sheets(excel_path, df)
-                except Exception as dashboard_error:
-                    logging.warning(f"Dashboard sheet auto-refresh failed: {dashboard_error}")
-                finally:
-                    try:
-                        workbook.close()
-                    except Exception:
-                        pass
-        if df is None:
-            st.error("Failed to load data. Check the Excel file path in Settings.")
+                    emp_id_str = str(emp_id).strip()
+                    user_df = df[df['Emp Id'].astype(str).str.strip() == emp_id_str]
+                except Exception:
+                    # Fallback to original comparison if anything goes wrong
+                    user_df = df[df['Emp Id'] == emp_id]
+                if not user_df.empty:
+                    st.subheader(f"📋 Total Reports: {len(user_df)}")
+                    show_data_table(user_df)
+                else:
+                    st.info("📋 No reports found. Start submitting your daily reports!")
+            else:
+                st.info("📋 No reports found. Start submitting your daily reports!")
+        except Exception as e:
+            st.error(f"Error loading reports: {e}")
+
+def show_admin_dashboard():
+    """Admin dashboard with attendance reports, performance dashboard, and settings"""
+    # Sidebar
+    with st.sidebar:
+        st.markdown(f"### 🛡️ Admin Panel")
+        st.markdown(f"**Welcome, {st.session_state.get('name', 'Admin')}!**")
+        st.markdown("---")
+        page = st.radio("Navigation", ["👥 Attendance Report","📊 Dashboard",  "⚙️ Settings", "📧 Reminders"], label_visibility="collapsed")
+        st.markdown("---")
+        if st.button("🚪 Logout", use_container_width=True):
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            st.rerun()
+        st.markdown("---")
+        st.caption(f"Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    
+    if page == "📊 Dashboard":
+        st.title("📊 Employee Progress Dashboard")
+        st.markdown("---")
+        
+        # Load all data from Excel
+        df = read_excel_data()
+        
+        if df is None or df.empty:
+            st.info("📋 No data available yet. Employees need to submit reports.")
             return
-        if df.empty:
-            st.info("📋 No data available yet. Start submitting reports to see data here.")
-            return
+        
         # Show metrics
         show_metrics(df)
         st.markdown("---")
+        
         # Show filters
         filtered_df = show_filters(df)
         st.markdown("---")
+        
         # Show charts
         show_charts(filtered_df)
         st.markdown("---")
-        # Show employee specific dashboard
+        
+        # Show employee performance explorer (merged from Performance page)
         show_employee_dashboard(filtered_df if filtered_df is not None and not filtered_df.empty else df)
         st.markdown("---")
+        
         # Show data table
         show_data_table(filtered_df)
+    
+    elif page == "👥 Attendance Report":
+        st.title("👥 Employee Attendance Report")
+        st.markdown("---")
+        
+        # TODAY'S ATTENDANCE SECTION - Show current day status first
+        st.markdown("### 🔴 TODAY'S ATTENDANCE")
+        st.markdown(f"**Date:** {datetime.now().strftime('%A, %B %d, %Y')}")
+        
+        today = datetime.now().date()
+        today_str = today.isoformat()
+        
+        # Get today's attendance records
+        attendance_data = load_attendance()
+        today_records = []
+        for key, record in attendance_data.items():
+            if record.get('date') == today_str:
+                today_records.append(record)
+        
+        # Get all registered users
+        all_users_dict = get_all_users()
+        all_users = list(all_users_dict.values())
+        emp_name_map = {u['emp_id']: u['name'] for u in all_users if 'emp_id' in u and 'name' in u}
+        
+        if today_records or all_users:
+            # Create attendance status for today
+            today_att_data = []
+            checked_emp_ids = set()
+            
+            for a in today_records:
+                emp_id = a.get('emp_id')
+                checked_emp_ids.add(emp_id)
+                work_duration = "In Progress"
+                status_icon = "🟡"
+                status_text = "Checked In"
+                
+                checkin_time = a.get('checkin_time')
+                checkout_time = a.get('checkout_time')
+                
+                if checkin_time and checkout_time:
+                    try:
+                        checkin_dt = datetime.strptime(checkin_time, '%H:%M:%S')
+                        checkout_dt = datetime.strptime(checkout_time, '%H:%M:%S')
+                        duration = checkout_dt - checkin_dt
+                        hours = duration.total_seconds() / 3600
+                        work_duration = f"{hours:.2f} hrs"
+                        status_icon = "🟢"
+                        status_text = "Completed"
+                    except:
+                        work_duration = "Invalid time"
+                elif checkin_time:
+                    try:
+                        checkin_dt = datetime.strptime(checkin_time, '%H:%M:%S')
+                        now_time = datetime.now()
+                        # Combine with today's date
+                        checkin_full = datetime.combine(today, checkin_dt.time())
+                        duration = now_time - checkin_full
+                        hours = duration.total_seconds() / 3600
+                        work_duration = f"{hours:.2f} hrs (ongoing)"
+                    except:
+                        work_duration = "In Progress"
+                
+                today_att_data.append({
+                    'Status': status_icon,
+                    'Employee ID': emp_id,
+                    'Employee Name': emp_name_map.get(emp_id, 'Unknown'),
+                    'Check-in': checkin_time if checkin_time else '-',
+                    'Check-out': checkout_time if checkout_time else '-',
+                    'Duration': work_duration,
+                    'Status Text': status_text
+                })
+            
+            # Add employees who haven't checked in
+            for user in all_users:
+                emp_id = user.get('emp_id')
+                if emp_id and emp_id not in checked_emp_ids:
+                    today_att_data.append({
+                        'Status': '🔴',
+                        'Employee ID': emp_id,
+                        'Employee Name': user.get('name', 'Unknown'),
+                        'Check-in': 'Not checked in',
+                        'Check-out': '-',
+                        'Duration': '-',
+                        'Status Text': 'Absent'
+                    })
+            
+            today_df = pd.DataFrame(today_att_data)
+            
+            # Today's metrics - Use unique employee IDs to avoid duplicate counting
+            total_emp = len(all_users)
+            unique_checked_in = len(checked_emp_ids)  # Use set to count unique employees
+            completed = len([r for r in today_records if r.get('checkin_time') and r.get('checkout_time')])
+            in_progress = unique_checked_in - completed
+            absent = total_emp - unique_checked_in
+            
+            # Calculate attendance rate properly
+            attendance_today = round((unique_checked_in / total_emp * 100) if total_emp > 0 else 0, 1)
+            
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                st.markdown("""
+                <div class="metric-card" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                    <div class="metric-value">{}</div>
+                    <div class="metric-label">🟢 Completed</div>
+                </div>
+                """.format(completed), unsafe_allow_html=True)
+            
+            with col2:
+                st.markdown("""
+                <div class="metric-card" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
+                    <div class="metric-value">{}</div>
+                    <div class="metric-label">🟡 In Progress</div>
+                </div>
+                """.format(in_progress), unsafe_allow_html=True)
+            
+            with col3:
+                st.markdown("""
+                <div class="metric-card" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);">
+                    <div class="metric-value">{}</div>
+                    <div class="metric-label">🔴 Absent</div>
+                </div>
+                """.format(absent), unsafe_allow_html=True)
+            
+            with col4:
+                st.markdown("""
+                <div class="metric-card" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">
+                    <div class="metric-value">{}%</div>
+                    <div class="metric-label">Today's Rate</div>
+                </div>
+                """.format(attendance_today), unsafe_allow_html=True)
+            
+            st.markdown("<br>", unsafe_allow_html=True)
+            
+            # Display today's attendance table with color coding
+            def highlight_today_status(row):
+                if row['Status'] == '🟢':
+                    return ['background-color: rgba(16, 185, 129, 0.15)'] * len(row)
+                elif row['Status'] == '🟡':
+                    return ['background-color: rgba(245, 158, 11, 0.15)'] * len(row)
+                elif row['Status'] == '🔴':
+                    return ['background-color: rgba(239, 68, 68, 0.15)'] * len(row)
+                return [''] * len(row)
+            
+            styled_today = today_df.style.apply(highlight_today_status, axis=1)
+            st.dataframe(styled_today, use_container_width=True, height=350)
+            
+            # Quick export for today
+            csv_today = today_df.to_csv(index=False).encode('utf-8-sig')
+            st.download_button(
+                label="📥 Download Today's Attendance",
+                data=csv_today,
+                file_name=f"attendance_today_{datetime.now().strftime('%Y%m%d')}.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+        else:
+            st.info("No employees found in the system.")
+        
+        st.markdown("---")
+        st.markdown("### 📅 HISTORICAL ATTENDANCE RECORDS")
+        
+        # Date range filter for historical data
+        col_filter1, col_filter2, col_filter3 = st.columns([2, 2, 1])
+        
+        with col_filter1:
+            start_date = st.date_input(
+                "Start Date",
+                value=datetime.now().date() - timedelta(days=30),
+                max_value=datetime.now().date()
+            )
+        
+        with col_filter2:
+            end_date = st.date_input(
+                "End Date",
+                value=datetime.now().date(),
+                max_value=datetime.now().date()
+            )
+        
+        with col_filter3:
+            # Employee filter
+            all_emp_ids = sorted(list(set([u.get('emp_id') for u in all_users if u.get('emp_id')])))
+            selected_emp = st.selectbox("Employee", ["All"] + all_emp_ids)
+        
+        # Get historical records
+        historical_records = []
+        for key, record in attendance_data.items():
+            record_date_str = record.get('date')
+            if record_date_str:
+                try:
+                    record_date = datetime.fromisoformat(record_date_str).date()
+                    if start_date <= record_date <= end_date:
+                        if selected_emp == "All" or record.get('emp_id') == selected_emp:
+                            historical_records.append(record)
+                except:
+                    pass
+        
+        if historical_records:
+            hist_data = []
+            for a in historical_records:
+                emp_id = a.get('emp_id')
+                checkin = a.get('checkin_time', '-')
+                checkout = a.get('checkout_time', '-')
+                present = checkin != '-' and checkin is not None
+                
+                hist_data.append({
+                    'Date': a.get('date'),
+                    'Employee ID': emp_id,
+                    'Employee Name': emp_name_map.get(emp_id, 'Unknown'),
+                    'Check-in': checkin if checkin else '-',
+                    'Check-out': checkout if checkout else '-',
+                    'Status': '✅ Present' if present else '❌ Absent'
+                })
+            
+            hist_df = pd.DataFrame(hist_data)
+            hist_df = hist_df.sort_values('Date', ascending=False)
+            
+            st.dataframe(hist_df, use_container_width=True, height=400)
+            
+            # Export historical data
+            csv_hist = hist_df.to_csv(index=False).encode('utf-8-sig')
+            st.download_button(
+                label="📥 Download Historical Attendance",
+                data=csv_hist,
+                file_name=f"attendance_history_{start_date}_{end_date}.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+        else:
+            st.info("No attendance records found for the selected period.")
+    
     elif page == "⚙️ Settings":
         show_settings()
+    
+    elif page == "📧 Reminders":
+        st.title("📧 Email Reminders")
+        st.markdown("---")
+        
+        st.info("💡 Reminder functionality is currently disabled in local mode. Configure your email settings in config.json to enable reminders.")
+        
+        # Check who hasn't submitted today
+        df = read_excel_data()
+        today = datetime.now().date()
+        
+        if df is not None and not df.empty:
+            if 'Date' in df.columns:
+                df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
+                today_submissions = df[df['Date'].dt.date == today]
+                submitted_ids = set(today_submissions['Emp Id'].unique()) if 'Emp Id' in today_submissions.columns else set()
+                
+                all_users_dict = get_all_users()
+                all_emp_ids = [u.get('emp_id') for u in all_users_dict.values() if u.get('emp_id')]
+                
+                missing_emp_ids = [emp_id for emp_id in all_emp_ids if emp_id not in submitted_ids]
+                
+                if missing_emp_ids:
+                    st.warning(f"⚠️ {len(missing_emp_ids)} employee(s) have not submitted reports today")
+                    
+                    missing_data = []
+                    for emp_id in missing_emp_ids:
+                        user = all_users_dict.get(emp_id, {})
+                        missing_data.append({
+                            'Employee ID': emp_id,
+                            'Name': user.get('name', 'Unknown'),
+                            'Email': user.get('email', 'Not provided')
+                        })
+                    
+                    missing_df = pd.DataFrame(missing_data)
+                    st.dataframe(missing_df, use_container_width=True)
+                else:
+                    st.success("✅ All employees have submitted their reports today!")
+        else:
+            st.error("Failed to load data")
+    
+    elif page == "⚙️ Settings":
+        show_settings()
+    
     elif page == "📧 Reminders":
         st.title("📧 Reminder Management")
         st.info("""
 **Reminder System Setup**
+
 The reminder system will automatically send emails to employees who haven't submitted their daily report.
+
 To enable automated reminders:
 1. Set up reminder time and days in Settings
 2. Configure employee emails
 3. Run the reminder service: `python reminder_service.py`
 """)
-        excel_path = config.get('excel_file_path', EXCEL_FILE_PATH)
+        
         # Manual reminder test
         st.subheader("🧪 Test Reminder")
         if st.button("Check Missing Reports Today"):
             with st.spinner("Checking..."):
-                df = read_excel_data(excel_path)
+                df = read_excel_data()
                 if df is not None:
                     missing = get_missing_reporters(df, datetime.now())
                     if missing:
@@ -2227,5 +3429,20 @@ To enable automated reminders:
                         st.success("✅ All employees have submitted their reports today!")
                 else:
                     st.error("Failed to load data")
+
+def main():
+    """Main application with authentication"""
+    # Check if user is logged in
+    if 'role' not in st.session_state:
+        show_login_signup()
+        return
+    
+    role = st.session_state['role']
+    
+    if role == 'user':
+        show_user_dashboard()
+    elif role == 'admin':
+        show_admin_dashboard()
+
 if __name__ == "__main__":
     main()
