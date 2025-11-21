@@ -2626,6 +2626,9 @@ def main():
     config = load_config()
     # Main content
     if page == "Daily Check-in":
+        # Import attendance functions at the top
+        from attendance_store import append_attendance, check_already_checked_in_today
+        
         # Modern header with gradient accent
         st.markdown("""
         <div style="margin-bottom: 30px;">
@@ -2694,8 +2697,6 @@ def main():
         
         if submitted:
             # Check if already checked in today
-            from attendance_store import append_attendance, check_already_checked_in_today
-            
             if check_already_checked_in_today(st.session_state.emp_id):
                 # Show warning notification
                 warning_html = """
