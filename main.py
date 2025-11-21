@@ -2421,7 +2421,6 @@ def show_admin_dashboard():
         # Admin menu: include pages moved from the employee menu so only admins can access them
         admin_pages = [
             "📊 Performance Dashboard",
-            "📈 Dashboard",
             "Staff Attendance View",
             "👤 Employee Management",
             "⚙️ Settings",
@@ -2446,7 +2445,7 @@ def show_admin_dashboard():
             st.rerun()
 
     # Main admin content
-    if admin_page == "📊 Performance Dashboard" or admin_page == "📈 Dashboard":
+    if admin_page == "📊 Performance Dashboard":
         st.title("📊 Performance Dashboard")
         show_admin_performance()
 
