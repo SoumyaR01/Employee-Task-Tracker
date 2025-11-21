@@ -1823,18 +1823,25 @@ def show_login_page():
     if "login_mode" not in st.session_state:
         st.session_state.login_mode = "employee"
     
-        st.markdown("""
-        <div style="text-align:center;margin-top:18px;margin-bottom:6px;font-family:'Segoe UI', Roboto, system-ui, -apple-system;">
-            <div style="display:inline-block;padding:18px 24px;border-radius:14px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));">
-                <div style="font-size:38px;font-weight:800;letter-spacing:0.4px;background:linear-gradient(90deg,#9b8cff,#667eea);-webkit-background-clip:text;background-clip:text;color:transparent;">
-                    🔒 Login
-                </div>
-                <div style="margin-top:6px;font-size:13px;color:rgba(230,238,242,0.78);">
-                    Secure access to Attendance & Reports
-                </div>
-            </div>
-        </div>
-        <div style="width:120px;height:4px;background:linear-gradient(90deg,#6a11cb,#2575fc);margin:12px auto 18px auto;border-radius:8px;opacity:0.95"></div>
+    st.markdown("""
+    <div style="
+        text-align: center;
+        font-size: 45px;
+        font-weight: 700;
+        color: white;
+        margin-top: 20px;
+        margin-bottom: 10px;
+        font-family: 'Segoe UI', sans-serif;
+    ">
+        🔒 Login Gateway
+    </div>
+    <div style="
+        width: 140px;
+        height: 4px;
+        background: linear-gradient(90deg, #6a11cb, #2575fc);
+        margin: 0 auto 20px auto;
+        border-radius: 10px;
+    "></div>
 """, unsafe_allow_html=True)
 
     st.markdown("---")
@@ -2607,6 +2614,9 @@ def main():
             key="main_page"
         )
         st.markdown("---")
+        st.markdown("### 🔄 Quick Actions")
+        if st.button("🔄 Refresh Data"):
+            st.rerun()
         if st.button("🚪 Logout"):
             st.session_state.logged_in = False
             st.session_state.emp_id = None
@@ -2640,7 +2650,6 @@ def main():
             status_choice = st.radio("Select your work status for today:", ["Work from Home", "Work in Office", "On Leave"])
             notes = st.text_area("Notes (optional)")
             submitted = st.form_submit_button("Check In", use_container_width=True, type="primary")
-        
         if submitted:
             # Map to internal codes used by Attendance system
             mapping = {"Work from Home": "WFH", "Work in Office": "WFO", "On Leave": "On Leave"}
@@ -2651,27 +2660,13 @@ def main():
                 # Get device time from session state (captured by JS), fallback to None to use server time
                 device_time = st.session_state.get("device_time")
                 append_attendance(st.session_state.emp_id, code, notes or "", client_time=device_time)
-                # Show a modern auto-dismissing snackbar confirmation (non-blocking on client)
-                snackbar_html = f"""
-                <div id="attendance-snackbar" style="position:fixed;right:24px;top:24px;z-index:99999;">
-                  <div style="min-width:300px;max-width:420px;background:linear-gradient(90deg,#667eea,#764ba2);color:#fff;padding:14px 18px;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.45);font-family: 'Segoe UI', Roboto, sans-serif;">
-                    <div style="font-weight:700;font-size:16px;">Your check-in is successful. Have a productive day!</div>
-                    {f"<div style='margin-top:6px;opacity:0.9;font-size:13px;'>📍 Check-in time recorded: {device_time}</div>" if device_time else ''}
-                  </div>
-                </div>
-                <script>
-                  // Auto-hide after 4 seconds
-                  setTimeout(function(){
-                    var el = document.getElementById('attendance-snackbar');
-                    if(el) el.style.display = 'none';
-                  }, 4000);
-                </script>
-                """
-                st.components.v1.html(snackbar_html, height=120)
+                st.success(f"✅ Checked in as {status_choice}")
+                # Display the recorded time for confirmation
+                if device_time:
+                    st.info(f"📍 Check-in time recorded: {device_time}")
                 # Set a redirect flag — will be applied before the sidebar radio is created
                 st.session_state.next_page = "Attendance Dashbord"
-                # Give the client a short moment to show the snackbar before rerunning
-                time.sleep(2)
+                time.sleep(1)
                 st.rerun()
             except Exception as e:
                 st.error(f"Failed to record attendance: {e}")
