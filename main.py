@@ -2389,7 +2389,7 @@ def show_admin_dashboard():
         show_admin_attendance_dashboard()
 
     elif admin_page == "👤 Employee Management":
-        st.title("👥 Employee Management")
+        #st.title("")
         show_admin_employees()
 
     elif admin_page == "⚙️ Settings":
