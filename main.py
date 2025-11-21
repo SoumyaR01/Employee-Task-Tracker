@@ -300,6 +300,7 @@ st.markdown("""
 # ==================== CONSTANTS ====================
 
 EXCEL_FILE_PATH = r'D:\Employee Track Report\task_tracker.xlsx'
+CONFIG_FILE = 'config.json'
 
 DATA_COLUMNS = [
     'Date',
