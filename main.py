@@ -231,71 +231,71 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
-# Constants
-EXCEL_FILE_PATH = r'D:\Employee Track Report\task_tracker.xlsx'
-CONFIG_FILE = 'config.json'
-DATA_COLUMNS = [
-    'Date',
-    'Work Mode',
-    'Emp Id',
-    'Name',
-    'Project Name',
-    'Task Title',
-    'Task Assigned By',
-    'Task Priority',
-    'Task Status',
-    'Plan for next day',
-    'Support Request',
-    'Availability',
-    'Effort (in hours)',
-    'Employee Performance (%)'
-]
-SUMMARY_SHEET_NAME = '📈 Employee Progress Dashboard'
-PERFORMANCE_SHEET_NAME = 'Employee Performance'
-WEEKLY_SHEET_NAME = '📊 Weekly Progress Dashboard'
-EMPLOYEE_SHEET_SUFFIX = ' Dashboard'
-def sanitize_sheet_name(name: str) -> str:
-    """Return a workbook-safe base sheet name (<=31 chars, invalid chars removed)."""
-    safe = re.sub(r'[\\/*?:\[\]]', '_', str(name)).strip()
-    if not safe:
-        safe = 'Unnamed'
-    return safe[:31]
-def build_employee_sheet_name(base_name: str, used_names: set[str]) -> str:
-    """Construct a unique sheet name for an employee while respecting Excel limits."""
-    suffix = EMPLOYEE_SHEET_SUFFIX
-    max_base_len = max(0, 31 - len(suffix))
-    trimmed_base = base_name[:max_base_len] if max_base_len else base_name[:31]
-    candidate = f"{trimmed_base}{suffix}"
-    counter = 2
-    while candidate in used_names:
-        extra = f" {counter}"
-        counter += 1
-        allowed_len = max(0, 31 - len(suffix) - len(extra))
-        trimmed_base = base_name[:allowed_len] if allowed_len else ''
-        fallback = trimmed_base if trimmed_base else 'Employee'
-        candidate = f"{fallback}{extra}{suffix}"
-    used_names.add(candidate)
-    return candidate
-def ensure_numeric_columns(df: pd.DataFrame) -> pd.DataFrame:
-    """Guarantee the performance and effort columns exist and are numeric."""
-    df = df.copy()
-    numeric_cols = ['Employee Performance (%)', 'Effort (in hours)']
-    for col in numeric_cols:
-        if col not in df.columns:
-            df[col] = 0.0
-        df[col] = (
-            pd.to_numeric(df[col], errors='coerce')
-            .fillna(0.0)
-            .astype(float)
-        )
-    return df
-# ==================== PERFORMANCE CALCULATION ====================
-import logging
-from datetime import datetime, timedelta
+# # Constants
+# EXCEL_FILE_PATH = r'D:\Employee Track Report\task_tracker.xlsx'
+# CONFIG_FILE = 'config.json'
+# DATA_COLUMNS = [
+#     'Date',
+#     'Work Mode',
+#     'Emp Id',
+#     'Name',
+#     'Project Name',
+#     'Task Title',
+#     'Task Assigned By',
+#     'Task Priority',
+#     'Task Status',
+#     'Plan for next day',
+#     'Support Request',
+#     'Availability',
+#     'Effort (in hours)',
+#     'Employee Performance (%)'
+# ]
+# SUMMARY_SHEET_NAME = '📈 Employee Progress Dashboard'
+# PERFORMANCE_SHEET_NAME = 'Employee Performance'
+# WEEKLY_SHEET_NAME = '📊 Weekly Progress Dashboard'
+# EMPLOYEE_SHEET_SUFFIX = ' Dashboard'
+# def sanitize_sheet_name(name: str) -> str:
+#     """Return a workbook-safe base sheet name (<=31 chars, invalid chars removed)."""
+#     safe = re.sub(r'[\\/*?:\[\]]', '_', str(name)).strip()
+#     if not safe:
+#         safe = 'Unnamed'
+#     return safe[:31]
+# def build_employee_sheet_name(base_name: str, used_names: set[str]) -> str:
+#     """Construct a unique sheet name for an employee while respecting Excel limits."""
+#     suffix = EMPLOYEE_SHEET_SUFFIX
+#     max_base_len = max(0, 31 - len(suffix))
+#     trimmed_base = base_name[:max_base_len] if max_base_len else base_name[:31]
+#     candidate = f"{trimmed_base}{suffix}"
+#     counter = 2
+#     while candidate in used_names:
+#         extra = f" {counter}"
+#         counter += 1
+#         allowed_len = max(0, 31 - len(suffix) - len(extra))
+#         trimmed_base = base_name[:allowed_len] if allowed_len else ''
+#         fallback = trimmed_base if trimmed_base else 'Employee'
+#         candidate = f"{fallback}{extra}{suffix}"
+#     used_names.add(candidate)
+#     return candidate
+# def ensure_numeric_columns(df: pd.DataFrame) -> pd.DataFrame:
+#     """Guarantee the performance and effort columns exist and are numeric."""
+#     df = df.copy()
+#     numeric_cols = ['Employee Performance (%)', 'Effort (in hours)']
+#     for col in numeric_cols:
+#         if col not in df.columns:
+#             df[col] = 0.0
+#         df[col] = (
+#             pd.to_numeric(df[col], errors='coerce')
+#             .fillna(0.0)
+#             .astype(float)
+#         )
+#     return df
+# # ==================== PERFORMANCE CALCULATION ====================
+# import logging
+# from datetime import datetime, timedelta
 
-import pandas as pd
-from openpyxl import load_workbook
-from openpyxl.styles import Font
+# import pandas as pd
+# from openpyxl import load_workbook
+# from openpyxl.styles import Font
 
 # ==================== CONSTANTS ====================
 
