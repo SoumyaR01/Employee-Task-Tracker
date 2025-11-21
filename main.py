@@ -2210,6 +2210,64 @@ def show_admin_attendance_dashboard():
 
     st.markdown("---")
 
+    # Category tabs: Checked-in Today (Blue), In Office (Green), Remote (Yellow), On Leave (Red)
+    tab_checked, tab_wfo, tab_wfh, tab_leave = st.tabs([
+        "Checked-in Today", "In Office", "Remote", "On Leave"
+    ])
+
+    # Prepare today's lists
+    checked_df = today_df.copy() if not today_df.empty else pd.DataFrame()
+    # ensure timestamp string for display
+    if not checked_df.empty and "timestamp" in checked_df.columns:
+        checked_df["timestamp"] = checked_df["timestamp"].astype(str)
+
+    with tab_checked:
+        st.markdown('<div style="background:#1e90ff;padding:8px;border-radius:6px;color:white;font-weight:600;">Checked-in Today</div>', unsafe_allow_html=True)
+        if checked_df.empty:
+            st.info("No employees have checked in today.")
+        else:
+            display_df = checked_df[["emp_id", "name", "department", "role", "check_in_time", "timestamp", "notes"]].rename(columns={
+                "emp_id": "Employee ID", "name": "Name", "department": "Department", "role": "Role",
+                "check_in_time": "Check-in Time", "timestamp": "Timestamp", "notes": "Notes"
+            })
+            st.dataframe(display_df, use_container_width=True)
+
+    with tab_wfo:
+        st.markdown('<div style="background:#10b981;padding:8px;border-radius:6px;color:white;font-weight:600;">In Office (WFO)</div>', unsafe_allow_html=True)
+        wfo_df = checked_df[checked_df["status"] == "WFO"] if not checked_df.empty else pd.DataFrame()
+        if wfo_df.empty:
+            st.info("No employees marked as In Office today.")
+        else:
+            display_df = wfo_df[["emp_id", "name", "department", "role", "check_in_time", "timestamp", "notes"]].rename(columns={
+                "emp_id": "Employee ID", "name": "Name", "department": "Department", "role": "Role",
+                "check_in_time": "Check-in Time", "timestamp": "Timestamp", "notes": "Notes"
+            })
+            st.dataframe(display_df, use_container_width=True)
+
+    with tab_wfh:
+        st.markdown('<div style="background:#f59e0b;padding:8px;border-radius:6px;color:white;font-weight:600;">Remote (WFH)</div>', unsafe_allow_html=True)
+        wfh_df = checked_df[checked_df["status"] == "WFH"] if not checked_df.empty else pd.DataFrame()
+        if wfh_df.empty:
+            st.info("No remote employees recorded today.")
+        else:
+            display_df = wfh_df[["emp_id", "name", "department", "role", "check_in_time", "timestamp", "notes"]].rename(columns={
+                "emp_id": "Employee ID", "name": "Name", "department": "Department", "role": "Role",
+                "check_in_time": "Check-in Time", "timestamp": "Timestamp", "notes": "Notes"
+            })
+            st.dataframe(display_df, use_container_width=True)
+
+    with tab_leave:
+        st.markdown('<div style="background:#ef4444;padding:8px;border-radius:6px;color:white;font-weight:600;">On Leave</div>', unsafe_allow_html=True)
+        leave_df = checked_df[checked_df["status"] == "On Leave"] if not checked_df.empty else pd.DataFrame()
+        if leave_df.empty:
+            st.info("No employees are on leave today.")
+        else:
+            display_df = leave_df[["emp_id", "name", "department", "role", "check_in_time", "timestamp", "notes"]].rename(columns={
+                "emp_id": "Employee ID", "name": "Name", "department": "Department", "role": "Role",
+                "check_in_time": "Check-in Time", "timestamp": "Timestamp", "notes": "Notes"
+            })
+            st.dataframe(display_df, use_container_width=True)
+
     # Filters and trend area
     st.subheader("Attendance Trend & Filters")
     filter_col1, filter_col2 = st.columns([2, 1])
