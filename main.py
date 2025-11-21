@@ -14,6 +14,15 @@ from openpyxl import load_workbook
 import io
 import zipfile
 from openpyxl.styles import PatternFill
+import sys
+
+# Add current directory to path for local imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+try:
+    from attendance_store import append_attendance, check_already_checked_in_today
+except ImportError:
+    pass  # Will handle error gracefully when needed
 st.set_page_config(
     page_title="Employee Progress Tracker",
     page_icon="📊",
@@ -2695,8 +2704,6 @@ def main():
         if submitted:
             # Check if already checked in today
             try:
-                from attendance_store import append_attendance, check_already_checked_in_today
-                
                 if check_already_checked_in_today(st.session_state.emp_id):
                     # Show warning notification
                     warning_html = """
@@ -2755,8 +2762,8 @@ def main():
                         </div>
                         """
                         st.markdown(error_html, unsafe_allow_html=True)
-            except ImportError as ie:
-                error_html = f"""
+            except NameError:
+                error_html = """
                 <div style="background: linear-gradient(135deg, #ef4444, #dc2626); border-radius: 12px; 
                             padding: 18px 24px; margin: 20px 0; box-shadow: 0 8px 24px rgba(239, 68, 68, 0.2);">
                     <div style="color: white; font-weight: 700; font-size: 1.05rem;">
