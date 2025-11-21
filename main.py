@@ -1903,7 +1903,7 @@ def show_login_page():
                         st.error("Invalid Admin ID, Password, or insufficient permissions")
             
             st.markdown("---")
-            st.markdown("### New Admin?")
+            st.markdown("### Signup")
             if st.button("Create Admin Account", use_container_width=True):
                 st.session_state.show_admin_signup = True
                 st.rerun()
