@@ -2644,7 +2644,7 @@ def main():
             # Map to internal codes used by Attendance system
             mapping = {"Work from Home": "WFH", "Work in Office": "WFO", "On Leave": "On Leave"}
             code = mapping.get(status_choice, "No Status")
-            # Append attendance using logged-in emp_id with device time if available
+                        # Append attendance using logged-in emp_id with device time if available
                         try:
                                 from attendance_store import append_attendance
                                 # Get device time from session state (captured by JS), fallback to None to use server time
@@ -2672,8 +2672,8 @@ def main():
                                 # Give the client a short moment to show the snackbar before rerunning
                                 time.sleep(2)
                                 st.rerun()
-            except Exception as e:
-                st.error(f"Failed to record attendance: {e}")
+                        except Exception as e:
+                                st.error(f"Failed to record attendance: {e}")
     elif page == "📝 Submit Report":
         show_submit_report()
 if __name__ == "__main__":
