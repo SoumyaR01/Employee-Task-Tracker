@@ -2145,64 +2145,130 @@ def show_employee_attendance_dashboard():
 # ==================== ADMIN PANEL FUNCTIONS ====================
 
 def show_admin_attendance_dashboard():
-    """Admin view of all employee attendance records"""
-    st.subheader("📊 Attendance Report")
-    
-    # Load attendance data
+    """Admin view of all employee attendance records with metrics and trends
+    Only admins see this. Provides daily metrics, WFO/WFH/Leave breakdown, attendance trend and per-employee summaries.
+    """
+    st.subheader("📊 Staff Attendance Dashboard")
+
     from attendance_store import load_attendance, load_employees
+
     records = load_attendance()
     employees = load_employees()
-    
+
     if not records:
         st.info("No attendance records found.")
         return
-    
-    # Convert to DataFrame for display
-    attendance_data = []
-    for rec in records:
-        emp_id = (rec.get("emp_id") or "").upper()
-        meta = employees.get(emp_id, {}) if isinstance(employees, dict) else {}
-        attendance_data.append({
-            "Employee ID": emp_id,
-            "Name": meta.get("name", emp_id),
-            "Status": rec.get("status", "N/A"),
-            "Check-in Time": rec.get("check_in_time", "N/A"),
-            "Timestamp": rec.get("timestamp", "N/A"),
-            "Notes": rec.get("notes", "")
+
+    # Build DataFrame
+    rows = []
+    for r in records:
+        emp = (r.get("emp_id") or "").upper()
+        meta = employees.get(emp, {}) if isinstance(employees, dict) else {}
+        ts = r.get("timestamp")
+        # Normalize timestamp into datetime where possible
+        try:
+            ts_dt = datetime.fromisoformat(ts) if isinstance(ts, str) else ts
+        except Exception:
+            try:
+                from dateutil import parser as _p
+                ts_dt = _p.isoparse(ts)
+            except Exception:
+                ts_dt = None
+        rows.append({
+            "emp_id": emp,
+            "name": meta.get("name", emp),
+            "department": meta.get("department", ""),
+            "role": meta.get("role", ""),
+            "status": r.get("status", "N/A"),
+            "check_in_time": r.get("check_in_time", None),
+            "timestamp": ts_dt,
+            "notes": r.get("notes", "")
         })
-    
-    if attendance_data:
-        df_attendance = pd.DataFrame(attendance_data)
-        
-        # Filter by date
-        col1, col2 = st.columns(2)
-        with col1:
-            selected_date = st.date_input("Filter by Date", datetime.now().date())
-        with col2:
-            selected_status = st.selectbox("Filter by Status", ["All", "WFO", "WFH", "On Leave"])
-        
-        # Apply filters
-        filtered_attendance = df_attendance.copy()
-        
-        if selected_date:
-            filtered_attendance["Date"] = pd.to_datetime(filtered_attendance["Timestamp"]).dt.date
-            filtered_attendance = filtered_attendance[filtered_attendance["Date"] == selected_date]
-        
-        if selected_status != "All":
-            filtered_attendance = filtered_attendance[filtered_attendance["Status"] == selected_status]
-        
-        st.dataframe(filtered_attendance, use_container_width=True)
-        
-        # Download button
-        csv = filtered_attendance.to_csv(index=False).encode('utf-8-sig')
-        st.download_button(
-            label="📥 Download Attendance Report (CSV)",
-            data=csv,
-            file_name=f"attendance_report_{selected_date}.csv",
-            mime="text/csv"
-        )
-    else:
-        st.info("No attendance records to display.")
+
+    df = pd.DataFrame(rows)
+    # Ensure timestamp is datetime
+    if "timestamp" in df.columns:
+        df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
+        df["date"] = df["timestamp"].dt.date
+
+    # Top-level metrics for selected period
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        today = datetime.now().date()
+        today_df = df[df["date"] == today] if "date" in df.columns else pd.DataFrame()
+        total_checked_in = len(today_df["emp_id"].unique())
+        st.metric("Checked-in Today", total_checked_in)
+    with col2:
+        wfo = int((today_df["status"] == "WFO").sum())
+        st.metric("In Office (WFO)", wfo)
+    with col3:
+        wfh = int((today_df["status"] == "WFH").sum())
+        st.metric("Remote (WFH)", wfh)
+    with col4:
+        leave = int((today_df["status"] == "On Leave").sum())
+        st.metric("On Leave", leave)
+
+    st.markdown("---")
+
+    # Filters and trend area
+    st.subheader("Attendance Trend & Filters")
+    filter_col1, filter_col2 = st.columns([2, 1])
+    with filter_col1:
+        start_date = st.date_input("Start Date", (datetime.now() - timedelta(days=14)).date())
+        end_date = st.date_input("End Date", datetime.now().date())
+    with filter_col2:
+        emp_select = st.selectbox("Employee", ["All"] + sorted(df["name"].dropna().unique().tolist()))
+
+    # Apply date range filter
+    mask = pd.Series([True] * len(df))
+    if "date" in df.columns:
+        mask = mask & (df["date"] >= start_date) & (df["date"] <= end_date)
+    if emp_select != "All":
+        mask = mask & (df["name"] == emp_select)
+
+    df_period = df[mask].copy()
+
+    if df_period.empty:
+        st.info("No attendance data for the selected filters.")
+        return
+
+    # Trend: daily counts per status
+    trend = (
+        df_period.groupby(["date", "status"]).size().unstack(fill_value=0)
+        .reset_index()
+        .sort_values("date")
+    )
+
+    # Plot trend using plotly
+    fig = go.Figure()
+    for status_col in [c for c in trend.columns if c != "date"]:
+        fig.add_trace(go.Bar(x=trend["date"], y=trend[status_col], name=status_col))
+    fig.update_layout(barmode='stack', title="Attendance Trend (stacked)", xaxis_title="Date", yaxis_title="Count", height=360)
+    st.plotly_chart(fig, use_container_width=True)
+
+    st.markdown("---")
+
+    # Per-employee summary for the period
+    st.subheader("Per-Employee Summary")
+    summary = (
+        df_period.groupby(["emp_id", "name"])['status']
+        .value_counts()
+        .unstack(fill_value=0)
+        .reset_index()
+    )
+    # Compute present days (WFO + WFH) and total days
+    summary['Present Days'] = summary.get('WFO', 0) + summary.get('WFH', 0)
+    summary['Total Records'] = summary.loc[:, summary.columns.difference(['emp_id', 'name'])].sum(axis=1)
+    summary['Attendance Rate (%)'] = (summary['Present Days'] / summary['Total Records'] * 100).round(1).fillna(0)
+
+    st.dataframe(summary.sort_values('Attendance Rate (%)', ascending=False), use_container_width=True)
+
+    # Export
+    csv = df_period.to_csv(index=False).encode('utf-8-sig')
+    st.download_button("📥 Download Filtered Attendance (CSV)", data=csv, file_name=f"attendance_{start_date}_{end_date}.csv", mime="text/csv")
+
+    st.markdown("---")
+    st.caption(f"Last updated: {datetime.now().strftime('%Y-%m-%d %I:%M %p')}")
 
 def show_admin_employees():
     """Admin panel to manage employees"""
