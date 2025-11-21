@@ -2630,7 +2630,7 @@ def main():
         st.markdown("""
         <div style="margin-bottom: 30px;">
             <div style="font-size: 2.5rem; font-weight: 800; color: white; margin-bottom: 8px;">
-                📋 Daily Check-in
+                📋 Daily Work Mode Update
             </div>
             <div style="font-size: 1rem; color: rgba(230, 238, 242, 0.8);">
                 Welcome back, <span style="font-weight: 700; color: #667eea;">{}</span> 👋
