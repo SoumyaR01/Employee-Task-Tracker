@@ -1903,6 +1903,10 @@ def show_login_page():
                         st.error("Invalid Admin ID, Password, or insufficient permissions")
             
             st.markdown("---")
+            st.markdown("### New Admin?")
+            if st.button("Create Admin Account", use_container_width=True):
+                st.session_state.show_admin_signup = True
+                st.rerun()
             st.markdown("*Admin access is restricted to authorized administrators.*")
 
 
@@ -1951,6 +1955,50 @@ def show_signup_page():
         st.markdown("---")
         if st.button("Back to Login", use_container_width=True):
             st.session_state.show_signup = False
+            st.rerun()
+
+def show_admin_signup_page():
+    """Display admin signup form"""
+    from attendance_store import check_employee_exists, create_employee
+    
+    st.title("🏢 Employee Progress Tracker")
+    st.markdown("---")
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.subheader("Create Admin Account")
+        with st.form("admin_signup_form"):
+            admin_id = st.text_input("Admin ID", placeholder="e.g. ADMIN001")
+            name = st.text_input("Full Name", placeholder="Your full name")
+            email = st.text_input("Email (optional)", placeholder="admin.email@company.com")
+            department = st.text_input("Department (optional)", placeholder="e.g. Administration")
+            password = st.text_input("Password", type="password", placeholder="Create a strong password")
+            confirm_pwd = st.text_input("Confirm Password", type="password")
+            admin_signup_btn = st.form_submit_button("Create Admin Account", use_container_width=True, type="primary")
+        
+        if admin_signup_btn:
+            if not admin_id or not name or not password:
+                st.error("Admin ID, Name, and Password are required")
+            elif password != confirm_pwd:
+                st.error("Passwords do not match")
+            elif len(password) < 6:
+                st.error("Password must be at least 6 characters long")
+            else:
+                if check_employee_exists(admin_id):
+                    st.error("Admin ID already exists. Please use a different ID or login.")
+                else:
+                    success, msg = create_employee(admin_id, password, name, email, department, "admin")
+                    if success:
+                        st.success("✅ Admin account created successfully! Please log in.")
+                        time.sleep(2)
+                        st.session_state.show_admin_signup = False
+                        st.rerun()
+                    else:
+                        st.error(f"❌ {msg}")
+        
+        st.markdown("---")
+        if st.button("Back to Admin Login", use_container_width=True):
+            st.session_state.show_admin_signup = False
             st.rerun()
 
 def show_employee_attendance_dashboard():
@@ -2383,11 +2431,15 @@ def main():
         st.session_state.logged_in = False
     if "show_signup" not in st.session_state:
         st.session_state.show_signup = False
+    if "show_admin_signup" not in st.session_state:
+        st.session_state.show_admin_signup = False
     
     # Show login/signup if not logged in
     if not st.session_state.logged_in:
         if st.session_state.show_signup:
             show_signup_page()
+        elif st.session_state.show_admin_signup:
+            show_admin_signup_page()
         else:
             show_login_page()
         return
