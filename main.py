@@ -2048,6 +2048,284 @@ def show_employee_attendance_dashboard():
     if st.button("🔄 Refresh Dashboard", use_container_width=True):
         st.rerun()
 
+# ==================== ADMIN PANEL FUNCTIONS ====================
+
+def show_admin_attendance_dashboard():
+    """Admin view of all employee attendance records"""
+    st.subheader("📊 Attendance Report")
+    
+    # Load attendance data
+    from attendance_store import load_attendance, load_employees
+    records = load_attendance()
+    employees = load_employees()
+    
+    if not records:
+        st.info("No attendance records found.")
+        return
+    
+    # Convert to DataFrame for display
+    attendance_data = []
+    for rec in records:
+        emp_id = (rec.get("emp_id") or "").upper()
+        meta = employees.get(emp_id, {}) if isinstance(employees, dict) else {}
+        attendance_data.append({
+            "Employee ID": emp_id,
+            "Name": meta.get("name", emp_id),
+            "Status": rec.get("status", "N/A"),
+            "Check-in Time": rec.get("check_in_time", "N/A"),
+            "Timestamp": rec.get("timestamp", "N/A"),
+            "Notes": rec.get("notes", "")
+        })
+    
+    if attendance_data:
+        df_attendance = pd.DataFrame(attendance_data)
+        
+        # Filter by date
+        col1, col2 = st.columns(2)
+        with col1:
+            selected_date = st.date_input("Filter by Date", datetime.now().date())
+        with col2:
+            selected_status = st.selectbox("Filter by Status", ["All", "WFO", "WFH", "On Leave"])
+        
+        # Apply filters
+        filtered_attendance = df_attendance.copy()
+        
+        if selected_date:
+            filtered_attendance["Date"] = pd.to_datetime(filtered_attendance["Timestamp"]).dt.date
+            filtered_attendance = filtered_attendance[filtered_attendance["Date"] == selected_date]
+        
+        if selected_status != "All":
+            filtered_attendance = filtered_attendance[filtered_attendance["Status"] == selected_status]
+        
+        st.dataframe(filtered_attendance, use_container_width=True)
+        
+        # Download button
+        csv = filtered_attendance.to_csv(index=False).encode('utf-8-sig')
+        st.download_button(
+            label="📥 Download Attendance Report (CSV)",
+            data=csv,
+            file_name=f"attendance_report_{selected_date}.csv",
+            mime="text/csv"
+        )
+    else:
+        st.info("No attendance records to display.")
+
+def show_admin_employees():
+    """Admin panel to manage employees"""
+    st.subheader("👥 Employee Management")
+    
+    from attendance_store import load_employees, save_employees, create_employee
+    employees = load_employees()
+    
+    # Display all employees
+    st.markdown("**Registered Employees**")
+    if employees:
+        emp_data = []
+        for emp_id, emp_info in employees.items():
+            emp_data.append({
+                "ID": emp_id,
+                "Name": emp_info.get("name", "N/A"),
+                "Email": emp_info.get("email", "N/A"),
+                "Department": emp_info.get("department", "N/A"),
+                "Role": emp_info.get("role", "N/A")
+            })
+        df_employees = pd.DataFrame(emp_data)
+        st.dataframe(df_employees, use_container_width=True)
+    else:
+        st.info("No employees registered yet.")
+    
+    st.markdown("---")
+    st.markdown("**Add New Employee**")
+    
+    with st.form("add_employee_form"):
+        col1, col2 = st.columns(2)
+        with col1:
+            emp_id = st.text_input("Employee ID", placeholder="e.g. EMP001")
+            name = st.text_input("Full Name", placeholder="Employee name")
+            email = st.text_input("Email", placeholder="employee@company.com")
+        with col2:
+            department = st.text_input("Department", placeholder="e.g. Engineering")
+            role = st.text_input("Role", placeholder="e.g. Developer")
+            password = st.text_input("Initial Password", type="password", placeholder="Temporary password")
+        
+        if st.form_submit_button("Add Employee", use_container_width=True):
+            if emp_id and name and password:
+                success, msg = create_employee(emp_id, password, name, email, department, role)
+                if success:
+                    st.success(f"✅ Employee {name} added successfully!")
+                else:
+                    st.error(f"❌ {msg}")
+            else:
+                st.error("Please fill in all required fields (ID, Name, Password)")
+
+def show_admin_performance():
+    """Admin view of employee performance analytics"""
+    st.subheader("📈 Performance Analytics")
+    
+    excel_path = EXCEL_FILE_PATH
+    df = read_excel_data(excel_path)
+    
+    if df is None or df.empty:
+        st.info("No performance data available yet.")
+        return
+    
+    df = ensure_numeric_columns(df)
+    if 'Date' in df.columns:
+        df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
+    
+    # Overall metrics
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Total Submissions", len(df))
+    with col2:
+        completed = int((df.get('Task Status') == 'Completed').sum()) if 'Task Status' in df.columns else 0
+        st.metric("Completed Tasks", completed)
+    with col3:
+        unique_employees = df['Name'].nunique() if 'Name' in df.columns else 0
+        st.metric("Active Employees", unique_employees)
+    with col4:
+        avg_perf = round(df['Employee Performance (%)'].mean(), 2) if 'Employee Performance (%)' in df.columns else 0
+        st.metric("Avg Performance", f"{avg_perf}%")
+    
+    st.markdown("---")
+    
+    # Performance by employee
+    if 'Name' in df.columns and 'Employee Performance (%)' in df.columns:
+        st.markdown("**Performance by Employee**")
+        perf_by_emp = df.groupby('Name')['Employee Performance (%)'].mean().sort_values(ascending=False)
+        
+        fig = px.bar(
+            x=perf_by_emp.index,
+            y=perf_by_emp.values,
+            labels={'x': 'Employee', 'y': 'Avg Performance (%)'},
+            title='Average Performance by Employee',
+            color=perf_by_emp.values,
+            color_continuous_scale='Viridis'
+        )
+        fig.update_layout(height=400, showlegend=False)
+        st.plotly_chart(fig, use_container_width=True)
+
+def show_admin_settings():
+    """Admin settings panel"""
+    st.subheader("⚙️ Admin Settings")
+    
+    config = load_config()
+    
+    with st.form("admin_settings_form"):
+        st.markdown("**System Configuration**")
+        
+        excel_path = st.text_input(
+            "Excel File Path",
+            value=config.get('excel_file_path', EXCEL_FILE_PATH),
+            help="Path to the Excel file for task tracking"
+        )
+        
+        reminder_time = st.time_input(
+            "Reminder Time",
+            value=datetime.strptime(config.get('reminder_time', '18:00'), '%H:%M').time(),
+            help="Time to send daily reminders"
+        )
+        
+        st.markdown("**Email Configuration**")
+        admin_email = st.text_input(
+            "Admin Email",
+            value=config.get('admin_email', ''),
+            help="Email address for admin notifications"
+        )
+        
+        employee_emails_text = st.text_area(
+            "Employee Emails (one per line)",
+            value='\n'.join(config.get('employee_emails', [])),
+            height=100,
+            help="List of employee email addresses for notifications"
+        )
+        
+        if st.form_submit_button("Save Settings", use_container_width=True):
+            config['excel_file_path'] = excel_path
+            config['reminder_time'] = reminder_time.strftime('%H:%M')
+            config['admin_email'] = admin_email
+            config['employee_emails'] = [
+                email.strip() for email in employee_emails_text.split('\n') if email.strip()
+            ]
+            save_config(config)
+            st.success("✅ Settings saved successfully!")
+
+def show_admin_dashboard():
+    """Main admin dashboard"""
+    # Sidebar navigation for admin
+    with st.sidebar:
+        st.title("⚙️ Admin Panel")
+        st.success(f"👤 {st.session_state.emp_name} (Admin)")
+        st.markdown("---")
+        
+        admin_pages = [
+            "📊 Performance Dashboard",
+            "👥 Attendance Report",
+            "👤 Employee Management",
+            "⚙️ Settings",
+            "📧 Reminders"
+        ]
+        
+        admin_page = st.radio(
+            "Admin Menu",
+            admin_pages,
+            label_visibility="collapsed",
+            key="admin_page"
+        )
+        
+        st.markdown("---")
+        if st.button("🔄 Refresh", use_container_width=True):
+            st.rerun()
+        if st.button("🚪 Logout", use_container_width=True):
+            st.session_state.logged_in = False
+            st.session_state.emp_id = None
+            st.session_state.emp_name = None
+            st.session_state.emp_role = None
+            st.rerun()
+    
+    # Main admin content
+    if admin_page == "📊 Performance Dashboard":
+        st.title("📊 Performance Dashboard")
+        show_admin_performance()
+    
+    elif admin_page == "👥 Attendance Report":
+        st.title("📋 Attendance Management")
+        show_admin_attendance_dashboard()
+    
+    elif admin_page == "👤 Employee Management":
+        st.title("👥 Employee Management")
+        show_admin_employees()
+    
+    elif admin_page == "⚙️ Settings":
+        st.title("⚙️ System Settings")
+        show_admin_settings()
+    
+    elif admin_page == "📧 Reminders":
+        st.title("📧 Reminder Management")
+        st.info("""
+**Reminder System Setup**
+The reminder system will automatically send emails to employees who haven't submitted their daily report.
+To enable automated reminders:
+1. Set up reminder time and email configuration in Settings
+2. Configure employee emails
+3. Run the reminder service: `python reminder_service.py`
+""")
+        excel_path = load_config().get('excel_file_path', EXCEL_FILE_PATH)
+        st.subheader("🧪 Test Reminder")
+        if st.button("Check Missing Reports Today"):
+            with st.spinner("Checking..."):
+                df = read_excel_data(excel_path)
+                if df is not None:
+                    missing = get_missing_reporters(df, datetime.now())
+                    if missing:
+                        st.warning(f"📋 {len(missing)} employees haven't reported today:")
+                        for emp in missing:
+                            st.write(f"- {emp}")
+                    else:
+                        st.success("✅ All employees have submitted their reports today!")
+                else:
+                    st.error("Failed to load data")
+
 # Main App
 def main():
     """Main application"""
@@ -2065,6 +2343,13 @@ def main():
             show_login_page()
         return
     
+    # Check if user is admin
+    emp_role = st.session_state.get("emp_role", "user").lower()
+    if emp_role == "admin":
+        show_admin_dashboard()
+        return
+    
+    # Employee Dashboard (non-admin users)
     # Sidebar navigation (only shown when logged in)
     with st.sidebar:
         st.title("📊 Progress Tracker")
