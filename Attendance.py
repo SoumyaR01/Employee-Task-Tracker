@@ -248,47 +248,12 @@ def show_employee_dashboard():
         st.plotly_chart(fig, use_container_width=True)
 
 def show_admin_dashboard():
-    st.title("👨‍💼 Admin Dashboard")
-    if st.button("🔄 Refresh"): st.rerun()
-
-    stats = get_attendance_stats()
-    c1,c2,c3,c4,c5 = st.columns(5)
-    for col, label, val, color in zip(
-        [c1,c2,c3,c4,c5],
-        ["Total Employees","Present","🟢 WFO","🔵 WFH","⚪ Leave"],
-        [stats["total"], stats["present"], stats["wfo"], stats["wfh"], stats["leave"]],
-        [None,None,"#10b981","#3b82f6","#6b7280"]
-    ):
-        bg = f'style="background: linear-gradient(135deg, {color} 0%, {color}dd 100%);"' if color else ''
-        col.markdown(f'<div class="metric-card" {bg}><div class="metric-label">{label}</div><div class="metric-value">{val}</div></div>', unsafe_allow_html=True)
-
-    st.markdown("### 👥 All Employee Status")
-    df = get_latest_status_all()
-    if not df.empty:
-        df["status"] = df["status"].fillna("No Status")
-        df["Status"] = df["status"].apply(show_status_badge)
-        display = df[["emp_id","name","department","role","Status","timestamp","notes"]].rename(columns={
-            "emp_id":"ID","name":"Name","department":"Dept","role":"Role","timestamp":"Last Update"
-        })
-        st.dataframe(display, use_container_width=True, hide_index=True)
-
-        csv = df.to_csv(index=False).encode()
-        st.download_button("📥 Download Report", csv, f"report_{datetime.now().strftime('%Y%m%d')}.csv", "text/csv")
-
-    c1, c2 = st.columns(2)
-    with c1:
-        if not df.empty:
-            fig = px.pie(df["status"].value_counts(), names=df["status"].value_counts().index,
-                         color_discrete_map={"WFO":"#10b981","WFH":"#3b82f6","On Leave":"#6b7280","No Status":"#374151"})
-            fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color='white')
-            st.plotly_chart(fig, use_container_width=True)
-    with c2:
-        trend = get_weekly_trend()
-        if not trend.empty:
-            fig = px.bar(trend, x="date", y="count", color="status", barmode="stack",
-                         color_discrete_map={"WFO":"#10b981","WFH":"#3b82f6","On Leave":"#6b7280"})
-            fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color='white')
-            st.plotly_chart(fig, use_container_width=True)
+    st.title("📊 Performance Dashboard")
+    try:
+        from main import render_full_performance_dashboard
+        render_full_performance_dashboard()
+    except Exception as e:
+        st.error(f"Unable to load performance dashboard: {e}")
 
 # ==================== LOGIN PAGE ====================
 def show_login():
