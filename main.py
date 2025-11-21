@@ -2640,10 +2640,10 @@ def main():
             status_choice = st.radio("Select your work status for today:", ["Work from Home", "Work in Office", "On Leave"])
             notes = st.text_area("Notes (optional)")
             submitted = st.form_submit_button("Check In", use_container_width=True, type="primary")
-        if submitted:
-            # Map to internal codes used by Attendance system
-            mapping = {"Work from Home": "WFH", "Work in Office": "WFO", "On Leave": "On Leave"}
-            code = mapping.get(status_choice, "No Status")
+                if submitted:
+                        # Map to internal codes used by Attendance system
+                        mapping = {"Work from Home": "WFH", "Work in Office": "WFO", "On Leave": "On Leave"}
+                        code = mapping.get(status_choice, "No Status")
                         # Append attendance using logged-in emp_id with device time if available
                         try:
                                 from attendance_store import append_attendance
