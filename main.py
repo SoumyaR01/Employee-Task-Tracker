@@ -1823,10 +1823,27 @@ def show_login_page():
     if "login_mode" not in st.session_state:
         st.session_state.login_mode = "employee"
     
-    st.markdown(
-        "<h1 style='text-align: center;'>🔒 Login</h1>",
-        unsafe_allow_html=True
-    )
+    st.markdown("""
+    <div style="
+        text-align: center;
+        font-size: 45px;
+        font-weight: 700;
+        color: white;
+        margin-top: 20px;
+        margin-bottom: 10px;
+        font-family: 'Segoe UI', sans-serif;
+    ">
+        🔒 Login
+    </div>
+    <div style="
+        width: 140px;
+        height: 4px;
+        background: linear-gradient(90deg, #6a11cb, #2575fc);
+        margin: 0 auto 20px auto;
+        border-radius: 10px;
+    "></div>
+""", unsafe_allow_html=True)
+
     st.markdown("---")
     
     col1, col2, col3 = st.columns([1, 2, 1])
