@@ -2693,50 +2693,67 @@ def main():
         st.markdown("</div>", unsafe_allow_html=True)
         
         if submitted:
-            # Map to internal codes used by Attendance system
-            mapping = {"Work from Home": "WFH", "Work in Office": "WFO", "On Leave": "On Leave"}
-            code = mapping.get(status_choice, "No Status")
-            # Append attendance using logged-in emp_id with device time if available
-            try:
-                from attendance_store import append_attendance
-                # Get device time from session state (captured by JS), fallback to None to use server time
-                device_time = st.session_state.get("device_time")
-                append_attendance(st.session_state.emp_id, code, notes or "", client_time=device_time)
-                
-                # Show modern success notification
-                success_html = f"""
-                <div style="background: linear-gradient(135deg, #10b981, #059669); border-radius: 12px; 
-                            padding: 18px 24px; margin: 20px 0; box-shadow: 0 8px 24px rgba(16, 185, 129, 0.2);">
+            # Check if already checked in today
+            from attendance_store import append_attendance, check_already_checked_in_today
+            
+            if check_already_checked_in_today(st.session_state.emp_id):
+                # Show warning notification
+                warning_html = """
+                <div style="background: linear-gradient(135deg, #f59e0b, #d97706); border-radius: 12px; 
+                            padding: 18px 24px; margin: 20px 0; box-shadow: 0 8px 24px rgba(245, 158, 11, 0.2);">
                     <div style="color: white; font-weight: 700; font-size: 1.05rem; margin-bottom: 6px;">
-                        ✓ Check-in Successful!
+                        ⚠️ Already Checked In
                     </div>
                     <div style="color: rgba(255, 255, 255, 0.9); font-size: 0.95rem;">
-                        You've been marked as <strong>{status_choice}</strong>
-                        {f"<br>Check-in time: <strong>{device_time}</strong>" if device_time else ""}
+                        You have already checked in today.
                     </div>
                 </div>
                 """
-                st.markdown(success_html, unsafe_allow_html=True)
-                
-                # Set a redirect flag
-                st.session_state.next_page = "Attendance Dashbord"
-                st.balloons()
-                import time as time_module
-                time_module.sleep(2)
-                st.rerun()
-            except Exception as e:
-                error_html = f"""
-                <div style="background: linear-gradient(135deg, #ef4444, #dc2626); border-radius: 12px; 
-                            padding: 18px 24px; margin: 20px 0; box-shadow: 0 8px 24px rgba(239, 68, 68, 0.2);">
-                    <div style="color: white; font-weight: 700; font-size: 1.05rem;">
-                        ✗ Check-in Failed
+                st.markdown(warning_html, unsafe_allow_html=True)
+            else:
+                # Map to internal codes used by Attendance system
+                mapping = {"Work from Home": "WFH", "Work in Office": "WFO", "On Leave": "On Leave"}
+                code = mapping.get(status_choice, "No Status")
+                # Append attendance using logged-in emp_id with device time if available
+                try:
+                    # Get device time from session state (captured by JS), fallback to None to use server time
+                    device_time = st.session_state.get("device_time")
+                    append_attendance(st.session_state.emp_id, code, notes or "", client_time=device_time)
+                    
+                    # Show modern success notification
+                    success_html = f"""
+                    <div style="background: linear-gradient(135deg, #10b981, #059669); border-radius: 12px; 
+                                padding: 18px 24px; margin: 20px 0; box-shadow: 0 8px 24px rgba(16, 185, 129, 0.2);">
+                        <div style="color: white; font-weight: 700; font-size: 1.05rem; margin-bottom: 6px;">
+                            ✓ Check-in Successful!
+                        </div>
+                        <div style="color: rgba(255, 255, 255, 0.9); font-size: 0.95rem;">
+                            You've been marked as <strong>{status_choice}</strong>
+                            {f"<br>Check-in time: <strong>{device_time}</strong>" if device_time else ""}
+                        </div>
                     </div>
-                    <div style="color: rgba(255, 255, 255, 0.9); font-size: 0.9rem; margin-top: 6px;">
-                        {str(e)}
+                    """
+                    st.markdown(success_html, unsafe_allow_html=True)
+                    
+                    # Set a redirect flag
+                    st.session_state.next_page = "Attendance Dashbord"
+                    st.balloons()
+                    import time as time_module
+                    time_module.sleep(2)
+                    st.rerun()
+                except Exception as e:
+                    error_html = f"""
+                    <div style="background: linear-gradient(135deg, #ef4444, #dc2626); border-radius: 12px; 
+                                padding: 18px 24px; margin: 20px 0; box-shadow: 0 8px 24px rgba(239, 68, 68, 0.2);">
+                        <div style="color: white; font-weight: 700; font-size: 1.05rem;">
+                            ✗ Check-in Failed
+                        </div>
+                        <div style="color: rgba(255, 255, 255, 0.9); font-size: 0.9rem; margin-top: 6px;">
+                            {str(e)}
+                        </div>
                     </div>
-                </div>
-                """
-                st.markdown(error_html, unsafe_allow_html=True)
+                    """
+                    st.markdown(error_html, unsafe_allow_html=True)
     elif page == "📝 Submit Report":
         show_submit_report()
 if __name__ == "__main__":
