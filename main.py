@@ -2078,9 +2078,15 @@ def main():
         # use session-state key so we can programmatically change the selected page
         if "main_page" not in st.session_state:
             st.session_state.main_page = "Daily Check-in"
+        
+        # Validate that main_page is in the available options
+        valid_pages = ["Daily Check-in", "Staff Attendance View", "📝 Submit Report", "📈 Dashboard", "⚙️ Settings", "📧 Reminders"]
+        if st.session_state.main_page not in valid_pages:
+            st.session_state.main_page = "Daily Check-in"
+        
         page = st.radio(
             "Navigation",
-            ["Daily Check-in", "Staff Attendance View", "📝 Submit Report", "📈 Dashboard", "⚙️ Settings", "📧 Reminders"],
+            valid_pages,
             label_visibility="collapsed",
             key="main_page"
         )
