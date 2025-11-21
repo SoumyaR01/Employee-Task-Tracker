@@ -2645,8 +2645,8 @@ def main():
             mapping = {"Work from Home": "WFH", "Work in Office": "WFO", "On Leave": "On Leave"}
             code = mapping.get(status_choice, "No Status")
             # Append attendance using logged-in emp_id with device time if available
-            try:
-                from attendance_store import append_attendance
+                        try:
+                                from attendance_store import append_attendance
                                 # Get device time from session state (captured by JS), fallback to None to use server time
                                 device_time = st.session_state.get("device_time")
                                 append_attendance(st.session_state.emp_id, code, notes or "", client_time=device_time)
