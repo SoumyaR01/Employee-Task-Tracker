@@ -1815,24 +1815,21 @@ def show_submit_report():
                 else:
                     st.error("❌ Failed to save report. Please try again or contact administrator.")
 
-#==================== LOGIN & SIGNUP PAGES ====================
+# ==================== LOGIN & SIGNUP PAGES ====================
 def show_login_page():
+    """Display login form"""
     from attendance_store import verify_login
     
-    st.markdown(
-        "<h1 style='text-align: center;'>🔒 Employee Login</h1>",
-        unsafe_allow_html=True
-    )
+    st.title("🔒 Employee Progress Tracker")
     st.markdown("---")
     
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.subheader("Login")
         with st.form("login_form"):
-            emp_id = st.text_input("Office ID", placeholder="Enter your Office ID (e.g. P-0125)")
+            emp_id = st.text_input("Office ID", placeholder="e.g. EMP001")
             password = st.text_input("Password", type="password")
             login_btn = st.form_submit_button("Login", use_container_width=True, type="primary")
-
         
         if login_btn:
             if not emp_id or not password:
@@ -1855,9 +1852,6 @@ def show_login_page():
         if st.button("Create Account", use_container_width=True):
             st.session_state.show_signup = True
             st.rerun()
-
-
-
 
 def show_signup_page():
     """Display signup form"""
@@ -1905,148 +1899,80 @@ def show_signup_page():
             st.rerun()
 
 def show_employee_attendance_dashboard():
-    """Display the Employee Attendance Dashboard with three tabs and metrics"""
+    """Display the Employee Attendance Dashboard with three tabs"""
     import attendance_store
-    from datetime import datetime, timedelta
-    import pandas as pd
+    from datetime import datetime
 
-    st.title("🏢 Employee Attendance Dashboard")
-    st.markdown("Real-time employee attendance tracking with check-in/out capabilities.")
+    st.title("Employee Attendance Dashboard")
+    st.markdown("View current attendance by category. Lists update dynamically based on latest check-ins.")
 
     # Load persisted data
     records = attendance_store.load_attendance()
     employees = attendance_store.load_employees()
 
-    if not employees:
-        st.error("No employees found.")
+    if not records:
+        st.info("No attendance records yet. Employees can use Daily Check-in to record status.")
         return
 
-    # Build latest status per employee (today only)
-    today = datetime.now().date()
-    today_records = {}  # {emp_id: latest_record}
-    
+    # Build latest status per employee
+    latest = {}
     for r in records:
         emp = (r.get("emp_id") or "").upper()
         ts = None
         try:
-            ts_str = r.get("timestamp")
-            if isinstance(ts_str, str):
-                ts = datetime.fromisoformat(ts_str)
-            else:
-                ts = ts_str if hasattr(ts_str, 'date') else datetime.now()
+            ts = datetime.fromisoformat(r.get("timestamp"))
         except Exception:
             try:
                 from dateutil import parser as _p
                 ts = _p.isoparse(r.get("timestamp"))
             except Exception:
-                ts = datetime.now()
-        
-        # Only include today's records
-        if ts.date() == today and emp:
-            if emp not in today_records or ts > today_records[emp]["timestamp"]:
-                today_records[emp] = {
-                    "status": r.get("status"),
-                    "timestamp": ts,
-                    "notes": r.get("notes", ""),
-                    "check_in_time": r.get("check_in_time")
-                }
+                ts = datetime.min
+        if emp:
+            if emp not in latest or ts > latest[emp]["timestamp"]:
+                latest[emp] = {"status": r.get("status"), "timestamp": ts, "notes": r.get("notes", "")}
 
-    # Categorize employees — only include those with today's attendance records
-    wfo_list = []  # Work From Office
-    wfh_list = []  # Work From Home
-    leave_list = [] # On Leave
+    # Categorize
+    wfo_list = []
+    wfh_list = []
+    leave_list = []
 
-    for emp_upper, rec in today_records.items():
-        # get employee metadata if available
-        meta = employees.get(emp_upper, {}) if isinstance(employees, dict) else {}
-        name = meta.get("name", emp_upper)
-        dept = meta.get("department", "")
-        role = meta.get("role", "")
-        # Use the pre-recorded check_in_time directly (device time if captured, server time if fallback)
-        check_in = rec.get("check_in_time")
-        if check_in:
-            try:
-                if isinstance(check_in, str):
-                    check_in_dt = datetime.fromisoformat(check_in)
-                else:
-                    check_in_dt = check_in
-                ts_str = check_in_dt.strftime('%I:%M %p')
-            except Exception:
-                ts_str = str(check_in)
-        else:
-            ts_str = "N/A"
-        
-        row = {
-            "ID": emp_upper,
-            "Name": name,
-            "Department": dept,
-            "Role": role,
-            "Check-in Time": ts_str,
-            "Notes": rec.get("notes", "")
-        }
-        
-        if rec.get("status") == "WFO":
+    for emp_id, info in latest.items():
+        detail = employees.get(emp_id, {})
+        name = detail.get("name", emp_id)
+        dept = detail.get("department", "")
+        role = detail.get("role", "")
+        ts = info.get("timestamp")
+        ts_str = ts.strftime('%Y-%m-%d %I:%M %p') if hasattr(ts, 'strftime') else str(ts)
+        row = {"ID": emp_id, "Name": name, "Department": dept, "Role": role, "Last Update": ts_str, "Notes": info.get("notes", "")}
+        if info.get("status") == "WFO":
             wfo_list.append(row)
-        elif rec.get("status") == "WFH":
+        elif info.get("status") == "WFH":
             wfh_list.append(row)
-        elif rec.get("status") == "On Leave":
+        elif info.get("status") == "On Leave":
             leave_list.append(row)
 
-    # Summary Metrics
-    st.markdown("### Today's Attendance Summary")
-    # Metrics reflect today's actual check-ins only
-    total_today = len(today_records)
-    present = len(wfo_list) + len(wfh_list) + len(leave_list)
-    attendance_rate = round((present / total_today) * 100, 1) if total_today else 0
-
-    col1, col2, col3, col4, col5 = st.columns(5)
-    with col1:
-        st.markdown(f'<div class="metric-card"><div class="metric-value">{total_today}</div><div class="metric-label">Checked-in Today</div></div>', unsafe_allow_html=True)
-    with col2:
-        st.markdown(f'<div class="metric-card status-green"><div class="metric-value">{present}</div><div class="metric-label">Present</div></div>', unsafe_allow_html=True)
-    with col3:
-        st.markdown(f'<div class="metric-card status-yellow"><div class="metric-value">{len(wfo_list)}</div><div class="metric-label">In Office</div></div>', unsafe_allow_html=True)
-    with col4:
-        st.markdown(f'<div class="metric-card status-red"><div class="metric-value">0</div><div class="metric-label">Absent (not shown)</div></div>', unsafe_allow_html=True)
-    with col5:
-        st.markdown(f'<div class="metric-card"><div class="metric-value">{attendance_rate}%</div><div class="metric-label">Attendance Rate</div></div>', unsafe_allow_html=True)
-
-    st.markdown("---")
-
-    # Three Tabs
-    tab1, tab2, tab3 = st.tabs([
-        f"🏢 In Office ({len(wfo_list)})",
-        f"🏠 Remote ({len(wfh_list)})",
-        f"📋 On Leave ({len(leave_list)})"
-    ])
+    tab1, tab2, tab3 = st.tabs([f"No. of Employees in Office ({len(wfo_list)})", f"No. of Employees Remote ({len(wfh_list)})", f"No. of Employees On Leave ({len(leave_list)})"])
 
     with tab1:
         st.subheader(f"Employees in Office — {len(wfo_list)}")
         if wfo_list:
-            st.dataframe(wfo_list, use_container_width=True, hide_index=True)
+            st.dataframe(wfo_list, use_container_width=True)
         else:
             st.info("No employees are currently marked as in the office.")
 
     with tab2:
         st.subheader(f"Employees Remote — {len(wfh_list)}")
         if wfh_list:
-            st.dataframe(wfh_list, use_container_width=True, hide_index=True)
+            st.dataframe(wfh_list, use_container_width=True)
         else:
             st.info("No employees are currently marked as remote.")
 
     with tab3:
         st.subheader(f"Employees On Leave — {len(leave_list)}")
         if leave_list:
-            st.dataframe(leave_list, use_container_width=True, hide_index=True)
+            st.dataframe(leave_list, use_container_width=True)
         else:
             st.info("No employees are currently marked as on leave.")
-
-    st.markdown("---")
-
-    # Footer
-    st.caption(f"Last updated: {datetime.now().strftime('%Y-%m-%d %I:%M %p')}")
-    if st.button("🔄 Refresh Dashboard", use_container_width=True):
-        st.rerun()
 
 # Main App
 def main():
@@ -2080,7 +2006,7 @@ def main():
             st.session_state.main_page = "Daily Check-in"
         page = st.radio(
             "Navigation",
-            ["Daily Check-in", "Staff Attendance View", "📝 Submit Report", "📈 Dashboard", "⚙️ Settings", "📧 Reminders"],
+            ["Daily Check-in", "Employee Attendance Dashboard", "📝 Submit Report", "📈 Dashboard", "⚙️ Settings", "📧 Reminders"],
             label_visibility="collapsed",
             key="main_page"
         )
@@ -2103,20 +2029,6 @@ def main():
         st.title("Daily Check-in")
         st.markdown(f"### Welcome, {st.session_state.emp_name}!")
         st.markdown("Mark your attendance for today.")
-        
-        # Capture device time via hidden HTML component
-        st.components.v1.html("""
-        <script>
-            function captureTime() {
-                const now = new Date();
-                const time = now.toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit' });
-                window.parent.postMessage({streamlitMethod: 'setComponentValue', key: 'device_time', value: time}, '*');
-            }
-            captureTime();
-            setInterval(captureTime, 1000);
-        </script>
-        """, height=0)
-        
         with st.form("daily_checkin"):
             status_choice = st.radio("Select your work status for today:", ["Work from Home", "Work in Office", "On Leave"])
             notes = st.text_area("Notes (optional)")
@@ -2125,23 +2037,18 @@ def main():
             # Map to internal codes used by Attendance system
             mapping = {"Work from Home": "WFH", "Work in Office": "WFO", "On Leave": "On Leave"}
             code = mapping.get(status_choice, "No Status")
-            # Append attendance using logged-in emp_id with device time if available
+            # Append attendance using logged-in emp_id
             try:
                 from attendance_store import append_attendance
-                # Get device time from session state (captured by JS), fallback to None to use server time
-                device_time = st.session_state.get("device_time")
-                append_attendance(st.session_state.emp_id, code, notes or "", client_time=device_time)
+                append_attendance(st.session_state.emp_id, code, notes or "")
                 st.success(f"✅ Checked in as {status_choice}")
-                # Display the recorded time for confirmation
-                if device_time:
-                    st.info(f"📍 Check-in time recorded: {device_time}")
                 # Set a redirect flag — will be applied before the sidebar radio is created
-                st.session_state.next_page = "Attendance Dashbord"
+                st.session_state.next_page = "Employee Attendance Dashboard"
                 time.sleep(1)
                 st.rerun()
             except Exception as e:
                 st.error(f"Failed to record attendance: {e}")
-    elif page == "Staff Attendance View":
+    elif page == "Employee Attendance Dashboard":
         show_employee_attendance_dashboard()
     elif page == "📝 Submit Report":
         show_submit_report()
