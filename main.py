@@ -2731,8 +2731,28 @@ def show_admin_settings():
                 email.strip() for email in employee_emails_text.split('\n') if email.strip()
             ]
             save_config(config)
-            st.success("✅ Settings saved successfully!")
+    st.success("✅ Settings saved successfully!")
 
+def render_full_performance_dashboard():
+    config = load_config()
+    excel_path = config.get('excel_file_path', EXCEL_FILE_PATH)
+    with st.spinner("Loading data..."):
+        df = read_excel_data(excel_path)
+    if df is None:
+        st.error("Failed to load data. Check the Excel file path in Settings.")
+        return
+    if df.empty:
+        st.info("📋 No data available yet. Start submitting reports to see data here.")
+        return
+    show_metrics(df)
+    st.markdown("---")
+    filtered_df = show_filters(df)
+    st.markdown("---")
+    show_charts(filtered_df)
+    st.markdown("---")
+    show_employee_dashboard(filtered_df if filtered_df is not None and not filtered_df.empty else df)
+    st.markdown("---")
+    show_data_table(filtered_df)
 def show_admin_dashboard():
     """Main admin dashboard"""
     # Sidebar navigation for admin
@@ -2770,7 +2790,7 @@ def show_admin_dashboard():
     # Main admin content
     if admin_page == "📊 Performance Dashboard":
         st.title("📊 Performance Dashboard")
-        show_admin_performance()
+        render_full_performance_dashboard()
 
     elif admin_page == "Staff Attendance View":
         st.title("📊 Staff Attendance Dashboard")
