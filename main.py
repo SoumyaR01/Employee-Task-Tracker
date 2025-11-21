@@ -1833,7 +1833,7 @@ def show_login_page():
         margin-bottom: 10px;
         font-family: 'Segoe UI', sans-serif;
     ">
-        🔒 Login
+        🔒 Login Gateway
     </div>
     <div style="
         width: 140px;
