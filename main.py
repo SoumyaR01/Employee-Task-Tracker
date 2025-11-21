@@ -1819,42 +1819,91 @@ def show_submit_report():
 def show_login_page():
     from attendance_store import verify_login
     
+    # Initialize session state for login mode
+    if "login_mode" not in st.session_state:
+        st.session_state.login_mode = "employee"
+    
     st.markdown(
-        "<h1 style='text-align: center;'>🔒 Employee Login</h1>",
+        "<h1 style='text-align: center;'>🔒 Login</h1>",
         unsafe_allow_html=True
     )
     st.markdown("---")
     
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        st.subheader("Login")
-        with st.form("login_form"):
-            emp_id = st.text_input("Office ID", placeholder="Enter your Office ID (e.g. P-0125)")
-            password = st.text_input("Password", type="password")
-            login_btn = st.form_submit_button("Login", use_container_width=True, type="primary")
-
-        
-        if login_btn:
-            if not emp_id or not password:
-                st.error("Please enter both Office ID and Password")
-            else:
-                success, name, role = verify_login(emp_id, password)
-                if success:
-                    st.session_state.logged_in = True
-                    st.session_state.emp_id = emp_id.upper()
-                    st.session_state.emp_name = name
-                    st.session_state.emp_role = role
-                    st.success("✅ Logged in successfully!")
-                    time.sleep(1)
-                    st.rerun()
-                else:
-                    st.error("Invalid Office ID or Password")
+        # Login mode toggle buttons
+        tab_col1, tab_col2 = st.columns(2)
+        with tab_col1:
+            if st.button("👤 Employee Login", use_container_width=True, 
+                        key="emp_login_btn",
+                        type="primary" if st.session_state.login_mode == "employee" else "secondary"):
+                st.session_state.login_mode = "employee"
+                st.rerun()
+        with tab_col2:
+            if st.button("🔐 Admin Login", use_container_width=True,
+                        key="admin_login_btn",
+                        type="primary" if st.session_state.login_mode == "admin" else "secondary"):
+                st.session_state.login_mode = "admin"
+                st.rerun()
         
         st.markdown("---")
-        st.markdown("### New Employee?")
-        if st.button("Create Account", use_container_width=True):
-            st.session_state.show_signup = True
-            st.rerun()
+        
+        # Employee Login Form
+        if st.session_state.login_mode == "employee":
+            st.subheader("Employee Login")
+            with st.form("employee_login_form"):
+                emp_id = st.text_input("Office ID", placeholder="Enter your Office ID (e.g. P-0125)", key="emp_id_input")
+                password = st.text_input("Password", type="password", key="emp_pwd_input")
+                login_btn = st.form_submit_button("Login", use_container_width=True, type="primary")
+            
+            if login_btn:
+                if not emp_id or not password:
+                    st.error("Please enter both Office ID and Password")
+                else:
+                    success, name, role = verify_login(emp_id, password)
+                    if success:
+                        st.session_state.logged_in = True
+                        st.session_state.emp_id = emp_id.upper()
+                        st.session_state.emp_name = name
+                        st.session_state.emp_role = role
+                        st.success("✅ Logged in successfully!")
+                        time.sleep(1)
+                        st.rerun()
+                    else:
+                        st.error("Invalid Office ID or Password")
+            
+            st.markdown("---")
+            st.markdown("### New Employee?")
+            if st.button("Create Account", use_container_width=True):
+                st.session_state.show_signup = True
+                st.rerun()
+        
+        # Admin Login Form
+        else:
+            st.subheader("Admin Login")
+            with st.form("admin_login_form"):
+                admin_id = st.text_input("Admin ID", placeholder="Enter your Admin ID", key="admin_id_input")
+                admin_password = st.text_input("Password", type="password", key="admin_pwd_input")
+                admin_login_btn = st.form_submit_button("Login", use_container_width=True, type="primary")
+            
+            if admin_login_btn:
+                if not admin_id or not admin_password:
+                    st.error("Please enter both Admin ID and Password")
+                else:
+                    success, name, role = verify_login(admin_id, admin_password)
+                    if success and role and role.lower() == "admin":
+                        st.session_state.logged_in = True
+                        st.session_state.emp_id = admin_id.upper()
+                        st.session_state.emp_name = name
+                        st.session_state.emp_role = "admin"
+                        st.success("✅ Admin logged in successfully!")
+                        time.sleep(1)
+                        st.rerun()
+                    else:
+                        st.error("Invalid Admin ID, Password, or insufficient permissions")
+            
+            st.markdown("---")
+            st.markdown("*Admin access is restricted to authorized administrators.*")
 
 
 
