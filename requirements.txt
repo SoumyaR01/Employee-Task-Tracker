@@ -2,6 +2,7 @@ streamlit
 msal-streamlit-authentication
 pandas
 openpyxl
+streamlit-echarts
 
 # Core Dependencies
 plotly>=5.17.0
