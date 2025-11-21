@@ -2148,7 +2148,7 @@ def show_admin_attendance_dashboard():
     """Admin view of all employee attendance records with metrics and trends
     Only admins see this. Provides daily metrics, WFO/WFH/Leave breakdown, attendance trend and per-employee summaries.
     """
-    st.subheader("📊 Staff Attendance Dashboard")
+    #st.subheader("📊 Staff Attendance Dashboard")
 
     from attendance_store import load_attendance, load_employees
 
@@ -2450,7 +2450,7 @@ def show_admin_dashboard():
         show_admin_performance()
 
     elif admin_page == "Staff Attendance View":
-        st.title("📋 Attendance Management")
+        st.title("📊 Staff Attendance Dashboard")
         show_admin_attendance_dashboard()
 
     elif admin_page == "👤 Employee Management":
