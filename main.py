@@ -2352,21 +2352,23 @@ def show_admin_dashboard():
         st.success(f"👤 {st.session_state.emp_name} (Admin)")
         st.markdown("---")
         
+        # Admin menu: include pages moved from the employee menu so only admins can access them
         admin_pages = [
             "📊 Performance Dashboard",
-            "👥 Attendance Report",
+            "📈 Dashboard",
+            "Staff Attendance View",
             "👤 Employee Management",
             "⚙️ Settings",
             "📧 Reminders"
         ]
-        
+
         admin_page = st.radio(
             "Admin Menu",
             admin_pages,
             label_visibility="collapsed",
             key="admin_page"
         )
-        
+
         st.markdown("---")
         if st.button("🔄 Refresh", use_container_width=True):
             st.rerun()
@@ -2376,31 +2378,31 @@ def show_admin_dashboard():
             st.session_state.emp_name = None
             st.session_state.emp_role = None
             st.rerun()
-    
+
     # Main admin content
-    if admin_page == "📊 Performance Dashboard":
+    if admin_page == "📊 Performance Dashboard" or admin_page == "📈 Dashboard":
         st.title("📊 Performance Dashboard")
         show_admin_performance()
-    
-    elif admin_page == "👥 Attendance Report":
+
+    elif admin_page == "Staff Attendance View":
         st.title("📋 Attendance Management")
         show_admin_attendance_dashboard()
-    
+
     elif admin_page == "👤 Employee Management":
         st.title("👥 Employee Management")
         show_admin_employees()
-    
+
     elif admin_page == "⚙️ Settings":
         st.title("⚙️ System Settings")
         show_admin_settings()
-    
+
     elif admin_page == "📧 Reminders":
         st.title("📧 Reminder Management")
         st.info("""
 **Reminder System Setup**
 The reminder system will automatically send emails to employees who haven't submitted their daily report.
 To enable automated reminders:
-1. Set up reminder time and email configuration in Settings
+1. Set up reminder time and days in Settings
 2. Configure employee emails
 3. Run the reminder service: `python reminder_service.py`
 """)
@@ -2528,85 +2530,7 @@ def main():
                 st.rerun()
             except Exception as e:
                 st.error(f"Failed to record attendance: {e}")
-    elif page == "Staff Attendance View":
-        show_employee_attendance_dashboard()
     elif page == "📝 Submit Report":
         show_submit_report()
-   
-    elif page == "📈 Dashboard":
-        st.title("📈 Employee Progress Dashboard")
-        excel_path = config.get('excel_file_path', EXCEL_FILE_PATH)
-        # Load data
-        with st.spinner("Loading data..."):
-            df = read_excel_data(excel_path)
-            if df is not None and not df.empty:
-                try:
-                    workbook = load_workbook(excel_path)
-                    summary_needs_refresh = SUMMARY_SHEET_NAME not in workbook.sheetnames
-                    if not summary_needs_refresh:
-                        ws_summary = workbook[SUMMARY_SHEET_NAME]
-                        summary_headers = [
-                            cell.value for cell in next(ws_summary.iter_rows(min_row=1, max_row=1))
-                            if cell.value
-                        ]
-                        if "Employee Performance (%)" not in summary_headers:
-                            summary_needs_refresh = True
-                    if summary_needs_refresh:
-                        update_dashboard_sheets(excel_path, df)
-                except Exception as dashboard_error:
-                    logging.warning(f"Dashboard sheet auto-refresh failed: {dashboard_error}")
-                finally:
-                    try:
-                        workbook.close()
-                    except Exception:
-                        pass
-        if df is None:
-            st.error("Failed to load data. Check the Excel file path in Settings.")
-            return
-        if df.empty:
-            st.info("📋 No data available yet. Start submitting reports to see data here.")
-            return
-        # Show metrics
-        show_metrics(df)
-        st.markdown("---")
-        # Show filters
-        filtered_df = show_filters(df)
-        st.markdown("---")
-        # Show charts
-        show_charts(filtered_df)
-        st.markdown("---")
-        # Show employee specific dashboard
-        show_employee_dashboard(filtered_df if filtered_df is not None and not filtered_df.empty else df)
-        st.markdown("---")
-        # Show data table
-        show_data_table(filtered_df)
-    elif page == "⚙️ Settings":
-        show_settings()
-    elif page == "📧 Reminders":
-        st.title("📧 Reminder Management")
-        st.info("""
-**Reminder System Setup**
-The reminder system will automatically send emails to employees who haven't submitted their daily report.
-To enable automated reminders:
-1. Set up reminder time and days in Settings
-2. Configure employee emails
-3. Run the reminder service: `python reminder_service.py`
-""")
-        excel_path = config.get('excel_file_path', EXCEL_FILE_PATH)
-        # Manual reminder test
-        st.subheader("🧪 Test Reminder")
-        if st.button("Check Missing Reports Today"):
-            with st.spinner("Checking..."):
-                df = read_excel_data(excel_path)
-                if df is not None:
-                    missing = get_missing_reporters(df, datetime.now())
-                    if missing:
-                        st.warning(f"📋 {len(missing)} employees haven't reported today:")
-                        for emp in missing:
-                            st.write(f"- {emp}")
-                    else:
-                        st.success("✅ All employees have submitted their reports today!")
-                else:
-                    st.error("Failed to load data")
 if __name__ == "__main__":
     main()
