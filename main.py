@@ -2640,40 +2640,41 @@ def main():
             status_choice = st.radio("Select your work status for today:", ["Work from Home", "Work in Office", "On Leave"])
             notes = st.text_area("Notes (optional)")
             submitted = st.form_submit_button("Check In", use_container_width=True, type="primary")
-                if submitted:
-                        # Map to internal codes used by Attendance system
-                        mapping = {"Work from Home": "WFH", "Work in Office": "WFO", "On Leave": "On Leave"}
-                        code = mapping.get(status_choice, "No Status")
-                        # Append attendance using logged-in emp_id with device time if available
-                        try:
-                                from attendance_store import append_attendance
-                                # Get device time from session state (captured by JS), fallback to None to use server time
-                                device_time = st.session_state.get("device_time")
-                                append_attendance(st.session_state.emp_id, code, notes or "", client_time=device_time)
-                                # Show a modern auto-dismissing snackbar confirmation (non-blocking on client)
-                                snackbar_html = f"""
-                                <div id="attendance-snackbar" style="position:fixed;right:24px;top:24px;z-index:99999;">
-                                    <div style="min-width:300px;max-width:420px;background:linear-gradient(90deg,#667eea,#764ba2);color:#fff;padding:14px 18px;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.45);font-family: 'Segoe UI', Roboto, sans-serif;">
-                                        <div style="font-weight:700;font-size:16px;">Your check-in is successful. Have a productive day!</div>
-                                        {f"<div style='margin-top:6px;opacity:0.9;font-size:13px;'>📍 Check-in time recorded: {device_time}</div>" if device_time else ''}
-                                    </div>
-                                </div>
-                                <script>
-                                    // Auto-hide after 4 seconds
-                                    setTimeout(function(){
-                                        var el = document.getElementById('attendance-snackbar');
-                                        if(el) el.style.display = 'none';
-                                    }, 4000);
-                                </script>
-                                """
-                                st.components.v1.html(snackbar_html, height=120)
-                                # Set a redirect flag — will be applied before the sidebar radio is created
-                                st.session_state.next_page = "Attendance Dashbord"
-                                # Give the client a short moment to show the snackbar before rerunning
-                                time.sleep(2)
-                                st.rerun()
-                        except Exception as e:
-                                st.error(f"Failed to record attendance: {e}")
+        
+        if submitted:
+            # Map to internal codes used by Attendance system
+            mapping = {"Work from Home": "WFH", "Work in Office": "WFO", "On Leave": "On Leave"}
+            code = mapping.get(status_choice, "No Status")
+            # Append attendance using logged-in emp_id with device time if available
+            try:
+                from attendance_store import append_attendance
+                # Get device time from session state (captured by JS), fallback to None to use server time
+                device_time = st.session_state.get("device_time")
+                append_attendance(st.session_state.emp_id, code, notes or "", client_time=device_time)
+                # Show a modern auto-dismissing snackbar confirmation (non-blocking on client)
+                snackbar_html = f"""
+                <div id="attendance-snackbar" style="position:fixed;right:24px;top:24px;z-index:99999;">
+                  <div style="min-width:300px;max-width:420px;background:linear-gradient(90deg,#667eea,#764ba2);color:#fff;padding:14px 18px;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.45);font-family: 'Segoe UI', Roboto, sans-serif;">
+                    <div style="font-weight:700;font-size:16px;">Your check-in is successful. Have a productive day!</div>
+                    {f"<div style='margin-top:6px;opacity:0.9;font-size:13px;'>📍 Check-in time recorded: {device_time}</div>" if device_time else ''}
+                  </div>
+                </div>
+                <script>
+                  // Auto-hide after 4 seconds
+                  setTimeout(function(){
+                    var el = document.getElementById('attendance-snackbar');
+                    if(el) el.style.display = 'none';
+                  }, 4000);
+                </script>
+                """
+                st.components.v1.html(snackbar_html, height=120)
+                # Set a redirect flag — will be applied before the sidebar radio is created
+                st.session_state.next_page = "Attendance Dashbord"
+                # Give the client a short moment to show the snackbar before rerunning
+                time.sleep(2)
+                st.rerun()
+            except Exception as e:
+                st.error(f"Failed to record attendance: {e}")
     elif page == "📝 Submit Report":
         show_submit_report()
 if __name__ == "__main__":
