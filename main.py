@@ -254,23 +254,18 @@ SUMMARY_SHEET_NAME = '📈 Employee Progress Dashboard'
 PERFORMANCE_SHEET_NAME = 'Employee Performance'
 WEEKLY_SHEET_NAME = '📊 Weekly Progress Dashboard'
 EMPLOYEE_SHEET_SUFFIX = ' Dashboard'
-
-
 def sanitize_sheet_name(name: str) -> str:
     """Return a workbook-safe base sheet name (<=31 chars, invalid chars removed)."""
     safe = re.sub(r'[\\/*?:\[\]]', '_', str(name)).strip()
     if not safe:
         safe = 'Unnamed'
     return safe[:31]
-
-
 def build_employee_sheet_name(base_name: str, used_names: set[str]) -> str:
     """Construct a unique sheet name for an employee while respecting Excel limits."""
     suffix = EMPLOYEE_SHEET_SUFFIX
     max_base_len = max(0, 31 - len(suffix))
     trimmed_base = base_name[:max_base_len] if max_base_len else base_name[:31]
     candidate = f"{trimmed_base}{suffix}"
-
     counter = 2
     while candidate in used_names:
         extra = f" {counter}"
@@ -279,16 +274,12 @@ def build_employee_sheet_name(base_name: str, used_names: set[str]) -> str:
         trimmed_base = base_name[:allowed_len] if allowed_len else ''
         fallback = trimmed_base if trimmed_base else 'Employee'
         candidate = f"{fallback}{extra}{suffix}"
-
     used_names.add(candidate)
     return candidate
-
-
 def ensure_numeric_columns(df: pd.DataFrame) -> pd.DataFrame:
     """Guarantee the performance and effort columns exist and are numeric."""
     df = df.copy()
     numeric_cols = ['Employee Performance (%)', 'Effort (in hours)']
-
     for col in numeric_cols:
         if col not in df.columns:
             df[col] = 0.0
@@ -297,69 +288,52 @@ def ensure_numeric_columns(df: pd.DataFrame) -> pd.DataFrame:
             .fillna(0.0)
             .astype(float)
         )
-
     return df
-
-
 # ==================== PERFORMANCE CALCULATION ====================
-
 def calculate_performance(tasks_list):
     """
     Calculate employee performance using formula:
     Average % = (Sum of Task Priority / Total Effort in Hours) * 100
-
+   
     Priority weights: Low=1, Medium=2, High=3, Critical=4
     """
     if not tasks_list:
         return 0.0
-
+   
     priority_weights = {
         'Low': 1,
         'Medium': 2,
         'High': 3,
         'Critical': 4
     }
-
+   
     total_priority_weight = 0
     total_effort = 0
-
+   
     for task in tasks_list:
         priority = task.get('Task Priority', 'Low')
         try:
             effort = float(task.get('Effort (in hours)', 0))
         except Exception:
             effort = 0.0
-
+       
         weight = priority_weights.get(priority, 1)
         total_priority_weight += weight
         total_effort += effort
-
+   
     if total_effort == 0:
         return 0.0
-
+   
     performance = (total_priority_weight / total_effort) * 100
-    return min(round(performance, 2), 100.0)  # Cap at 100%
-
-
-# ==================== EXCEL PERFORMANCE DASHBOARD ====================
-
+    return min(round(performance, 2), 100.0) # Cap at 100%
 def update_dashboard_sheets(excel_path: str, full_df: pd.DataFrame) -> None:
-    """
-    Regenerate the Excel performance dashboard sheets:
-
-    - SUMMARY_SHEET_NAME (overall per-employee summary, with links)
-    - PERFORMANCE_SHEET_NAME (ranked performance table)
-    - WEEKLY_SHEET_NAME (last 7 days, per-employee summary)
-    - One sheet per employee: "<EmployeeName> Dashboard"
-    """
+    """Regenerate the summary and individual employee dashboard sheets."""
     if full_df is None or full_df.empty:
         logging.info("Skipping dashboard sheet update because there is no data.")
         return
-
     if 'Name' not in full_df.columns:
         logging.warning("Cannot build dashboard sheets because 'Name' column is missing.")
         return
-
     try:
         full_df = ensure_numeric_columns(full_df)
         if 'Date' in full_df.columns:
@@ -367,380 +341,11 @@ def update_dashboard_sheets(excel_path: str, full_df: pd.DataFrame) -> None:
     except Exception as parse_error:
         logging.error(f"Failed to normalise data for dashboard sheets: {parse_error}")
         return
-
     try:
         book = load_workbook(excel_path)
     except Exception as workbook_error:
         logging.error(f"Unable to open workbook '{excel_path}' to update dashboard sheets: {workbook_error}")
         return
-
-    # 1) Remove any existing dashboard-related sheets
-    all_sheetnames = list(book.sheetnames)
-    for sheet_name in all_sheetnames:
-        if sheet_name == SUMMARY_SHEET_NAME:
-            del book[sheet_name]
-        elif sheet_name == PERFORMANCE_SHEET_NAME:
-            del book[sheet_name]
-        elif sheet_name == WEEKLY_SHEET_NAME:
-            del book[sheet_name]
-        elif sheet_name.endswith(EMPLOYEE_SHEET_SUFFIX) and sheet_name != SUMMARY_SHEET_NAME:
-            del book[sheet_name]
-
-    # 2) Build in-memory summary records
-    summary_records = []
-
-    unique_names = (
-        full_df['Name']
-        .dropna()
-        .astype(str)
-        .str.strip()
-    )
-    unique_names = [name for name in unique_names.unique() if name]
-
-    for name in unique_names:
-        emp_mask = full_df['Name'].astype(str).str.strip() == name
-        emp_data = full_df[emp_mask]
-
-        total_tasks = len(emp_data)
-
-        if 'Task Status' in emp_data.columns:
-            completed_tasks = int((emp_data['Task Status'] == 'Completed').sum())
-        else:
-            completed_tasks = 0
-
-        pending_tasks = max(total_tasks - completed_tasks, 0)
-        completion_rate = round((completed_tasks / total_tasks * 100) if total_tasks else 0.0, 2)
-        avg_perf = round(emp_data['Employee Performance (%)'].mean(), 2)
-
-        last_update = None
-        if 'Date' in emp_data.columns and not emp_data['Date'].dropna().empty:
-            last_update = emp_data['Date'].dropna().max()
-
-        summary_records.append({
-            'name': name,
-            'mask': emp_mask,  # used later for detail sheets
-            'total_tasks': total_tasks,
-            'completed_tasks': completed_tasks,
-            'pending_tasks': pending_tasks,
-            'completion_rate': completion_rate,
-            'avg_performance': avg_perf,
-            'last_update': last_update,
-            'sheet_name': None,  # will be filled when we create the sheet
-        })
-
-    # Sort by average performance desc, then completion rate
-    summary_records.sort(
-        key=lambda record: (record['avg_performance'], record['completion_rate']),
-        reverse=True
-    )
-
-    # 3) SUMMARY SHEET
-    ws_summary = book.create_sheet(SUMMARY_SHEET_NAME)
-
-    summary_headers = [
-        'Employee Name',
-        'Total Tasks',
-        'Completed Tasks',
-        'Pending Tasks',
-        'Completion Rate (%)',
-        'Employee Performance (%)',
-        'Last Update',
-        'Individual Dashboard'
-    ]
-    for col_idx, header in enumerate(summary_headers, start=1):
-        ws_summary.cell(row=1, column=col_idx, value=header)
-
-    ws_summary.freeze_panes = "A2"
-
-    col_widths = [28, 14, 16, 14, 20, 20, 16, 24]
-    for idx, width in enumerate(col_widths, start=1):
-        column_letter = ws_summary.cell(row=1, column=idx).column_letter
-        ws_summary.column_dimensions[column_letter].width = width
-
-    used_sheet_names: set[str] = set(book.sheetnames)
-    data_start_row = 2
-
-    # 4) Individual employee sheets and summary rows
-    for offset, record in enumerate(summary_records):
-        row_idx = data_start_row + offset
-
-        ws_summary.cell(row=row_idx, column=1, value=record['name'])
-        ws_summary.cell(row=row_idx, column=2, value=record['total_tasks'])
-        ws_summary.cell(row=row_idx, column=3, value=record['completed_tasks'])
-        ws_summary.cell(row=row_idx, column=4, value=record['pending_tasks'])
-        ws_summary.cell(row=row_idx, column=5, value=record['completion_rate'])
-        ws_summary.cell(row=row_idx, column=6, value=record['avg_performance'])
-
-        last_update_value = ""
-        if record['last_update'] is not None and not pd.isna(record['last_update']):
-            if isinstance(record['last_update'], pd.Timestamp):
-                last_update_value = record['last_update'].date().isoformat()
-            else:
-                last_update_value = str(record['last_update'])
-        ws_summary.cell(row=row_idx, column=7, value=last_update_value)
-
-        # Create or get unique sheet name
-        base_name = sanitize_sheet_name(record['name'])
-        employee_sheet_name = build_employee_sheet_name(base_name, used_sheet_names)
-        record['sheet_name'] = employee_sheet_name  # store for weekly links, etc.
-
-        hyperlink_formula = f'=HYPERLINK("#\'{employee_sheet_name}\'!A1", "View Dashboard")'
-        ws_summary.cell(row=row_idx, column=8).value = hyperlink_formula
-
-        # Employee detail sheet
-        ws_emp = book.create_sheet(employee_sheet_name)
-        ws_emp.freeze_panes = "A8"
-
-        ws_emp.cell(row=1, column=1, value="Employee Dashboard")
-        ws_emp.cell(row=1, column=1).font = Font(bold=True, size=14)
-
-        ws_emp.cell(row=2, column=1, value="Employee Name")
-        ws_emp.cell(row=2, column=2, value=record['name'])
-
-        ws_emp.cell(row=3, column=1, value="Total Tasks")
-        ws_emp.cell(row=3, column=2, value=record['total_tasks'])
-
-        ws_emp.cell(row=4, column=1, value="Completed Tasks")
-        ws_emp.cell(row=4, column=2, value=record['completed_tasks'])
-
-        ws_emp.cell(row=5, column=1, value="Pending Tasks")
-        ws_emp.cell(row=5, column=2, value=record['pending_tasks'])
-
-        ws_emp.cell(row=6, column=1, value="Completion Rate (%)")
-        ws_emp.cell(row=6, column=2, value=record['completion_rate'])
-
-        ws_emp.cell(row=7, column=1, value="Avg Performance (%)")
-        ws_emp.cell(row=7, column=2, value=record['avg_performance'])
-
-        ws_emp.cell(row=2, column=4, value="Last Update")
-        ws_emp.cell(row=2, column=5, value=last_update_value)
-
-        ws_emp.cell(row=3, column=4, value="Back to Dashboard")
-        ws_emp.cell(row=3, column=5).value = (
-            f'=HYPERLINK("#\'{SUMMARY_SHEET_NAME}\'!A1", "View All Employees")'
-        )
-
-        ws_emp.cell(row=9, column=1, value="Task Details")
-
-        header_row = 10
-        detail_start_row = header_row + 1
-
-        emp_details = full_df[record['mask']].copy()
-        emp_details = (
-            emp_details.sort_values(by='Date')
-            if 'Date' in emp_details.columns else emp_details
-        )
-
-        # Table headers
-        for col_idx, col_name in enumerate(DATA_COLUMNS, start=1):
-            ws_emp.cell(row=header_row, column=col_idx, value=col_name)
-
-        # Detail rows
-        for row_offset, (_, detail_row) in enumerate(emp_details.iterrows()):
-            excel_row_idx = detail_start_row + row_offset
-            for col_idx, col_name in enumerate(DATA_COLUMNS, start=1):
-                cell_value = detail_row.get(col_name)
-                if pd.isna(cell_value):
-                    cell_value = ""
-                elif isinstance(cell_value, pd.Timestamp):
-                    cell_value = cell_value.date()
-                ws_emp.cell(row=excel_row_idx, column=col_idx, value=cell_value)
-
-        # Column widths
-        for col_idx in range(1, len(DATA_COLUMNS) + 1):
-            column_letter = ws_emp.cell(row=header_row, column=col_idx).column_letter
-            ws_emp.column_dimensions[column_letter].width = 18
-
-    if summary_records:
-        ws_summary.auto_filter.ref = f"A1:H{data_start_row + len(summary_records) - 1}"
-
-        # 5) PERFORMANCE SHEET (ranked)
-        ws_perf = book.create_sheet(PERFORMANCE_SHEET_NAME)
-
-        perf_headers = [
-            'Rank',
-            'Employee Name',
-            'Total Tasks',
-            'Completed Tasks',
-            'Completion Rate (%)',
-            'Employee Performance (%)',
-            'Last Update',
-            'Dashboard Link'
-        ]
-        perf_col_widths = [8, 28, 14, 16, 20, 20, 16, 24]
-
-        for col_idx, header in enumerate(perf_headers, start=1):
-            ws_perf.cell(row=1, column=col_idx, value=header)
-            column_letter = ws_perf.cell(row=1, column=col_idx).column_letter
-            width = perf_col_widths[col_idx - 1] if col_idx - 1 < len(perf_col_widths) else 18
-            ws_perf.column_dimensions[column_letter].width = width
-
-        ws_perf.freeze_panes = "A2"
-
-        for rank, record in enumerate(summary_records, start=1):
-            row_idx = rank + 1
-            ws_perf.cell(row=row_idx, column=1, value=rank)
-            ws_perf.cell(row=row_idx, column=2, value=record['name'])
-            ws_perf.cell(row=row_idx, column=3, value=record['total_tasks'])
-            ws_perf.cell(row=row_idx, column=4, value=record['completed_tasks'])
-            ws_perf.cell(row=row_idx, column=5, value=record['completion_rate'])
-            ws_perf.cell(row=row_idx, column=6, value=record['avg_performance'])
-
-            last_update_value = ws_summary.cell(data_start_row + rank - 1, column=7).value
-            ws_perf.cell(row=row_idx, column=7, value=last_update_value)
-            ws_perf.cell(row=row_idx, column=8).value = (
-                f'=HYPERLINK("#\'{SUMMARY_SHEET_NAME}\'!A{data_start_row + rank - 1}", "Open Dashboard")'
-            )
-
-        ws_perf.auto_filter.ref = f"A1:H{len(summary_records) + 1}"
-
-    # 6) WEEKLY PROGRESS DASHBOARD (last 7 days)
-    today = datetime.now().date()
-    week_start = today - timedelta(days=6)
-
-    weekly_df = full_df[
-        (full_df['Date'].dt.date >= week_start) &
-        (full_df['Date'].dt.date <= today)
-    ].copy()
-
-    weekly_summary_records = []
-
-    for record in summary_records:
-        name = record['name']
-        emp_weekly_mask = weekly_df['Name'].astype(str).str.strip() == name
-        emp_weekly = weekly_df[emp_weekly_mask]
-
-        total_tasks_week = len(emp_weekly)
-
-        if 'Task Status' in emp_weekly.columns:
-            completed_week = int((emp_weekly['Task Status'] == 'Completed').sum())
-        else:
-            completed_week = 0
-
-        pending_week = max(total_tasks_week - completed_week, 0)
-        completion_rate_week = round((completed_week / total_tasks_week * 100) if total_tasks_week else 0.0, 2)
-        avg_perf_week = round(emp_weekly['Employee Performance (%)'].mean(), 2)
-        total_effort_week = round(emp_weekly['Effort (in hours)'].sum(), 1)
-
-        workload_status = 'Unknown'
-        if 'Availability' in emp_weekly.columns and not emp_weekly.empty:
-            avail_counts = emp_weekly['Availability'].value_counts()
-            if not avail_counts.empty:
-                workload_status = avail_counts.index[0]  # Most common
-
-        weekly_summary_records.append({
-            'name': name,
-            'total_tasks': total_tasks_week,
-            'completed_tasks': completed_week,
-            'pending_tasks': pending_week,
-            'completion_rate': completion_rate_week,
-            'avg_performance': avg_perf_week,
-            'total_effort': total_effort_week,
-            'workload_status': workload_status,
-            'sheet_name': record['sheet_name'],
-        })
-
-    # Sort by weekly average performance
-    weekly_summary_records.sort(key=lambda r: r['avg_performance'], reverse=True)
-
-    overall_total_tasks = len(weekly_df)
-    overall_completed = (
-        int((weekly_df['Task Status'] == 'Completed').sum())
-        if 'Task Status' in weekly_df.columns else 0
-    )
-    overall_completion = round((overall_completed / overall_total_tasks * 100) if overall_total_tasks else 0.0, 2)
-    overall_avg_perf = round(weekly_df['Employee Performance (%)'].mean(), 2)
-    overall_total_effort = round(weekly_df['Effort (in hours)'].sum(), 1)
-
-    ws_weekly = book.create_sheet(WEEKLY_SHEET_NAME)
-    ws_weekly.freeze_panes = "A7"
-
-    # Weekly title
-    ws_weekly.merge_cells('A1:I1')
-    ws_weekly.cell(row=1, column=1).value = (
-        f"📊 Weekly Progress Dashboard - Week of "
-        f"{week_start.strftime('%Y-%m-%d')} to {today.strftime('%Y-%m-%d')}"
-    )
-    ws_weekly.cell(row=1, column=1).font = Font(bold=True, size=14)
-
-    # Back link
-    ws_weekly.cell(row=2, column=1, value="Back to Overall Dashboard")
-    ws_weekly.cell(row=2, column=2).value = (
-        f'=HYPERLINK("#\'{SUMMARY_SHEET_NAME}\'!A1", "View All-Time Summary")'
-    )
-
-    # Overall metrics section
-    ws_weekly.cell(row=3, column=1, value="Overall Weekly Metrics")
-    ws_weekly.cell(row=3, column=1).font = Font(bold=True)
-    ws_weekly.merge_cells('A3:B3')
-
-    metrics_start_row = 4
-    overall_metrics = [
-        ('Total Tasks', overall_total_tasks),
-        ('Completed Tasks', overall_completed),
-        ('Overall Completion Rate (%)', overall_completion),
-        ('Average Performance (%)', overall_avg_perf),
-        ('Total Effort (Hours)', overall_total_effort)
-    ]
-    for idx, (label, value) in enumerate(overall_metrics):
-        row = metrics_start_row + idx
-        ws_weekly.cell(row=row, column=1, value=label)
-        ws_weekly.cell(row=row, column=2, value=value)
-
-    # Weekly table headers
-    table_start_row = metrics_start_row + len(overall_metrics) + 1
-    weekly_headers = [
-        'Employee Name',
-        'Total Tasks (Week)',
-        'Completed',
-        'Pending',
-        'Completion Rate (%)',
-        'Avg Performance (%)',
-        'Total Effort (hrs)',
-        'Workload Status',
-        'Individual Dashboard'
-    ]
-    for col_idx, header in enumerate(weekly_headers, start=1):
-        cell = ws_weekly.cell(row=table_start_row, column=col_idx, value=header)
-        cell.font = Font(bold=True)
-
-    weekly_col_widths = [28, 18, 14, 14, 20, 20, 16, 16, 24]
-    for idx, width in enumerate(weekly_col_widths, start=1):
-        column_letter = ws_weekly.cell(row=table_start_row, column=idx).column_letter
-        ws_weekly.column_dimensions[column_letter].width = width
-
-    # Weekly rows
-    for offset, record in enumerate(weekly_summary_records):
-        row_idx = table_start_row + 1 + offset
-        ws_weekly.cell(row=row_idx, column=1, value=record['name'])
-        ws_weekly.cell(row=row_idx, column=2, value=record['total_tasks'])
-        ws_weekly.cell(row=row_idx, column=3, value=record['completed_tasks'])
-        ws_weekly.cell(row=row_idx, column=4, value=record['pending_tasks'])
-        ws_weekly.cell(row=row_idx, column=5, value=record['completion_rate'])
-        ws_weekly.cell(row=row_idx, column=6, value=record['avg_performance'])
-        ws_weekly.cell(row=row_idx, column=7, value=record['total_effort'])
-        ws_weekly.cell(row=row_idx, column=8, value=record['workload_status'])
-
-        sheet_name = record.get('sheet_name') or ''
-        if sheet_name:
-            hyperlink_formula = f'=HYPERLINK("#\'{sheet_name}\'!A1", "View Dashboard")'
-        else:
-            hyperlink_formula = ""
-        ws_weekly.cell(row=row_idx, column=9).value = hyperlink_formula
-
-    if weekly_summary_records:
-        last_row = table_start_row + len(weekly_summary_records)
-        ws_weekly.auto_filter.ref = f"A{table_start_row}:I{last_row}"
-
-    # Save workbook with dashboard sheets
-    try:
-        book.save(excel_path)
-    except Exception as save_error:
-        logging.error(f"Failed to save workbook with updated dashboard sheets: {save_error}")
-
-
-
-
     # Clean up existing dashboard-related sheets
     all_sheetnames = list(book.sheetnames)
     for sheet_name in all_sheetnames:
