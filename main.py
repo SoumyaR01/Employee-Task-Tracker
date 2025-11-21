@@ -22,7 +22,61 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 try:
     from attendance_store import append_attendance, check_already_checked_in_today
 except ImportError:
-    pass  # Will handle error gracefully when needed
+    # Inline implementations as fallback
+    def append_attendance(emp_id, status, notes="", client_time=None):
+        """Append attendance record to CSV"""
+        try:
+            import csv
+            from datetime import datetime
+            
+            base_dir = os.path.dirname(__file__)
+            attendance_file = os.path.join(base_dir, "attendance_records.csv")
+            
+            # Ensure file exists with headers
+            if not os.path.exists(attendance_file):
+                with open(attendance_file, "w", newline='', encoding='utf-8') as f:
+                    writer = csv.writer(f)
+                    writer.writerow(["emp_id", "status", "timestamp", "check_in_time", "notes"])
+            
+            now = datetime.now()
+            timestamp = now.isoformat()
+            check_in_time = client_time if client_time else now.isoformat()
+            
+            with open(attendance_file, "a", newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                writer.writerow([emp_id, status, timestamp, check_in_time, notes or ""])
+        except Exception as e:
+            raise Exception(f"Failed to save attendance: {str(e)}")
+    
+    def check_already_checked_in_today(emp_id):
+        """Check if employee already checked in today"""
+        try:
+            import csv
+            from datetime import datetime
+            
+            base_dir = os.path.dirname(__file__)
+            attendance_file = os.path.join(base_dir, "attendance_records.csv")
+            
+            if not os.path.exists(attendance_file):
+                return False
+            
+            today = datetime.now().date()
+            
+            with open(attendance_file, "r", encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    if row and row.get("emp_id") == emp_id:
+                        try:
+                            record_timestamp = row.get("timestamp", "")
+                            record_date = datetime.fromisoformat(record_timestamp.replace('Z', '+00:00')).date()
+                            if record_date == today:
+                                return True
+                        except:
+                            pass
+            
+            return False
+        except Exception:
+            return False
 st.set_page_config(
     page_title="Employee Progress Tracker",
     page_icon="📊",
