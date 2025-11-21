@@ -1823,18 +1823,25 @@ def show_login_page():
     if "login_mode" not in st.session_state:
         st.session_state.login_mode = "employee"
     
-        st.markdown("""
-        <div style="text-align:center;margin-top:18px;margin-bottom:6px;font-family:'Segoe UI', Roboto, system-ui, -apple-system;">
-            <div style="display:inline-block;padding:18px 24px;border-radius:14px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));">
-                <div style="font-size:38px;font-weight:800;letter-spacing:0.4px;background:linear-gradient(90deg,#9b8cff,#667eea);-webkit-background-clip:text;background-clip:text;color:transparent;">
-                    🔒 Login
-                </div>
-                <div style="margin-top:6px;font-size:13px;color:rgba(230,238,242,0.78);">
-                    Secure access to Attendance & Reports
-                </div>
-            </div>
-        </div>
-        <div style="width:120px;height:4px;background:linear-gradient(90deg,#6a11cb,#2575fc);margin:12px auto 18px auto;border-radius:8px;opacity:0.95"></div>
+    st.markdown("""
+    <div style="
+        text-align: center;
+        font-size: 45px;
+        font-weight: 700;
+        color: white;
+        margin-top: 20px;
+        margin-bottom: 10px;
+        font-family: 'Segoe UI', sans-serif;
+    ">
+        🔒 Login Gateway
+    </div>
+    <div style="
+        width: 140px;
+        height: 4px;
+        background: linear-gradient(90deg, #6a11cb, #2575fc);
+        margin: 0 auto 20px auto;
+        border-radius: 10px;
+    "></div>
 """, unsafe_allow_html=True)
 
     st.markdown("---")
@@ -2619,9 +2626,17 @@ def main():
     config = load_config()
     # Main content
     if page == "Daily Check-in":
-        st.title("Daily Check-in")
-        st.markdown(f"### Welcome, {st.session_state.emp_name}!")
-        st.markdown("Mark your attendance for today.")
+        # Modern header with gradient accent
+        st.markdown("""
+        <div style="margin-bottom: 30px;">
+            <div style="font-size: 2.5rem; font-weight: 800; color: white; margin-bottom: 8px;">
+                📋 Daily Work Mode Update
+            </div>
+            <div style="font-size: 1rem; color: rgba(230, 238, 242, 0.8);">
+                Welcome back, <span style="font-weight: 700; color: #667eea;">{}</span> 👋
+            </div>
+        </div>
+        """.format(st.session_state.emp_name), unsafe_allow_html=True)
         
         # Capture device time via hidden HTML component
         st.components.v1.html("""
@@ -2636,37 +2651,92 @@ def main():
         </script>
         """, height=0)
         
+        # Create a modern card container
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 178, 0.1)); 
+                    border: 1px solid rgba(102, 126, 234, 0.2); border-radius: 16px; padding: 28px; 
+                    backdrop-filter: blur(10px); margin: 20px 0;">
+        """, unsafe_allow_html=True)
+        
         with st.form("daily_checkin"):
-            status_choice = st.radio("Select your work status for today:", ["Work from Home", "Work in Office", "On Leave"])
-            notes = st.text_area("Notes (optional)")
-            submitted = st.form_submit_button("Check In", use_container_width=True, type="primary")
+            col1, col2 = st.columns([1, 1], gap="large")
+            
+            with col1:
+                st.markdown("<p style='font-size: 0.95rem; font-weight: 600; color: rgba(230, 238, 242, 0.9); margin-bottom: 12px;'>Work Status</p>", unsafe_allow_html=True)
+                status_choice = st.radio(
+                    "Select your work status for today:",
+                    ["Work from Home", "Work in Office", "On Leave"],
+                    label_visibility="collapsed",
+                    key="status_radio"
+                )
+            
+            with col2:
+                st.markdown("<p style='font-size: 0.95rem; font-weight: 600; color: rgba(230, 238, 242, 0.9); margin-bottom: 12px;'>Additional Notes</p>", unsafe_allow_html=True)
+                notes = st.text_area(
+                    "Notes (optional)",
+                    placeholder="Any additional information...",
+                    height=120,
+                    label_visibility="collapsed",
+                    key="notes_input"
+                )
+            
+            # Centered submit button
+            st.markdown("<div style='margin-top: 20px;'></div>", unsafe_allow_html=True)
+            button_col1, button_col2, button_col3 = st.columns([1, 1, 1])
+            with button_col2:
+                submitted = st.form_submit_button(
+                    "✓ Check In Now",
+                    use_container_width=True,
+                    type="primary"
+                )
+        
+        st.markdown("</div>", unsafe_allow_html=True)
+        
         if submitted:
+            # Map to internal codes used by Attendance system
             mapping = {"Work from Home": "WFH", "Work in Office": "WFO", "On Leave": "On Leave"}
             code = mapping.get(status_choice, "No Status")
+            # Append attendance using logged-in emp_id with device time if available
             try:
                 from attendance_store import append_attendance
+                # Get device time from session state (captured by JS), fallback to None to use server time
                 device_time = st.session_state.get("device_time")
                 append_attendance(st.session_state.emp_id, code, notes or "", client_time=device_time)
-                snackbar_html = f"""
-                <div id="attendance-snackbar" style="position:fixed;right:24px;top:24px;z-index:99999;">
-                    <div style="min-width:300px;max-width:420px;background:linear-gradient(90deg,#667eea,#764ba2);color:#fff;padding:14px 18px;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.45);font-family: 'Segoe UI', Roboto, sans-serif;">
-                        <div style="font-weight:700;font-size:16px;">Your check-in is successful. Have a productive day!</div>
-                        {f"<div style='margin-top:6px;opacity:0.9;font-size:13px;'>📍 Check-in time recorded: {device_time}</div>" if device_time else ''}
+                
+                # Show modern success notification
+                success_html = f"""
+                <div style="background: linear-gradient(135deg, #10b981, #059669); border-radius: 12px; 
+                            padding: 18px 24px; margin: 20px 0; box-shadow: 0 8px 24px rgba(16, 185, 129, 0.2);">
+                    <div style="color: white; font-weight: 700; font-size: 1.05rem; margin-bottom: 6px;">
+                        ✓ Check-in Successful!
+                    </div>
+                    <div style="color: rgba(255, 255, 255, 0.9); font-size: 0.95rem;">
+                        You've been marked as <strong>{status_choice}</strong>
+                        {f"<br>Check-in time: <strong>{device_time}</strong>" if device_time else ""}
                     </div>
                 </div>
-                <script>
-                    setTimeout(function(){
-                        var el = document.getElementById('attendance-snackbar');
-                        if(el) el.style.display = 'none';
-                    }, 4000);
-                </script>
                 """
-                st.components.v1.html(snackbar_html, height=120)
+                st.markdown(success_html, unsafe_allow_html=True)
+                
+                # Set a redirect flag
                 st.session_state.next_page = "Attendance Dashbord"
-                time.sleep(2)
+                st.balloons()
+                import time as time_module
+                time_module.sleep(2)
                 st.rerun()
             except Exception as e:
-                st.error(f"Failed to record attendance: {e}")
+                error_html = f"""
+                <div style="background: linear-gradient(135deg, #ef4444, #dc2626); border-radius: 12px; 
+                            padding: 18px 24px; margin: 20px 0; box-shadow: 0 8px 24px rgba(239, 68, 68, 0.2);">
+                    <div style="color: white; font-weight: 700; font-size: 1.05rem;">
+                        ✗ Check-in Failed
+                    </div>
+                    <div style="color: rgba(255, 255, 255, 0.9); font-size: 0.9rem; margin-top: 6px;">
+                        {str(e)}
+                    </div>
+                </div>
+                """
+                st.markdown(error_html, unsafe_allow_html=True)
     elif page == "📝 Submit Report":
         show_submit_report()
 if __name__ == "__main__":
