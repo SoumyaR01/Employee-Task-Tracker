@@ -2647,8 +2647,8 @@ def main():
             # Append attendance using logged-in emp_id with device time if available
             try:
                 from attendance_store import append_attendance
-                # Get device time from session state (captured by JS), fallback to None to use server time
-                device_time = st.session_state.get("device_time")
+                                # Get device time from session state (captured by JS), fallback to None to use server time
+                                device_time = st.session_state.get("device_time")
                                 append_attendance(st.session_state.emp_id, code, notes or "", client_time=device_time)
                                 # Show a modern auto-dismissing snackbar confirmation (non-blocking on client)
                                 snackbar_html = f"""
