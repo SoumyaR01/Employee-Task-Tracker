@@ -1873,10 +1873,7 @@ def show_login_page():
                         st.error("Invalid Office ID or Password")
             
             st.markdown("---")
-            st.markdown("### New Employee?")
-            if st.button("Create Account", use_container_width=True):
-                st.session_state.show_signup = True
-                st.rerun()
+            st.info("💡 Don't have an account? Contact your admin to request access.")
         
         # Admin Login Form
         else:
@@ -2436,9 +2433,7 @@ def main():
     
     # Show login/signup if not logged in
     if not st.session_state.logged_in:
-        if st.session_state.show_signup:
-            show_signup_page()
-        elif st.session_state.show_admin_signup:
+        if st.session_state.show_admin_signup:
             show_admin_signup_page()
         else:
             show_login_page()
