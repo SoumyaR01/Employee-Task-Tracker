@@ -508,12 +508,12 @@ def _maybe_answer_attendance_aggregate(query: str):
         return answer
     
     # Who is in office / WFO today?
-    elif any(k in q for k in ["wfo", "work from office", "in office", "office today"]):
+    elif any(k in q for k in ["wfo", "work from office", "in office", "office today", "in the office"]):
         if summary['wfo']:
-            answer = f"Employees in office today ({len(summary['wfo'])}):\n"
+            answer = f"Employees in the office today ({len(summary['wfo'])}):\n"
             answer += "\n".join(f"  • {name}" for name in summary['wfo'])
         else:
-            answer = "No employees are in office today."
+            answer = "No employees are in the office today."
         return answer
     
     # Who is absent today?
@@ -551,6 +551,21 @@ WORK MODE BREAKDOWN:
 
 {"=" * 70}"""
         return answer
+    
+    # Work mode counts
+    elif "work mode" in q:
+        answer = f"""📋 WORK MODE DISTRIBUTION TODAY
+{"=" * 70}
+
+  • WFO (Office)     : {len(summary['wfo'])} employees
+  • WFH (Home)       : {len(summary['wfh'])} employees
+  • On Leave         : {len(summary['leave'])} employees
+  • Absent           : {len(summary['absent_list'])} employees
+
+{"=" * 70}"""
+        return answer
+    
+    return None
     
     # Work mode counts
     elif "work mode" in q:
