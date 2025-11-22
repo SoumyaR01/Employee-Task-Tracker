@@ -6,15 +6,6 @@ from dotenv import dotenv_values
 import threading
 import numpy as np
 import attendance_store
-try:
-    import faiss
-except Exception:
-    faiss = None
-try:
-    from sentence_transformers import SentenceTransformer
-    _st_model = SentenceTransformer('all-MiniLM-L6-v2')
-except Exception:
-    _st_model = None
 
 env_vars = dotenv_values(".env")
 Username = env_vars.get("Username")
@@ -22,22 +13,21 @@ Assistantname = env_vars.get("Assistantname")
 GroqAPIKey = env_vars.get("GroqAPIKey")
 
 _vs_lock = threading.Lock()
-_faiss_index = None
-_faiss_ids = []
-_faiss_metas = []
-_faiss_texts = []
-_faiss_dim = 0
+_index_vecs = None
+_index_ids = []
+_index_metas = []
+_index_texts = []
 _last_refresh_ts = None
 _vocab = {}
 
-EXCEL_FILE_PATH = r"D:\Employee Track Report\task_tracker.xlsx"
+EXCEL_FILE_PATH = os.path.join(os.path.dirname(__file__), "task_tracker.xlsx")
 LATE_THRESHOLD_HOUR = 10
 LATE_THRESHOLD_MINUTE = 30
 
 System = f"""You are {Assistantname}, an internal work-only assistant for the Employee Performance and Attendance system.
 
 Use only these data sources:
-- FAISS vector store (employee profiles, performance, attendance, work mode, daily check-ins, aggregates)
+- Internal semantic index (employee profiles, performance, attendance, work mode, daily check-ins, aggregates)
 - Live attendance and the performance tracker data
 
 Policy:
@@ -432,9 +422,6 @@ def _build_vocab(texts):
     _vocab = {w: i for i, w in enumerate(sorted(terms))}
 
 def _embed(texts):
-    if _st_model is not None:
-        arr = _st_model.encode(texts, normalize_embeddings=True)
-        return np.array(arr, dtype='float32')
     if not _vocab:
         _build_vocab(texts)
     dim = len(_vocab)
@@ -555,36 +542,20 @@ def _build_corpus():
     return docs, ids, metas
 
 def _rebuild_index():
-    global _faiss_index, _faiss_ids, _faiss_metas, _faiss_texts, _faiss_dim, _last_refresh_ts
+    global _index_vecs, _index_ids, _index_metas, _index_texts, _last_refresh_ts
     docs, ids, metas = _build_corpus()
     if not docs:
-        _faiss_index = None
-        _faiss_ids = []
-        _faiss_metas = []
-        _faiss_texts = []
+        _index_vecs = None
+        _index_ids = []
+        _index_metas = []
+        _index_texts = []
         return False
-    if _st_model is None:
-        _build_vocab(docs)
     vecs = _embed(docs)
     vecs = vecs / (np.linalg.norm(vecs, axis=1, keepdims=True) + 1e-12)
-    _faiss_ids = ids
-    _faiss_metas = metas
-    _faiss_texts = docs
-    if faiss is not None:
-        dim = vecs.shape[1]
-        index = faiss.IndexFlatIP(dim)
-        index.add(vecs)
-        _faiss_index = index
-        _faiss_dim = dim
-        try:
-            faiss.write_index(index, os.path.join(data_dir, "faiss.index"))
-            with open(os.path.join(data_dir, "faiss_meta.json"), "w", encoding="utf-8") as f:
-                json.dump({"ids": ids, "metas": metas}, f)
-        except Exception:
-            pass
-    else:
-        _faiss_index = None
-        _faiss_dim = vecs.shape[1]
+    _index_vecs = vecs.astype('float32')
+    _index_ids = ids
+    _index_metas = metas
+    _index_texts = docs
     _last_refresh_ts = datetime.now()
     return True
 
@@ -592,22 +563,17 @@ def refresh_vectorstore():
     with _vs_lock:
         return _rebuild_index()
 
-def _faiss_query(text, k=5):
-    if not _faiss_texts:
+def _semantic_query(text, k=5):
+    if _index_vecs is None or not _index_ids:
         return []
-    if faiss is None or _faiss_index is None:
-        return []
-    if _st_model is None and not _vocab:
-        _build_vocab(_faiss_texts)
     q = _embed([text])
     q = q / (np.linalg.norm(q, axis=1, keepdims=True) + 1e-12)
-    D, I = _faiss_index.search(q.astype('float32'), min(k, len(_faiss_ids)))
-    idxs = I[0].tolist()
-    scores = D[0].tolist()
-    return [( _faiss_ids[i], _faiss_texts[i], _faiss_metas[i], float(scores[j]) ) for j,i in enumerate(idxs)]
+    sims = (_index_vecs @ q[0]).astype('float32')
+    order = np.argsort(-sims)[:min(k, len(_index_ids))]
+    return [(_index_ids[i], _index_texts[i], _index_metas[i], float(sims[i])) for i in order]
 
 def _aggregate_answer_from_hits(q):
-    hits = _faiss_query(q, k=8)
+    hits = _semantic_query(q, k=8)
     if not hits:
         return None
     for hid, _, meta, _ in hits:
@@ -718,7 +684,7 @@ def ChatBot(Query):
             json.dump(messages, f, indent=4)
         return AnswerModifier(agg)
 
-    hits = _faiss_query(Query, k=10)
+    hits = _semantic_query(Query, k=10)
     emp_hit = None
     for hid, _, meta, score in hits:
         if isinstance(meta, dict) and meta.get('kind') == 'employee':
