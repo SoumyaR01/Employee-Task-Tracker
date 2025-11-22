@@ -24,29 +24,23 @@ EXCEL_FILE_PATH = os.path.join(os.path.dirname(__file__), "task_tracker.xlsx")
 LATE_THRESHOLD_HOUR = 10
 LATE_THRESHOLD_MINUTE = 30
 
-System = f"""You are {Assistantname}, an internal work-only assistant for the Employee Performance and Attendance system.
+System = f"""You are {Assistantname}, a smart employee analytics assistant.
 
-Use only these data sources:
-- Internal semantic index (employee profiles, performance, attendance, work mode, daily check-ins, aggregates)
-- Live attendance and the performance tracker data
+Data sources:
+- Performance Dashboard
+- Staff Attendance Dashboard
+- Internal semantic index (vector store)
 
-Policy:
-- Answer only work-related queries: attendance, check-ins, work mode (WFO/WFH/Leave), performance, employee dashboards.
-- Never invent or estimate numbers. Use exact values from data.
-- If no matching data exists, reply exactly: No matching information found.
-- Reply in English only.
-- Do not mention time unless explicitly asked.
-- Do not include notes or training references.
+Rules:
+- If the question is about overall stats, provide a concise summary.
+- If the question is about a specific employee, show attendance, performance, monthly summary, or current status.
+- If the question is unclear, ask a short clarifying question.
+- Keep answers short, direct, and easy to understand.
+- Use only information available in the dashboards and internal semantic index.
+- Never guess data that does not exist.
 
-Intent handling:
-- If an employee name or ID is in the question, return a structured dashboard that includes:
-  Attendance (today status and check-in, 7-day and 30-day summaries and ratios), present/absent counts, work mode;
-  Performance KPIs (average, latest, completion rate, tasks), availability, and project if available.
-- If it is an aggregate question, return accurate counts and names for: on leave today, working from home, in office (WFO), checked-in today, and attendance ratio today.
-
-Output:
-- Use concise, professional formatting with short bullets and clear numbers.
-- Do not add explanations beyond the requested work information.
+Goal:
+- Help the admin quickly understand attendance, performance trends, and any specific employee’s status.
 """
 SystemChatBot = [{"role": "system", "content": System}]
 
@@ -604,12 +598,12 @@ def _maybe_answer_with_dashboard(query: str):
 def ChatBot(Query):
     q = Query.strip().lower()
     allowed = [
-        "performance","attendance","ratio","check-in","checkins",
+        "performance","attendance","ratio","accuracy","check-in","checked-in","checkins","check-ins","checked in",
         "work mode","wfh","wfo","leave","status","dashboard",
-        "employee","checked-in","in office","working from home","absent"
+        "employee","in office","working from home","absent"
     ]
     if not any(t in q for t in allowed):
-        return "No matching information found."
+        return "Please specify: overall stats or a specific employee (name/ID)."
     with _vs_lock:
         if _last_refresh_ts is None or (datetime.now() - _last_refresh_ts).seconds > 30:
             _rebuild_index()
@@ -644,9 +638,9 @@ def ChatBot(Query):
         if kind == "checked":
             present = s.get('present', 0)
             total = s.get('total', 0)
-            names = [n for n in s.get('absent_list', [])]  # we'll show present names via vector below
+            names = s.get('present_list', [])
             ratio = s.get('ratio', 0)
-            return f"Checked-in today: {present}/{total} ({ratio}%)"
+            return f"Checked-in today: {present}/{total} ({ratio}%)\n" + ("\n".join(names) if names else "")
         if kind == "ratio":
             present = s.get('present', 0)
             total = s.get('total', 0)
@@ -661,9 +655,9 @@ def ChatBot(Query):
     agg = None
     if any(k in q for k in ["leave today","on leave","who is on leave"]):
         agg = _aggregate_answer_from_hits("on leave today") or _live_summary_answer("leave")
-    elif any(k in q for k in ["checked-in today","who checked-in","checked in today"]):
+    elif any(k in q for k in ["checked-in today","who checked-in","checked in today","today check-ins","today checkins","check-ins today"]):
         agg = _aggregate_answer_from_hits("checked in today") or _live_summary_answer("checked")
-    elif any(k in q for k in ["attendance ratio","attendance today","ratio"]):
+    elif any(k in q for k in ["attendance ratio","attendance today","attendance of today","today attendance","attendance for today","ratio","accuracy"]):
         agg = _aggregate_answer_from_hits("attendance ratio today") or _live_summary_answer("ratio")
     elif any(k in q for k in ["working from home","wfh"]):
         agg = _aggregate_answer_from_hits("wfh today") or _live_summary_answer("wfh")
@@ -691,7 +685,7 @@ def ChatBot(Query):
             emp_hit = (hid, meta)
             break
     if not emp_hit:
-        return "No matching information found."
+        return "Please specify: overall stats or a specific employee (name/ID)."
     eid, meta = emp_hit
     lines = []
     lines.append(f"Employee Summary: {meta.get('name', eid)} ({eid})")
