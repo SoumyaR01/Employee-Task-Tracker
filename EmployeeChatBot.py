@@ -6,7 +6,6 @@ from dotenv import dotenv_values
 import threading
 import numpy as np
 import attendance_store
-
 try:
     import faiss
 except Exception:
@@ -622,21 +621,75 @@ def _maybe_answer_with_dashboard(query: str):
 
 def ChatBot(Query):
     q = Query.strip().lower()
-    allowed = ["performance","attendance","ratio","check-in","checkins","work mode","wfh","wfo","leave","status","dashboard","employee","checked-in"]
+    allowed = [
+        "performance","attendance","ratio","check-in","checkins",
+        "work mode","wfh","wfo","leave","status","dashboard",
+        "employee","checked-in","in office","working from home","absent"
+    ]
     if not any(t in q for t in allowed):
         return "No matching information found."
     with _vs_lock:
         if _last_refresh_ts is None or (datetime.now() - _last_refresh_ts).seconds > 30:
             _rebuild_index()
+
+    emp_id, emp_info = _find_employee_in_query(Query)
+    if emp_id and emp_info:
+        answer = _build_employee_dashboard(emp_id, emp_info)
+        try:
+            with open(chat_log_path, "r") as f:
+                messages = json.load(f)
+        except Exception:
+            messages = []
+        messages.append({"role": "user", "content": f"{Query}"})
+        messages.append({"role": "assistant", "content": answer})
+        with open(chat_log_path, "w") as f:
+            json.dump(messages, f, indent=4)
+        return AnswerModifier(answer)
+
+    def _live_summary_answer(kind: str):
+        s = _get_today_attendance_summary()
+        if not s:
+            return None
+        if kind == "leave":
+            names = s.get('leave', [])
+            return f"Employees on leave today: {len(names)}\n" + ("\n".join(names) if names else "")
+        if kind == "wfh":
+            names = s.get('wfh', [])
+            return f"Employees WFH today: {len(names)}\n" + ("\n".join(names) if names else "")
+        if kind == "wfo":
+            names = s.get('wfo', [])
+            return f"Employees WFO today: {len(names)}\n" + ("\n".join(names) if names else "")
+        if kind == "checked":
+            present = s.get('present', 0)
+            total = s.get('total', 0)
+            names = [n for n in s.get('absent_list', [])]  # we'll show present names via vector below
+            ratio = s.get('ratio', 0)
+            return f"Checked-in today: {present}/{total} ({ratio}%)"
+        if kind == "ratio":
+            present = s.get('present', 0)
+            total = s.get('total', 0)
+            ratio = s.get('ratio', 0)
+            absent = s.get('absent', 0)
+            return f"Attendance ratio today: {ratio}% (Present {present} / Absent {absent} / Total {total})"
+        if kind == "absent":
+            names = s.get('absent_list', [])
+            return f"Absent today: {len(names)}\n" + ("\n".join(names) if names else "")
+        return None
+
     agg = None
     if any(k in q for k in ["leave today","on leave","who is on leave"]):
-        agg = _aggregate_answer_from_hits("on leave today")
+        agg = _aggregate_answer_from_hits("on leave today") or _live_summary_answer("leave")
     elif any(k in q for k in ["checked-in today","who checked-in","checked in today"]):
-        agg = _aggregate_answer_from_hits("checked in today")
-    elif "attendance ratio" in q:
-        agg = _aggregate_answer_from_hits("attendance ratio today")
-    elif "work mode" in q or "wfh" in q or "wfo" in q:
-        agg = _aggregate_answer_from_hits("work mode today") or _aggregate_answer_from_hits("wfo today")
+        agg = _aggregate_answer_from_hits("checked in today") or _live_summary_answer("checked")
+    elif any(k in q for k in ["attendance ratio","attendance today","ratio"]):
+        agg = _aggregate_answer_from_hits("attendance ratio today") or _live_summary_answer("ratio")
+    elif any(k in q for k in ["working from home","wfh"]):
+        agg = _aggregate_answer_from_hits("wfh today") or _live_summary_answer("wfh")
+    elif any(k in q for k in ["in office","wfo","work from office"]):
+        agg = _aggregate_answer_from_hits("wfo today") or _live_summary_answer("wfo")
+    elif "absent" in q:
+        agg = _live_summary_answer("absent")
+
     if agg:
         try:
             with open(chat_log_path, "r") as f:
@@ -648,7 +701,8 @@ def ChatBot(Query):
         with open(chat_log_path, "w") as f:
             json.dump(messages, f, indent=4)
         return AnswerModifier(agg)
-    hits = _faiss_query(Query, k=8)
+
+    hits = _faiss_query(Query, k=10)
     emp_hit = None
     for hid, _, meta, score in hits:
         if isinstance(meta, dict) and meta.get('kind') == 'employee':
