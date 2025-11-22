@@ -2877,7 +2877,7 @@ def show_admin_dashboard():
         admin_pages = [
             "📊 Performance Dashboard",
             "Staff Attendance View",
-            "💬 Chatbot",
+            "🤖 Chatbot",
             "👤 Employee Management",
             "⚙️ Settings",
             "📧 Reminders"
