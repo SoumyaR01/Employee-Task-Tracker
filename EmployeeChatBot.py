@@ -2,9 +2,7 @@ import os
 from groq import Groq
 from json import load, dump
 import datetime
-
 import pandas as pd
-
 import attendance_store
 from dotenv import dotenv_values
 
@@ -19,9 +17,6 @@ GroqAPIKey = env_vars.get("GroqAPIKey")
 # Initialize the Groq client
 client = Groq(api_key=GroqAPIKey)
 
-# Initialize an empty list to store chat messages
-messages = []
-
 # ========= Data source configuration =========
 # Excel used by the Performance Dashboard
 EXCEL_FILE_PATH = r"D:\\Employee Track Report\\task_tracker.xlsx"
@@ -31,9 +26,6 @@ LATE_THRESHOLD_HOUR = 10
 LATE_THRESHOLD_MINUTE = 30
 
 # ========= System prompts for Groq =========
-# NOTE: For employee-specific dashboards we bypass the LLM completely
-# and answer directly from the local data sources so that values
-# always come from the database/CSV/Excel files.
 System = f"""Hello, I am Sir, You are a very accurate and advanced AI chatbot named {Assistantname}.
 You are connected to an internal Employee Performance and Attendance system.
 For general questions, behave like a helpful assistant.
@@ -96,73 +88,6 @@ def _load_attendance_records():
         return []
 
 
-def _get_today_latest_attendance_with_employees():
-    """Return (employees_dict, today_df) where today_df contains one latest
-    attendance row per employee for today, joined with employee details.
-
-    today_df columns include at least: emp_id, name, department, role,
-    status, timestamp_dt, check_in_time, notes.
-    """
-    employees = _load_employees()
-    try:
-        records = _load_attendance_records()
-    except Exception:
-        records = []
-
-    if not employees:
-        return employees, None
-
-    if not records:
-        # No attendance recorded at all
-        emp_df = pd.DataFrame.from_dict(employees, orient="index").reset_index().rename(columns={"index": "emp_id"})
-        emp_df["timestamp_dt"] = pd.NaT
-        emp_df["status"] = None
-        emp_df["check_in_time"] = None
-        emp_df["notes"] = ""
-        return employees, emp_df
-
-    df = pd.DataFrame(records)
-    if df.empty or "timestamp" not in df.columns:
-        emp_df = pd.DataFrame.from_dict(employees, orient="index").reset_index().rename(columns={"index": "emp_id"})
-        emp_df["timestamp_dt"] = pd.NaT
-        emp_df["status"] = None
-        emp_df["check_in_time"] = None
-        emp_df["notes"] = ""
-        return employees, emp_df
-
-    # Parse timestamp and keep a datetime column for grouping
-    df["timestamp_dt"] = pd.to_datetime(df["timestamp"], errors="coerce")
-    df = df[df["timestamp_dt"].notna()]
-    if df.empty:
-        emp_df = pd.DataFrame.from_dict(employees, orient="index").reset_index().rename(columns={"index": "emp_id"})
-        emp_df["timestamp_dt"] = pd.NaT
-        emp_df["status"] = None
-        emp_df["check_in_time"] = None
-        emp_df["notes"] = ""
-        return employees, emp_df
-
-    today = datetime.datetime.now().date()
-    df_today = df[df["timestamp_dt"].dt.date == today]
-
-    # If no one has marked today yet, still build joined frame with NaNs
-    emp_df = pd.DataFrame.from_dict(employees, orient="index").reset_index().rename(columns={"index": "emp_id"})
-
-    if df_today.empty:
-        emp_df["timestamp_dt"] = pd.NaT
-        emp_df["status"] = None
-        emp_df["check_in_time"] = None
-        emp_df["notes"] = ""
-        return employees, emp_df
-
-    # One latest record per employee for today
-    latest_idx = df_today.groupby("emp_id")["timestamp_dt"].idxmax()
-    latest_today = df_today.loc[latest_idx].copy()
-
-    # Join with employee master so that we always have names etc.
-    joined = emp_df.merge(latest_today, on="emp_id", how="left")
-    return employees, joined
-
-
 def _load_performance_df():
     """Load performance data from the Excel file used by the Performance Dashboard."""
     try:
@@ -195,7 +120,7 @@ def _load_performance_df():
 
 def _find_employee_in_query(query: str):
     """Infer employee from the natural-language query using ID or name.
-
+    
     Returns (emp_id, employee_dict) or (None, None) if not found.
     """
     employees = _load_employees()
@@ -204,7 +129,7 @@ def _find_employee_in_query(query: str):
 
     q_lower = query.lower()
 
-    # 1) Match by employee ID (keys in employees.json, e.g. EMP001)
+    # 1) Match by employee ID (keys in employees.json, e.g. EMP001, P-0260)
     for emp_id, info in employees.items():
         if emp_id.lower() in q_lower:
             return emp_id, info
@@ -214,13 +139,21 @@ def _find_employee_in_query(query: str):
         name = str(info.get("name") or "").strip()
         if name and name.lower() in q_lower:
             return emp_id, info
+    
+    # 3) Match by partial name (first name or last name)
+    for emp_id, info in employees.items():
+        name = str(info.get("name") or "").strip().lower()
+        name_parts = name.split()
+        for part in name_parts:
+            if part in q_lower and len(part) > 2:  # Avoid matching very short names
+                return emp_id, info
 
     return None, None
 
 
 def _summarise_attendance(emp_id: str):
     """Create daily / weekly / monthly attendance summary for the given employee.
-
+    
     Data is pulled directly from attendance_records.csv via attendance_store.
     """
     records = _load_attendance_records()
@@ -299,7 +232,7 @@ def _summarise_attendance(emp_id: str):
 
 def _summarise_performance(emp_id, emp_name):
     """Build performance KPIs, progress, and ratings for an employee.
-
+    
     This uses the same Excel file that powers the Performance Dashboard.
     """
     df = _load_performance_df()
@@ -321,7 +254,9 @@ def _summarise_performance(emp_id, emp_name):
 
     total_tasks = len(emp_df)
     completed_tasks = int((emp_df.get("Task Status") == "Completed").sum()) if "Task Status" in emp_df.columns else 0
-    pending_tasks = max(total_tasks - completed_tasks, 0)
+    in_progress_tasks = int((emp_df.get("Task Status") == "In Progress").sum()) if "Task Status" in emp_df.columns else 0
+    pending_tasks = int((emp_df.get("Task Status") == "Pending").sum()) if "Task Status" in emp_df.columns else 0
+    
     avg_perf = round(emp_df["Employee Performance (%)"].mean(), 2)
 
     if "Date" in emp_df.columns and not emp_df["Date"].dropna().empty:
@@ -353,10 +288,18 @@ def _summarise_performance(emp_id, emp_name):
         weekly_df = emp_df[(emp_df["Date"].dt.date >= seven_days_ago) & (emp_df["Date"].dt.date <= today)]
         if not weekly_df.empty:
             weekly_perf = round(weekly_df["Employee Performance (%)"].mean(), 2)
+    
+    # Get availability status
+    availability = "Unknown"
+    if "Availability" in emp_df.columns:
+        avail_data = emp_df[emp_df["Availability"].notna()]
+        if not avail_data.empty:
+            availability = avail_data["Availability"].iloc[-1]
 
     return {
         "total_tasks": total_tasks,
         "completed_tasks": completed_tasks,
+        "in_progress_tasks": in_progress_tasks,
         "pending_tasks": pending_tasks,
         "avg_performance": avg_perf,
         "latest_performance": round(latest_perf, 2),
@@ -368,6 +311,7 @@ def _summarise_performance(emp_id, emp_name):
         "last_record_date": last_update,
         "primary_project": primary_project,
         "weekly_avg_performance": weekly_perf,
+        "availability": availability,
     }
 
 
@@ -382,21 +326,24 @@ def _build_employee_dashboard(emp_id: str, emp_info: dict):
     performance = _summarise_performance(emp_id, name)
 
     lines = []
-    lines.append(f"Employee Dashboard for {name} ({emp_id})")
-    lines.append("".ljust(40, "="))
+    lines.append("=" * 70)
+    lines.append(f"EMPLOYEE DASHBOARD: {name} ({emp_id})")
+    lines.append("=" * 70)
     lines.append("")
 
     # Employee details (Employee Management)
-    lines.append("[Employee Details]")
-    lines.append(f"- Name       : {name}")
-    lines.append(f"- Employee ID: {emp_id}")
-    lines.append(f"- Email      : {email}")
-    lines.append(f"- Department : {department}")
-    lines.append(f"- Role       : {role}")
+    lines.append("📋 EMPLOYEE DETAILS")
+    lines.append("-" * 70)
+    lines.append(f"Name         : {name}")
+    lines.append(f"Employee ID  : {emp_id}")
+    lines.append(f"Email        : {email}")
+    lines.append(f"Department   : {department}")
+    lines.append(f"Role         : {role}")
     lines.append("")
 
     # Attendance summary (Staff Attendance View)
-    lines.append("[Attendance Summary]")
+    lines.append("📅 ATTENDANCE SUMMARY")
+    lines.append("-" * 70)
     if not attendance:
         lines.append("No attendance records found for this employee.")
     else:
@@ -404,56 +351,230 @@ def _build_employee_dashboard(emp_id: str, emp_info: dict):
         weekly = attendance.get("weekly") or {}
         monthly = attendance.get("monthly") or {}
 
+        lines.append("TODAY'S STATUS:")
         if today:
-            lines.append("Today:")
-            lines.append(f"  - Status       : {today.get('status', 'N/A')}")
+            lines.append(f"  Status         : {today.get('status', 'N/A')}")
             if today.get("check_in_time"):
-                lines.append(f"  - Check‑in time: {today['check_in_time']}")
+                lines.append(f"  Check-in Time  : {today['check_in_time']}")
             if today.get("notes"):
-                lines.append(f"  - Notes        : {today['notes']}")
+                lines.append(f"  Notes          : {today['notes']}")
         else:
-            lines.append("Today: No status marked.")
+            lines.append("  Status         : Not marked yet")
 
         lines.append("")
-        lines.append("Last 7 days (rolling):")
-        lines.append(f"  - Days with records : {weekly.get('distinct_days', 0)}")
-        lines.append(f"  - Present days      : {weekly.get('present_days', 0)}")
-        lines.append(f"  - Leave days        : {weekly.get('leave_days', 0)}")
-        lines.append(f"  - WFO entries       : {weekly.get('wfo', 0)}")
-        lines.append(f"  - WFH entries       : {weekly.get('wfh', 0)}")
-        lines.append(f"  - Attendance rate   : {weekly.get('attendance_rate', 0.0)}%")
+        lines.append("LAST 7 DAYS (Rolling):")
+        lines.append(f"  Days with Records  : {weekly.get('distinct_days', 0)}")
+        lines.append(f"  Present Days       : {weekly.get('present_days', 0)}")
+        lines.append(f"  Leave Days         : {weekly.get('leave_days', 0)}")
+        lines.append(f"  WFO Entries        : {weekly.get('wfo', 0)}")
+        lines.append(f"  WFH Entries        : {weekly.get('wfh', 0)}")
+        lines.append(f"  Attendance Rate    : {weekly.get('attendance_rate', 0.0)}%")
 
         lines.append("")
-        lines.append("Last 30 days (rolling):")
-        lines.append(f"  - Days with records : {monthly.get('distinct_days', 0)}")
-        lines.append(f"  - Present days      : {monthly.get('present_days', 0)}")
-        lines.append(f"  - Leave days        : {monthly.get('leave_days', 0)}")
-        lines.append(f"  - WFO entries       : {monthly.get('wfo', 0)}")
-        lines.append(f"  - WFH entries       : {monthly.get('wfh', 0)}")
-        lines.append(f"  - Attendance rate   : {monthly.get('attendance_rate', 0.0)}%")
+        lines.append("LAST 30 DAYS (Rolling):")
+        lines.append(f"  Days with Records  : {monthly.get('distinct_days', 0)}")
+        lines.append(f"  Present Days       : {monthly.get('present_days', 0)}")
+        lines.append(f"  Leave Days         : {monthly.get('leave_days', 0)}")
+        lines.append(f"  WFO Entries        : {monthly.get('wfo', 0)}")
+        lines.append(f"  WFH Entries        : {monthly.get('wfh', 0)}")
+        lines.append(f"  Attendance Rate    : {monthly.get('attendance_rate', 0.0)}%")
     lines.append("")
 
     # Performance KPIs (Performance Dashboard)
-    lines.append("[Performance KPIs & Progress]")
+    lines.append("📊 PERFORMANCE DASHBOARD")
+    lines.append("-" * 70)
     if not performance:
         lines.append("No performance records found for this employee in the tracker.")
     else:
-        lines.append(f"- Total tasks           : {performance['total_tasks']}")
-        lines.append(f"- Completed tasks       : {performance['completed_tasks']}")
-        lines.append(f"- Pending tasks         : {performance['pending_tasks']}")
-        lines.append(f"- Task completion rate  : {performance['completion_rate']}%")
-        lines.append(f"- Average performance   : {performance['avg_performance']}%")
-        lines.append(f"- Latest performance    : {performance['latest_performance']}% (as of {performance['last_record_date']})")
+        lines.append("TASK SUMMARY:")
+        lines.append(f"  Total Tasks         : {performance['total_tasks']}")
+        lines.append(f"  Completed           : {performance['completed_tasks']}")
+        lines.append(f"  In Progress         : {performance['in_progress_tasks']}")
+        lines.append(f"  Pending             : {performance['pending_tasks']}")
+        lines.append(f"  Completion Rate     : {performance['completion_rate']}%")
+        lines.append("")
+        lines.append("PERFORMANCE METRICS:")
+        lines.append(f"  Average Performance : {performance['avg_performance']}%")
+        lines.append(f"  Latest Performance  : {performance['latest_performance']}%")
         if performance.get("weekly_avg_performance") is not None:
-            lines.append(f"- Last 7‑day avg perf.  : {performance['weekly_avg_performance']}%")
-        lines.append(f"- Productivity score    : {performance['productivity_score']}%")
-        lines.append(f"- Quality score         : {performance['quality_score']}%")
-        lines.append(f"- Efficiency score      : {performance['efficiency_score']}%")
+            lines.append(f"  Last 7-Day Avg      : {performance['weekly_avg_performance']}%")
+        lines.append(f"  Productivity Score  : {performance['productivity_score']}%")
+        lines.append(f"  Quality Score       : {performance['quality_score']}%")
+        lines.append(f"  Efficiency Score    : {performance['efficiency_score']}%")
+        lines.append("")
+        lines.append("WORK STATUS:")
+        lines.append(f"  Current Availability: {performance['availability']}")
         if performance.get("primary_project"):
-            lines.append(f"- Primary project       : {performance['primary_project']}")
-        lines.append(f"- Data from             : {performance['first_record_date']} to {performance['last_record_date']}")
+            lines.append(f"  Primary Project     : {performance['primary_project']}")
+        lines.append(f"  Data Period         : {performance['first_record_date']} to {performance['last_record_date']}")
+    
+    lines.append("")
+    lines.append("=" * 70)
 
     return "\n".join(lines)
+
+
+def _get_today_attendance_summary():
+    """Get comprehensive attendance summary for today with all employees."""
+    try:
+        records = _load_attendance_records()
+        employees = _load_employees() or {}
+        today = datetime.datetime.now().date()
+        
+        present_employees = {}
+        wfo_list = []
+        wfh_list = []
+        leave_list = []
+        late_list = []
+        
+        for rec in records:
+            ts = rec.get('timestamp')
+            try:
+                ts_dt = datetime.datetime.fromisoformat(ts.replace("Z", "+00:00")) if isinstance(ts, str) else ts
+            except Exception:
+                ts_dt = None
+            
+            if ts_dt and ts_dt.date() == today:
+                emp_id = (rec.get('emp_id') or '').upper()
+                status = rec.get('status', '')
+                check_in = rec.get('check_in_time', '')
+                
+                if emp_id and emp_id not in present_employees:
+                    emp_name = employees.get(emp_id, {}).get('name', emp_id)
+                    present_employees[emp_id] = {
+                        'name': emp_name,
+                        'status': status,
+                        'check_in': check_in
+                    }
+                    
+                    if status == 'WFO':
+                        wfo_list.append(f"{emp_name} ({emp_id})")
+                    elif status == 'WFH':
+                        wfh_list.append(f"{emp_name} ({emp_id})")
+                    elif status == 'On Leave':
+                        leave_list.append(f"{emp_name} ({emp_id})")
+                    
+                    # Check if late
+                    if check_in:
+                        try:
+                            check_time = datetime.datetime.strptime(check_in, "%I:%M %p").time()
+                            threshold = datetime.time(LATE_THRESHOLD_HOUR, LATE_THRESHOLD_MINUTE)
+                            if check_time > threshold:
+                                late_list.append(f"{emp_name} ({emp_id}) - {check_in}")
+                        except Exception:
+                            pass
+        
+        total_emps = len(employees)
+        present_count = len(present_employees)
+        absent_count = total_emps - present_count
+        
+        # Get absent employees
+        absent_list = []
+        for emp_id, emp_data in employees.items():
+            if emp_id not in present_employees:
+                absent_list.append(f"{emp_data.get('name', emp_id)} ({emp_id})")
+        
+        return {
+            'total': total_emps,
+            'present': present_count,
+            'absent': absent_count,
+            'wfo': wfo_list,
+            'wfh': wfh_list,
+            'leave': leave_list,
+            'absent_list': absent_list,
+            'late_list': late_list,
+            'ratio': round((present_count/total_emps*100) if total_emps else 0, 1)
+        }
+    except Exception as e:
+        print(f"Error in attendance summary: {e}")
+        return None
+
+
+def _maybe_answer_attendance_aggregate(query: str):
+    """Answer aggregate attendance questions with real data."""
+    q = query.lower()
+    summary = _get_today_attendance_summary()
+    
+    if not summary:
+        return None
+    
+    # Who is on leave today?
+    if any(k in q for k in ["leave today", "on leave", "who is on leave"]):
+        if summary['leave']:
+            answer = f"Employees on leave today ({len(summary['leave'])}):\n"
+            answer += "\n".join(f"  • {name}" for name in summary['leave'])
+        else:
+            answer = "No employees are on leave today."
+        return answer
+    
+    # Who is WFH today?
+    elif any(k in q for k in ["wfh", "work from home", "working from home"]):
+        if summary['wfh']:
+            answer = f"Employees working from home today ({len(summary['wfh'])}):\n"
+            answer += "\n".join(f"  • {name}" for name in summary['wfh'])
+        else:
+            answer = "No employees are working from home today."
+        return answer
+    
+    # Who is in office / WFO today?
+    elif any(k in q for k in ["wfo", "work from office", "in office", "office today"]):
+        if summary['wfo']:
+            answer = f"Employees in office today ({len(summary['wfo'])}):\n"
+            answer += "\n".join(f"  • {name}" for name in summary['wfo'])
+        else:
+            answer = "No employees are in office today."
+        return answer
+    
+    # Who is absent today?
+    elif any(k in q for k in ["absent", "who is absent", "absent today"]):
+        if summary['absent_list']:
+            answer = f"Absent employees today ({len(summary['absent_list'])}):\n"
+            answer += "\n".join(f"  • {name}" for name in summary['absent_list'])
+        else:
+            answer = "All employees are present today."
+        return answer
+    
+    # Who is late today?
+    elif any(k in q for k in ["late", "who is late", "late today"]):
+        if summary['late_list']:
+            answer = f"Late arrivals today ({len(summary['late_list'])}):\n"
+            answer += "\n".join(f"  • {name}" for name in summary['late_list'])
+        else:
+            answer = f"No late arrivals today (threshold: {LATE_THRESHOLD_HOUR}:{LATE_THRESHOLD_MINUTE:02d})."
+        return answer
+    
+    # Attendance ratio / summary
+    elif any(k in q for k in ["attendance ratio", "attendance summary", "attendance today", "today's attendance"]):
+        answer = f"""📊 ATTENDANCE SUMMARY FOR TODAY
+{"=" * 70}
+
+OVERVIEW:
+  Total Employees    : {summary['total']}
+  Present            : {summary['present']} ({summary['ratio']}%)
+  Absent             : {summary['absent']}
+
+WORK MODE BREAKDOWN:
+  • WFO (Office)     : {len(summary['wfo'])} employees
+  • WFH (Home)       : {len(summary['wfh'])} employees
+  • On Leave         : {len(summary['leave'])} employees
+
+{"=" * 70}"""
+        return answer
+    
+    # Work mode counts
+    elif "work mode" in q:
+        answer = f"""📋 WORK MODE DISTRIBUTION TODAY
+{"=" * 70}
+
+  • WFO (Office)     : {len(summary['wfo'])} employees
+  • WFH (Home)       : {len(summary['wfh'])} employees
+  • On Leave         : {len(summary['leave'])} employees
+  • Absent           : {len(summary['absent_list'])} employees
+
+{"=" * 70}"""
+        return answer
+    
+    return None
 
 
 def _maybe_answer_with_dashboard(query: str):
@@ -472,7 +593,7 @@ def _maybe_answer_with_dashboard(query: str):
 # Main chatbot function to handle user queries
 def ChatBot(Query):
     """Answer user queries.
-
+    
     - For employee-specific questions, return a structured dashboard using
       real data from Employee Management, Attendance, and Performance modules.
     - For attendance-wide questions (who is on leave/absent/late, today's attendance),
@@ -522,12 +643,9 @@ def ChatBot(Query):
 
         # Make a request to the Groq API
         completion = client.chat.completions.create(
-            #model='Gemma2-9b-It',
-            #model = 'llama-3.1-8b-instant',  # Fastest option
             model='llama-3.3-70b-versatile',  # Balanced: fast + high quality
-            #model = 'openai/gpt-oss-20b',
             messages=SystemChatBot + [{"role": "system", "content": RealtimeInformation()}] + recent_messages,
-            max_tokens=512,  # Reduced for faster responses
+            max_tokens=512,
             temperature=0.7,
             top_p=1,
             stream=True
@@ -556,6 +674,7 @@ def ChatBot(Query):
         with open(chat_log_path, "w") as f:
             dump([], f, indent=4)
         return "An error occurred. Chat log reset. Please try again."
+
 
 # Main program entry point
 if __name__ == "__main__":
