@@ -2820,9 +2820,9 @@ def _build_work_context():
 def _fallback_chat_answer(query: str) -> str:
     q = query.lower()
     ctx = _build_work_context()
-    if any(k in q for k in ["attendance ratio", "ratio"]):
+    if any(k in q for k in ["attendance ratio", "attendance today", "attendance of today", "today attendance", "attendance for today", "ratio", "accuracy"]):
         return ctx.splitlines()[-1] if ctx != "No context available" else "Attendance ratio data is not available."
-    if any(k in q for k in ["check-in", "checkins", "daily check-ins", "check ins"]):
+    if any(k in q for k in ["check-in", "checked-in", "checkins", "check-ins", "checked in", "daily check-ins", "check ins"]):
         for line in _build_work_context().splitlines():
             if line.startswith("Today's check-ins"):
                 return line
@@ -2837,10 +2837,10 @@ def _fallback_chat_answer(query: str) -> str:
             if line.startswith("Work mode counts"):
                 return line
         return "No work mode details available."
-    return "I answer only work-related queries: performance, attendance status/ratio, daily check-ins, and work mode details."
+    return "Please specify: overall stats or a specific employee (name/ID)."
 
 def show_chatbot_panel():
-    #st.markdown("### 🤖 Employee Chatbot")
+    st.markdown("### 💬 Employee Chatbot")
     st.caption("Ask about performance, attendance status/ratio, daily check-ins, or work mode.")
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
@@ -2849,9 +2849,9 @@ def show_chatbot_panel():
     user_q = st.chat_input("Type your work-related question")
     if user_q:
         st.session_state.chat_history.append({"role": "user", "content": user_q})
-        allowed = any(k in user_q.lower() for k in ["performance","attendance","ratio","check-in","checkins","work mode","wfh","wfo","leave","status"])
+        allowed = any(k in user_q.lower() for k in ["performance","attendance","ratio","accuracy","check-in","checked-in","checkins","check-ins","checked in","check ins","work mode","wfh","wfo","leave","status"])
         if not allowed:
-            reply = "I answer only work-related queries: performance, attendance status/ratio, daily check-ins, and work mode details."
+            reply = "Please specify: overall stats or a specific employee (name/ID)."
         else:
             context = _build_work_context()
             prompt = f"Use the following company context to answer succinctly and factually.\n{context}\nQuestion: {user_q}\nOnly provide work-related information."
@@ -2909,7 +2909,7 @@ def show_admin_dashboard():
         st.title("📊 Staff Attendance Dashboard")
         show_admin_attendance_dashboard()
     elif admin_page == "💬 Chatbot":
-        st.title("🧠 Smart Employee Query Bot")
+        st.title("💬 Employee Chatbot")
         show_chatbot_panel()
 
     elif admin_page == "👤 Employee Management":
