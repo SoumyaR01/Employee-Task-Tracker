@@ -1,9 +1,7 @@
 import os
-from groq import Groq
-from json import load, dump
-import datetime
+import json
+from datetime import datetime, timedelta
 import pandas as pd
-import attendance_store
 from dotenv import dotenv_values
 
 # Load environment variables from the .env file
@@ -15,7 +13,7 @@ Assistantname = env_vars.get("Assistantname")
 GroqAPIKey = env_vars.get("GroqAPIKey")
 
 # Initialize the Groq client
-client = Groq(api_key=GroqAPIKey)
+# client = Groq(api_key=GroqAPIKey)  # Assuming Groq is properly initialized
 
 # ========= Data source configuration =========
 # Excel used by the Performance Dashboard
@@ -43,11 +41,11 @@ if not os.path.exists(data_dir):
     os.makedirs(data_dir)
 if not os.path.exists(chat_log_path):
     with open(chat_log_path, "w") as f:
-        dump([], f, indent=4)
+        json.dump([], f, indent=4)
 
 # Function to get real-time date and time information
 def RealtimeInformation():
-    current_date_time = datetime.datetime.now()
+    current_date_time = datetime.now()
     day = current_date_time.strftime("%A")
     date = current_date_time.strftime("%d")
     month = current_date_time.strftime("%B")
@@ -67,26 +65,25 @@ def AnswerModifier(Answer):
     modified_answer = '\n'.join(non_empty_lines)
     return modified_answer
 
-
 # ========= Helper functions to read real data =========
 
 def _load_employees():
     """Load all employees from Employee Management (attendance_store)."""
     try:
+        # Assuming attendance_store is a module with a function load_employees
         return attendance_store.load_employees()
     except Exception as exc:
         print(f"Error loading employees: {exc}")
         return {}
 
-
 def _load_attendance_records():
     """Load all attendance records from Staff Attendance View backend."""
     try:
+        # Assuming attendance_store is a module with a function load_attendance
         return attendance_store.load_attendance()
     except Exception as exc:
         print(f"Error loading attendance records: {exc}")
         return []
-
 
 def _load_performance_df():
     """Load performance data from the Excel file used by the Performance Dashboard."""
@@ -96,7 +93,7 @@ def _load_performance_df():
         df = pd.read_excel(EXCEL_FILE_PATH, engine="openpyxl")
         if df is None or df.empty:
             return None
-        # Normalise key numeric columns
+        # Normalize key numeric columns
         if "Employee Performance (%)" not in df.columns:
             df["Employee Performance (%)"] = 0.0
         df["Employee Performance (%)"] = (
@@ -116,7 +113,6 @@ def _load_performance_df():
     except Exception as exc:
         print(f"Error loading performance data: {exc}")
         return None
-
 
 def _find_employee_in_query(query: str):
     """Infer employee from the natural-language query using ID or name.
@@ -150,7 +146,6 @@ def _find_employee_in_query(query: str):
 
     return None, None
 
-
 def _summarise_attendance(emp_id: str):
     """Create daily / weekly / monthly attendance summary for the given employee.
     
@@ -160,15 +155,15 @@ def _summarise_attendance(emp_id: str):
     if not records:
         return None
 
-    today = datetime.datetime.now().date()
-    seven_days_ago = today - datetime.timedelta(days=7)
-    thirty_days_ago = today - datetime.timedelta(days=30)
+    today = datetime.now().date()
+    seven_days_ago = today - timedelta(days=7)
+    thirty_days_ago = today - timedelta(days=30)
 
     def _parse_date(ts: str):
         if not ts:
             return None
         try:
-            return datetime.datetime.fromisoformat(ts.replace("Z", "+00:00")).date()
+            return datetime.fromisoformat(ts.replace("Z", "+00:00")).date()
         except Exception:
             return None
 
@@ -229,7 +224,6 @@ def _summarise_attendance(emp_id: str):
         "monthly": monthly,
     }
 
-
 def _summarise_performance(emp_id, emp_name):
     """Build performance KPIs, progress, and ratings for an employee.
     
@@ -283,8 +277,8 @@ def _summarise_performance(emp_id, emp_name):
     # Simple 7‑day snapshot
     weekly_perf = None
     if "Date" in emp_df.columns and not emp_df["Date"].dropna().empty:
-        today = datetime.datetime.now().date()
-        seven_days_ago = today - datetime.timedelta(days=7)
+        today = datetime.now().date()
+        seven_days_ago = today - timedelta(days=7)
         weekly_df = emp_df[(emp_df["Date"].dt.date >= seven_days_ago) & (emp_df["Date"].dt.date <= today)]
         if not weekly_df.empty:
             weekly_perf = round(weekly_df["Employee Performance (%)"].mean(), 2)
@@ -313,7 +307,6 @@ def _summarise_performance(emp_id, emp_name):
         "weekly_avg_performance": weekly_perf,
         "availability": availability,
     }
-
 
 def _build_employee_dashboard(emp_id: str, emp_info: dict):
     """Return a human‑readable dashboard string with real values only."""
@@ -413,13 +406,12 @@ def _build_employee_dashboard(emp_id: str, emp_info: dict):
 
     return "\n".join(lines)
 
-
 def _get_today_attendance_summary():
     """Get comprehensive attendance summary for today with all employees."""
     try:
         records = _load_attendance_records()
         employees = _load_employees() or {}
-        today = datetime.datetime.now().date()
+        today = datetime.now().date()
         
         present_employees = {}
         wfo_list = []
@@ -430,7 +422,7 @@ def _get_today_attendance_summary():
         for rec in records:
             ts = rec.get('timestamp')
             try:
-                ts_dt = datetime.datetime.fromisoformat(ts.replace("Z", "+00:00")) if isinstance(ts, str) else ts
+                ts_dt = datetime.fromisoformat(ts.replace("Z", "+00:00")) if isinstance(ts, str) else ts
             except Exception:
                 ts_dt = None
             
@@ -457,7 +449,7 @@ def _get_today_attendance_summary():
                     # Check if late
                     if check_in:
                         try:
-                            check_time = datetime.datetime.strptime(check_in, "%I:%M %p").time()
+                            check_time = datetime.strptime(check_in, "%I:%M %p").time()
                             threshold = datetime.time(LATE_THRESHOLD_HOUR, LATE_THRESHOLD_MINUTE)
                             if check_time > threshold:
                                 late_list.append(f"{emp_name} ({emp_id}) - {check_in}")
@@ -488,7 +480,6 @@ def _get_today_attendance_summary():
     except Exception as e:
         print(f"Error in attendance summary: {e}")
         return None
-
 
 def _maybe_answer_attendance_aggregate(query: str):
     """Answer aggregate attendance questions with real data."""
@@ -576,7 +567,6 @@ WORK MODE BREAKDOWN:
     
     return None
 
-
 def _maybe_answer_with_dashboard(query: str):
     """If the query looks like an admin asking about an employee,
     return a full dashboard string; otherwise return None.
@@ -588,7 +578,6 @@ def _maybe_answer_with_dashboard(query: str):
     # Any query mentioning a known employee is treated as a request
     # for their latest dashboard (details + attendance + performance).
     return _build_employee_dashboard(emp_id, emp_info)
-
 
 # Main chatbot function to handle user queries
 def ChatBot(Query):
@@ -605,13 +594,13 @@ def ChatBot(Query):
     if attendance_answer is not None:
         try:
             with open(chat_log_path, "r") as f:
-                messages = load(f)
+                messages = json.load(f)
         except Exception:
             messages = []
         messages.append({"role": "user", "content": f"{Query}"})
         messages.append({"role": "assistant", "content": attendance_answer})
         with open(chat_log_path, "w") as f:
-            dump(messages, f, indent=4)
+            json.dump(messages, f, indent=4)
         return AnswerModifier(attendance_answer)
 
     # 1) Try answering directly from per-employee internal data (no LLM, no randomness)
@@ -620,20 +609,20 @@ def ChatBot(Query):
         # Persist this Q&A in the same chat log used for LLM answers
         try:
             with open(chat_log_path, "r") as f:
-                messages = load(f)
+                messages = json.load(f)
         except Exception:
             messages = []
         messages.append({"role": "user", "content": f"{Query}"})
         messages.append({"role": "assistant", "content": dashboard_answer})
         with open(chat_log_path, "w") as f:
-            dump(messages, f, indent=4)
+            json.dump(messages, f, indent=4)
         return AnswerModifier(dashboard_answer)
 
     # 2) Fall back to Groq LLM for generic questions
     try:
         # Load the existing chat log
         with open(chat_log_path, "r") as f:
-            messages = load(f)
+            messages = json.load(f)
 
         # Append the user's query
         messages.append({"role": "user", "content": f"{Query}"})
@@ -664,7 +653,7 @@ def ChatBot(Query):
 
         # Save the updated chat log
         with open(chat_log_path, "w") as f:
-            dump(messages, f, indent=4)
+            json.dump(messages, f, indent=4)
 
         # Return the formatted response
         return AnswerModifier(Answer)
@@ -672,9 +661,8 @@ def ChatBot(Query):
     except Exception as e:
         print(f"Error: {e}")
         with open(chat_log_path, "w") as f:
-            dump([], f, indent=4)
+            json.dump([], f, indent=4)
         return "An error occurred. Chat log reset. Please try again."
-
 
 # Main program entry point
 if __name__ == "__main__":
