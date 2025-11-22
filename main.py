@@ -2909,7 +2909,7 @@ def show_admin_dashboard():
         st.title("📊 Staff Attendance Dashboard")
         show_admin_attendance_dashboard()
     elif admin_page == "🤖 Chatbot":
-        #st.title("🤖 Employee Chatbot")
+        st.title("🤖 Employee Chatbot")
         show_chatbot_panel()
 
     elif admin_page == "👤 Employee Management":
