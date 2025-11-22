@@ -1,12 +1,25 @@
-streamlit>=1.28.0
+streamlit>=1.36.0
+msal-streamlit-authentication
+pandas
+openpyxl
+streamlit-echarts
+plotly>=5.17.0
+google-auth>=2.23.0
+google-auth-oauthlib>=1.1.0
+google-auth-httplib2>=0.1.1
+google-api-python-client>=2.100.0
+gspread>=5.11.0
+schedule>=1.2.0
+python-dateutil>=2.8.2
+pytz>=2023.3
+
+# ────── CHATBOT DEPENDENCIES (Streamlit Cloud proven) ──────
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.3.1+cpu
+torchaudio==2.3.1+cpu
+torchvision==0.18.1+cpu
 faiss-cpu==1.8.0
 sentence-transformers==3.0.1
-torch==2.1.0+cpu
-torchaudio==2.1.0+cpu
-torchvision==0.16.0+cpu
-transformers==4.35.0
-numpy>=1.24.0
-scikit-learn>=1.3.0
-pandas>=2.0.0
-# Add any other non-ML deps from your backup, e.g.:
-# openpyxl==3.1.0  (if you use Excel)
+transformers==4.45.0
+numpy
+scikit-learn
