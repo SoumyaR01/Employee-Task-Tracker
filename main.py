@@ -14,6 +14,10 @@ from openpyxl import load_workbook
 import io
 import zipfile
 from openpyxl.styles import PatternFill
+try:
+    from EmployeeChatBot import ChatBot as LLMChatBot
+except Exception:
+    LLMChatBot = None
 import sys
 
 # Add current directory to path for local imports
@@ -2753,6 +2757,114 @@ def render_full_performance_dashboard():
     show_employee_dashboard(filtered_df if filtered_df is not None and not filtered_df.empty else df)
     st.markdown("---")
     show_data_table(filtered_df)
+    st.markdown("---")
+    show_chatbot_panel()
+
+def _build_work_context():
+    config = load_config()
+    excel_path = config.get('excel_file_path', EXCEL_FILE_PATH)
+    df = read_excel_data(excel_path)
+    lines = []
+    if df is not None and not df.empty:
+        total = len(df)
+        completed = int((df.get('Task Status') == 'Completed').sum()) if 'Task Status' in df.columns else 0
+        unique_emps = df['Name'].nunique() if 'Name' in df.columns else 0
+        avg_perf = round(df['Employee Performance (%)'].mean(), 2) if 'Employee Performance (%)' in df.columns else 0
+        wfh = int((df.get('Availability') == 'Partially Busy').sum()) if 'Availability' in df.columns else 0
+        wfo = int((df.get('Availability') == 'Fully Busy').sum()) if 'Availability' in df.columns else 0
+        under = int((df.get('Availability') == 'Underutilized').sum()) if 'Availability' in df.columns else 0
+        lines += [
+            f"Total submissions: {total}",
+            f"Completed tasks: {completed}",
+            f"Active employees: {unique_emps}",
+            f"Average performance (%): {avg_perf}",
+            f"Work mode counts (Fully Busy/WFO={wfo}, Partially Busy/WFH={wfh}, Underutilized={under})"
+        ]
+    try:
+        import attendance_store
+        records = attendance_store.load_attendance()
+        today = datetime.now().date()
+        present = 0
+        wfo_c = 0
+        wfh_c = 0
+        leave_c = 0
+        seen = set()
+        for r in records:
+            ts = r.get('timestamp')
+            try:
+                ts_dt = datetime.fromisoformat(ts) if isinstance(ts, str) else ts
+            except Exception:
+                ts_dt = None
+            if ts_dt and ts_dt.date() == today:
+                emp = (r.get('emp_id') or '').upper()
+                if emp:
+                    if emp not in seen:
+                        present += 1
+                        seen.add(emp)
+                    stt = r.get('status')
+                    if stt == 'WFO':
+                        wfo_c += 1
+                    elif stt == 'WFH':
+                        wfh_c += 1
+                    elif stt == 'On Leave':
+                        leave_c += 1
+        lines.append(f"Today's check-ins: {present}, WFO={wfo_c}, WFH={wfh_c}, Leave={leave_c}")
+        total_emps = len(attendance_store.load_employees() or {})
+        ratio = round((present/total_emps*100) if total_emps else 0, 1)
+        lines.append(f"Attendance ratio today: {ratio}%")
+    except Exception:
+        pass
+    ctx = "\n".join(lines) if lines else "No context available"
+    return ctx
+
+def _fallback_chat_answer(query: str) -> str:
+    q = query.lower()
+    ctx = _build_work_context()
+    if any(k in q for k in ["attendance ratio", "ratio"]):
+        return ctx.splitlines()[-1] if ctx != "No context available" else "Attendance ratio data is not available."
+    if any(k in q for k in ["check-in", "checkins", "daily check-ins", "check ins"]):
+        for line in _build_work_context().splitlines():
+            if line.startswith("Today's check-ins"):
+                return line
+        return "No check-in data available."
+    if "performance" in q:
+        for line in ctx.splitlines():
+            if line.startswith("Average performance"):
+                return line
+        return "No performance data available."
+    if any(k in q for k in ["attendance status", "status", "work mode", "wfh", "wfo", "leave"]):
+        for line in ctx.splitlines():
+            if line.startswith("Work mode counts"):
+                return line
+        return "No work mode details available."
+    return "I answer only work-related queries: performance, attendance status/ratio, daily check-ins, and work mode details."
+
+def show_chatbot_panel():
+    st.markdown("### 💬 Employee Chatbot")
+    st.caption("Ask about performance, attendance status/ratio, daily check-ins, or work mode.")
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history = []
+    for msg in st.session_state.chat_history:
+        st.chat_message(msg["role"]).write(msg["content"])
+    user_q = st.chat_input("Type your work-related question")
+    if user_q:
+        st.session_state.chat_history.append({"role": "user", "content": user_q})
+        allowed = any(k in user_q.lower() for k in ["performance","attendance","ratio","check-in","checkins","work mode","wfh","wfo","leave","status"])
+        if not allowed:
+            reply = "I answer only work-related queries: performance, attendance status/ratio, daily check-ins, and work mode details."
+        else:
+            context = _build_work_context()
+            prompt = f"Use the following company context to answer succinctly and factually.\n{context}\nQuestion: {user_q}\nOnly provide work-related information."
+            reply = None
+            try:
+                if LLMChatBot:
+                    reply = LLMChatBot(prompt)
+            except Exception:
+                reply = None
+            if not reply:
+                reply = _fallback_chat_answer(user_q)
+        st.session_state.chat_history.append({"role": "assistant", "content": reply})
+        st.chat_message("assistant").write(reply)
 def show_admin_dashboard():
     """Main admin dashboard"""
     # Sidebar navigation for admin
@@ -2765,6 +2877,7 @@ def show_admin_dashboard():
         admin_pages = [
             "📊 Performance Dashboard",
             "Staff Attendance View",
+            "💬 Chatbot",
             "👤 Employee Management",
             "⚙️ Settings",
             "📧 Reminders"
@@ -2795,6 +2908,9 @@ def show_admin_dashboard():
     elif admin_page == "Staff Attendance View":
         st.title("📊 Staff Attendance Dashboard")
         show_admin_attendance_dashboard()
+    elif admin_page == "💬 Chatbot":
+        st.title("💬 Employee Chatbot")
+        show_chatbot_panel()
 
     elif admin_page == "👤 Employee Management":
         #st.title("")
