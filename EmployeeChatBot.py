@@ -80,15 +80,15 @@ def _availability_counts_from_df(df: pd.DataFrame):
     except Exception:
         return 0, 0, 0
 
-def _employee_dashboard(emp_query: str):
+def _employee_structured_report(emp_query: str):
     employees = load_employees() or {}
     df = _get_df()
+    q = emp_query.strip().lower()
     emp_id = None
     emp_name = None
-    q = emp_query.strip().lower()
     for k, v in employees.items():
-        name = str(v.get('name', '')).lower()
-        if q == k.lower() or q in name:
+        n = str(v.get('name', '')).lower()
+        if q == k.lower() or q in n:
             emp_id = k
             emp_name = v.get('name', k)
             break
@@ -97,18 +97,19 @@ def _employee_dashboard(emp_query: str):
             if q in str(nm).lower():
                 emp_name = nm
                 break
+    if emp_id is None and emp_name is None:
+        return "Employee not found. Please check the ID or name."
     perf_df = pd.DataFrame()
     if emp_name and not df.empty:
         perf_df = df[df['Name'].astype(str).str.lower() == str(emp_name).lower()].copy()
     records = load_attendance()
     today = datetime.datetime.now().date()
-    last_checkin = "N/A"
     daily = weekly = monthly = 0
+    last_checkin = "N/A"
+    present_today_ids = set()
     try:
         for r in records:
             eid = (r.get('emp_id') or '').upper()
-            if emp_id and eid != emp_id:
-                continue
             ts = r.get('timestamp')
             try:
                 ts_dt = datetime.datetime.fromisoformat(ts) if isinstance(ts, str) else ts
@@ -117,6 +118,10 @@ def _employee_dashboard(emp_query: str):
             if not ts_dt:
                 continue
             d = ts_dt.date()
+            if eid and d == today:
+                present_today_ids.add(eid)
+            if emp_id and eid != emp_id:
+                continue
             if d == today:
                 daily += 1
                 last_checkin = r.get('check_in_time') or ts_dt.strftime('%I:%M %p')
@@ -126,25 +131,56 @@ def _employee_dashboard(emp_query: str):
                 monthly += 1
     except Exception:
         pass
-    details = employees.get(emp_id, {}) if emp_id else {}
-    dept = details.get('department', '')
-    role = details.get('role', '')
-    email = details.get('email', '')
+    total_emps = len(employees or {})
+    present_count = len(present_today_ids)
+    absent_count = max(total_emps - present_count, 0)
+    weekly_ratio = round((weekly/7*100) if weekly else 0, 1)
+    monthly_ratio = round((monthly/30*100) if monthly else 0, 1)
     total_tasks = len(perf_df)
     completed_tasks = int((perf_df.get('Task Status') == 'Completed').sum()) if 'Task Status' in perf_df.columns else 0
+    completion_rate = round((completed_tasks/total_tasks*100) if total_tasks else 0, 1)
     avg_perf = round(perf_df['Employee Performance (%)'].mean(), 2) if 'Employee Performance (%)' in perf_df.columns and not perf_df.empty else 0
+    rating = "Excellent" if avg_perf >= 80 else ("Good" if avg_perf >= 60 else ("Fair" if avg_perf >= 40 else "Needs Improvement"))
     latest_status = "Unknown"
     try:
         if 'Availability' in perf_df.columns and not perf_df[perf_df['Availability'].notna()].empty:
             latest_status = perf_df[perf_df['Availability'].notna()]['Availability'].iloc[-1]
     except Exception:
         pass
-    return (
-        f"Employee: {emp_name or emp_id or emp_query}\n"
-        f"Department: {dept} | Role: {role} | Email: {email}\n"
-        f"Performance → Total Tasks: {total_tasks}, Completed: {completed_tasks}, Avg Performance (%): {avg_perf}, Latest Availability: {latest_status}\n"
-        f"Attendance → Daily: {daily}, Weekly: {weekly}, Monthly: {monthly}, Last Check-in: {last_checkin}"
-    )
+    observations = []
+    if completion_rate >= 80 or avg_perf >= 80:
+        observations.append("Consistently high performance")
+    elif avg_perf <= 40:
+        observations.append("Performance needs attention")
+    else:
+        observations.append("Stable performance")
+    flags = 0
+    try:
+        if 'Support Request' in perf_df.columns:
+            flags = int(perf_df['Support Request'].apply(lambda x: bool(str(x).strip()) if x is not None else False).sum())
+    except Exception:
+        flags = 0
+    achievements = []
+    if completed_tasks >= 10:
+        achievements.append(f"Completed {completed_tasks} tasks recently")
+    report_lines = [
+        f"Employee Summary: {emp_name or emp_id}",
+        f"Attendance:",
+        f"- Today: {'Present' if daily > 0 else 'Absent'} | Last Check-in: {last_checkin}",
+        f"- Weekly Check-ins: {weekly}/7 ({weekly_ratio}%)", 
+        f"- Monthly Check-ins: {monthly}/30 ({monthly_ratio}%)",
+        f"- Team Today: Present {present_count} / Absent {absent_count} (Total {total_emps})",
+        f"Performance:",
+        f"- Average Performance: {avg_perf}% | Rating: {rating}",
+        f"- Completion Rate: {completion_rate}% ({completed_tasks}/{total_tasks})",
+        f"- Latest Availability: {latest_status}",
+        f"Observations:",
+        f"- {'; '.join(observations) if observations else 'No notable observations'}",
+        f"Flags/Achievements:",
+        f"- Support Requests: {flags}",
+        f"- {'; '.join(achievements) if achievements else 'No recent achievements recorded'}",
+    ]
+    return "\n".join(report_lines)
 
 def ChatBot(Query):
     try:
@@ -168,7 +204,7 @@ def ChatBot(Query):
                 if t.upper().startswith("EMP") or len(t) > 2:
                     candidate = t
                     break
-            answer = _employee_dashboard(candidate or Query)
+            answer = _employee_structured_report(candidate or Query)
         else:
             answer = "I answer only work-related queries: performance, attendance status/ratio, daily check-ins, and work mode details."
         messages.append({"role": "assistant", "content": answer})
