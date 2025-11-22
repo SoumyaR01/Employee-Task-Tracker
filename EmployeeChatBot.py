@@ -6,6 +6,7 @@ from dotenv import dotenv_values
 import threading
 import numpy as np
 import attendance_store
+
 try:
     import faiss
 except Exception:
