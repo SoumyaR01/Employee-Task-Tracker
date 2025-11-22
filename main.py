@@ -2081,7 +2081,7 @@ def show_login_page():
         margin-bottom: 10px;
         font-family: 'Segoe UI', sans-serif;
     ">
-        🔒 PTF Login Gateway
+        🔒 PTF Workplace Access
     </div>
     <div style="
         width: 140px;
