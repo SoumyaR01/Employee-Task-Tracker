@@ -105,6 +105,29 @@ def check_employee_exists(emp_id):
     employees = load_employees()
     return emp_id.upper() in employees
 
+def check_already_checked_in_today(emp_id):
+    """
+    Check if an employee has already checked in today (same calendar day).
+    Returns True if already checked in, False otherwise.
+    """
+    records = load_attendance()
+    today = datetime.now().date()
+    
+    for record in records:
+        if record.get("emp_id") == emp_id:
+            # Parse the timestamp to get the date
+            try:
+                record_timestamp = record.get("timestamp")
+                if record_timestamp:
+                    # Handle both ISO format and other formats
+                    record_date = datetime.fromisoformat(record_timestamp.replace('Z', '+00:00')).date()
+                    if record_date == today:
+                        return True
+            except Exception:
+                pass
+    
+    return False
+
 def create_employee(emp_id, password, name="", email="", department="", role=""):
     """
     Create a new employee account.
