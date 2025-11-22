@@ -398,6 +398,7 @@ def _get_today_attendance_summary():
         for emp_id, emp_data in employees.items():
             if emp_id not in present_employees:
                 absent_list.append(f"{emp_data.get('name', emp_id)} ({emp_id})")
+        present_list = [f"{info['name']} ({eid})" for eid, info in present_employees.items()]
         return {
             'total': total_emps,
             'present': present_count,
@@ -406,6 +407,7 @@ def _get_today_attendance_summary():
             'wfh': wfh_list,
             'leave': leave_list,
             'absent_list': absent_list,
+            'present_list': present_list,
             'late_list': late_list,
             'ratio': round((present_count/total_emps*100) if total_emps else 0, 1)
         }
@@ -604,7 +606,7 @@ def _maybe_answer_with_dashboard(query: str):
 def ChatBot(Query):
     q = Query.strip().lower()
     allowed = [
-        "performance","attendance","ratio","check-in","checkins",
+        "performance","attendance","ratio","accuracy","check-in","checkins",
         "work mode","wfh","wfo","leave","status","dashboard",
         "employee","checked-in","in office","working from home","absent"
     ]
@@ -644,9 +646,9 @@ def ChatBot(Query):
         if kind == "checked":
             present = s.get('present', 0)
             total = s.get('total', 0)
-            names = [n for n in s.get('absent_list', [])]  # we'll show present names via vector below
+            names = s.get('present_list', [])
             ratio = s.get('ratio', 0)
-            return f"Checked-in today: {present}/{total} ({ratio}%)"
+            return f"Checked-in today: {present}/{total} ({ratio}%)\n" + ("\n".join(names) if names else "")
         if kind == "ratio":
             present = s.get('present', 0)
             total = s.get('total', 0)
@@ -661,9 +663,9 @@ def ChatBot(Query):
     agg = None
     if any(k in q for k in ["leave today","on leave","who is on leave"]):
         agg = _aggregate_answer_from_hits("on leave today") or _live_summary_answer("leave")
-    elif any(k in q for k in ["checked-in today","who checked-in","checked in today"]):
+    elif any(k in q for k in ["checked-in today","who checked-in","checked in today","today check-ins","today checkins","check-ins today"]):
         agg = _aggregate_answer_from_hits("checked in today") or _live_summary_answer("checked")
-    elif any(k in q for k in ["attendance ratio","attendance today","ratio"]):
+    elif any(k in q for k in ["attendance ratio","attendance today","attendance of today","today attendance","attendance for today","ratio","accuracy"]):
         agg = _aggregate_answer_from_hits("attendance ratio today") or _live_summary_answer("ratio")
     elif any(k in q for k in ["working from home","wfh"]):
         agg = _aggregate_answer_from_hits("wfh today") or _live_summary_answer("wfh")
