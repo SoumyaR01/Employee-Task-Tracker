@@ -2840,7 +2840,7 @@ def _fallback_chat_answer(query: str) -> str:
     return "I answer only work-related queries: performance, attendance status/ratio, daily check-ins, and work mode details."
 
 def show_chatbot_panel():
-    st.markdown("### 🤖 Employee Chatbot")
+    #st.markdown("### 🤖 Employee Chatbot")
     st.caption("Ask about performance, attendance status/ratio, daily check-ins, or work mode.")
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
