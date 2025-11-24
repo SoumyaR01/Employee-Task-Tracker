@@ -3239,8 +3239,6 @@ def render_full_performance_dashboard():
     show_charts(filtered_df)
     st.markdown("---")
     show_employee_dashboard(filtered_df if filtered_df is not None and not filtered_df.empty else df)
-    st.markdown("---")
-    show_chatbot_panel()
 
 def _build_work_context():
     config = load_config()
@@ -3322,6 +3320,7 @@ def _fallback_chat_answer(query: str) -> str:
     return "Please specify: overall stats or a specific employee (name/ID)."
 
 def show_chatbot_panel():
+    st.markdown("### 🧠 Smart Employee Bot")
     st.caption("Ask about performance, attendance status/ratio, daily check-ins, or work mode.")
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
