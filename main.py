@@ -374,6 +374,40 @@ st.markdown("""
         display: none !important;
     }
     
+    /* Additional aggressive overrides for selectbox single-box appearance */
+    .stSelectbox > div > div > div {
+        background: transparent !important;
+        border: none !important;
+        padding: 0 !important;
+    }
+    
+    .stSelectbox > div > div {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+    
+    /* Force all nested divs inside selectbox to be transparent */
+    .stSelectbox [data-baseweb="select"] * {
+        border: none !important;
+    }
+    
+    /* Prevent any flex-based splitting */
+    .stSelectbox > div:first-child {
+        display: flex !important;
+        flex-direction: column !important;
+    }
+    
+    /* Additional targeting for inner containers */
+    .stSelectbox div[class*="css"] {
+        max-width: 100% !important;
+    }
+    
+    /* Override any grid that might cause splits */
+    .stSelectbox > div > div:first-child {
+        display: block !important;
+        width: 100% !important;
+    }
+    
     /* Number input specific styling */
     .stNumberInput > div > div > input {
         background: #1a1d23 !important;
