@@ -3322,7 +3322,6 @@ def _fallback_chat_answer(query: str) -> str:
     return "Please specify: overall stats or a specific employee (name/ID)."
 
 def show_chatbot_panel():
-    st.markdown("### 🧠 Smart Employee Bot")
     st.caption("Ask about performance, attendance status/ratio, daily check-ins, or work mode.")
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
@@ -3352,8 +3351,6 @@ def show_admin_dashboard():
     # Sidebar navigation for admin
     with st.sidebar:
         st.title("⚙️ Admin Panel")
-        st.success(f"👤 {st.session_state.emp_name} (Admin)")
-        st.markdown("---")
         
         # Admin menu: include pages moved from the employee menu so only admins can access them
         admin_pages = [
