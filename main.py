@@ -1873,7 +1873,7 @@ def show_submit_report():
     # Employee Information section removed per request
     # Initialize required variables to preserve downstream logic
     date = datetime.now().date()
-    work_mode = ""
+    work_mode = st.session_state.get("work_mode", "")
     emp_id = st.session_state.get("emp_id", "")
     name = st.session_state.get("emp_name", "")
    
@@ -1970,7 +1970,6 @@ def show_submit_report():
         # Validate employee information
         employee_fields = {
             "Date": date,
-            "Work Mode": work_mode,
             "Employee ID": emp_id,
             "Name": name
         }
@@ -2005,7 +2004,7 @@ def show_submit_report():
                     availability = st.session_state.get(f"availability_{i}", "")
                     task_data_list.append({
                         'Date': date.strftime("%Y-%m-%d"),
-                        'Work Mode': work_mode,
+                        'Work Mode': st.session_state.get("work_mode", ""),
                         'Emp Id': emp_id,
                         'Name': name,
                         'Project Name': project_name,
@@ -3084,6 +3083,8 @@ def main():
                     # Map to internal codes used by Attendance system
                     mapping = {"Work from Home": "WFH", "Work in Office": "WFO", "On Leave": "On Leave"}
                     code = mapping.get(status_choice, "No Status")
+                    # Persist today's work mode in session for use across forms/pages
+                    st.session_state.work_mode = code
                     # Append attendance using logged-in emp_id with device time if available
                     try:
                         # Get device time from session state (captured by JS), fallback to None to use server time
