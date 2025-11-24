@@ -2057,37 +2057,83 @@ def show_employee_dashboard(df):
     else:
         st.info("No detailed task records to display.")
 def show_data_table(df):
-    """Display data table"""
+    """Display data table with column filters"""
     st.subheader("📋 Recent Submissions")
     if df is None or df.empty:
         st.info("No submissions found")
         return
+    
     # Display options
     col1, col2 = st.columns([3, 1])
     with col1:
         search = st.text_input("🔎 Search", placeholder="Search in any column...")
     with col2:
         rows_to_show = st.number_input("Rows", min_value=10, max_value=1000, value=50, step=10)
-    # Apply search
+    
+    # Apply search first
     display_df = df.copy()
     if search:
         mask = display_df.astype(str).apply(
             lambda x: x.str.contains(search, case=False, na=False)
         ).any(axis=1)
         display_df = display_df[mask]
-    # NEW: Helper function to highlight non-empty Support Request cells
+    
+    # Column Filters Section
+    st.markdown("### 🔍 Column Filters")
+    st.caption("Filter by specific column values (filters work together)")
+    
+    # Create expandable filters section
+    with st.expander("📊 Show/Hide Column Filters", expanded=False):
+        # Get all columns
+        columns = display_df.columns.tolist()
+        
+        # Create filters in a grid layout (3 columns per row)
+        num_cols = 3
+        for i in range(0, len(columns), num_cols):
+            cols = st.columns(num_cols)
+            for j, col_name in enumerate(columns[i:i+num_cols]):
+                with cols[j]:
+                    # Get unique values for this column (including blanks/NaN)
+                    unique_vals = display_df[col_name].dropna().astype(str).unique().tolist()
+                    unique_vals = sorted([v for v in unique_vals if v.strip() != ''])
+                    
+                    # Add "All" option at the beginning
+                    filter_options = ["All"] + unique_vals
+                    
+                    # Create selectbox for this column
+                    selected = st.selectbox(
+                        f"🔹 {col_name}",
+                        options=filter_options,
+                        key=f"filter_{col_name}",
+                        help=f"Filter by {col_name}"
+                    )
+                    
+                    # Apply filter if not "All"
+                    if selected != "All":
+                        display_df = display_df[display_df[col_name].astype(str) == selected]
+    
+    # Show filter results count
+    if len(display_df) < len(df):
+        st.info(f"📊 Showing {len(display_df)} of {len(df)} total records (filtered)")
+    
+    # Helper function to highlight non-empty Support Request cells
     def highlight_support(val):
         if pd.isna(val) or str(val).strip() == "":
             return ""
-        return "background-color: #ffcccb; color: #000000; font-weight: bold; border-left: 3px solid #ff4444" # Light red for flagged support requests
-    # NEW: Apply styling to the Support Request column only
-    styled_df = display_df.style.map(highlight_support, subset=['Support Request'])
-    # UPDATED: Use the styled dataframe
-    st.dataframe(
-        styled_df,
-        use_container_width=True,
-        height=400
-    )
+        return "background-color: #ffcccb; color: #000000; font-weight: bold; border-left: 3px solid #ff4444"
+    
+    # Apply styling to the Support Request column only
+    if not display_df.empty:
+        styled_df = display_df.head(rows_to_show).style.map(highlight_support, subset=['Support Request'])
+        
+        st.dataframe(
+            styled_df,
+            use_container_width=True,
+            height=400
+        )
+    else:
+        st.warning("No records match the selected filters")
+    
     # Download button
     if not display_df.empty:
         # CSV: keep emoji labels for readability
