@@ -2736,13 +2736,14 @@ def render_full_performance_dashboard():
         return
     show_metrics(df)
     st.markdown("---")
+    # Move Recent Submissions above Filters
+    show_data_table(df)
+    st.markdown("---")
     filtered_df = show_filters(df)
     st.markdown("---")
     show_charts(filtered_df)
     st.markdown("---")
     show_employee_dashboard(filtered_df if filtered_df is not None and not filtered_df.empty else df)
-    st.markdown("---")
-    show_data_table(filtered_df)
     st.markdown("---")
     show_chatbot_panel()
 
