@@ -2827,7 +2827,7 @@ def _fallback_chat_answer(query: str) -> str:
     return "Please specify: overall stats or a specific employee (name/ID)."
 
 def show_chatbot_panel():
-    st.markdown("### 💬 Employee Chatbot")
+    st.markdown("### 🧠 Smart Employee Bot")
     st.caption("Ask about performance, attendance status/ratio, daily check-ins, or work mode.")
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
@@ -2896,7 +2896,7 @@ def show_admin_dashboard():
         st.title("📊 Staff Attendance Dashboard")
         show_admin_attendance_dashboard()
     elif admin_page == "💬 Chatbot":
-        st.title("💬 Employee Chatbot")
+        #st.title("💬 Employee Chatbot")
         show_chatbot_panel()
 
     elif admin_page == "👤 Employee Management":
