@@ -266,81 +266,112 @@ st.markdown("""
     }
     
     /* ============================================
-       SELECTBOX - Clean Modern Input Style
+       SELECTBOX - Clean Single Input Box (No Split)
        ============================================ */
     
-    /* Main selectbox container - clean input box appearance */
-    .stSelectbox > div > div {
-        position: relative;
+    /* Hide the default button/split container that causes the broken layout */
+    .stSelectbox > div:first-child > div:first-child {
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+        gap: 0 !important;
     }
     
-    .stSelectbox > div > div > div {
+    /* Main selectbox input - single clean box */
+    .stSelectbox [data-baseweb="select"] {
         background-color: #1a1d23 !important;
         border: 1.5px solid rgba(255,255,255,0.25) !important;
         border-radius: 8px !important;
+        min-height: 44px !important;
+        transition: all 0.3s ease !important;
+    }
+    
+    /* Container for the selected value */
+    .stSelectbox [data-baseweb="select"] > div {
+        background-color: transparent !important;
+        border: none !important;
         padding: 0.625rem 2.5rem 0.625rem 0.75rem !important;
         color: var(--text-light) !important;
         font-size: clamp(0.875rem, 2vw, 1rem) !important;
-        transition: all 0.3s ease !important;
-        cursor: pointer;
-        min-height: 44px;
-        display: flex;
-        align-items: center;
+        min-height: 44px !important;
+        display: flex !important;
+        align-items: center !important;
     }
     
-    /* Hover state */
-    .stSelectbox > div > div > div:hover {
+    /* Hide the separate dropdown button container completely */
+    .stSelectbox [data-baseweb="select"] + div {
+        display: none !important;
+    }
+    
+    /* Selectbox arrow icon - positioned inside the box on the right */
+    .stSelectbox [data-baseweb="select"] svg {
+        position: absolute !important;
+        right: 0.75rem !important;
+        top: 50% !important;
+        transform: translateY(-50%) !important;
+        width: 1.2rem !important;
+        height: 1.2rem !important;
+        color: rgba(230, 238, 242, 0.7) !important;
+        pointer-events: none !important;
+    }
+    
+    /* Hover state for the entire selectbox */
+    .stSelectbox [data-baseweb="select"]:hover {
         border-color: rgba(102, 126, 234, 0.5) !important;
         background-color: #1f2329 !important;
+        cursor: pointer !important;
     }
     
     /* Focus state */
-    .stSelectbox > div > div > div:focus,
-    .stSelectbox > div > div > div:focus-within {
+    .stSelectbox [data-baseweb="select"]:focus-within {
         border-color: #667eea !important;
         box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15) !important;
         outline: none !important;
     }
     
-    /* Dropdown arrow - positioned on the right inside the box */
-    .stSelectbox svg {
-        position: absolute !important;
-        right: 0.75rem !important;
-        top: 50% !important;
-        transform: translateY(-50%) !important;
-        width: 1rem !important;
-        height: 1rem !important;
-        color: rgba(230, 238, 242, 0.7) !important;
-        pointer-events: none !important;
+    /* Input element inside selectbox */
+    .stSelectbox input {
+        background-color: transparent !important;
+        border: none !important;
+        color: var(--text-light) !important;
+        padding: 0 !important;
+        cursor: pointer !important;
     }
     
-    /* Remove the split appearance - hide the separate arrow button */
-    .stSelectbox button {
-        display: none !important;
-    }
-    
-    /* Dropdown menu styling */
-    .stSelectbox ul {
+    /* Dropdown menu */
+    .stSelectbox [role="listbox"] {
         background-color: #1a1d23 !important;
         border: 1.5px solid rgba(255,255,255,0.25) !important;
         border-radius: 8px !important;
         margin-top: 4px !important;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5) !important;
+        padding: 0.25rem 0 !important;
     }
     
-    .stSelectbox li {
+    /* Dropdown menu items */
+    .stSelectbox [role="option"] {
         color: var(--text-light) !important;
         padding: 0.625rem 0.75rem !important;
         transition: background-color 0.2s ease !important;
+        cursor: pointer !important;
     }
     
-    .stSelectbox li:hover {
+    .stSelectbox [role="option"]:hover {
         background-color: rgba(102, 126, 234, 0.2) !important;
     }
     
     /* Selected item in dropdown */
-    .stSelectbox li[aria-selected="true"] {
+    .stSelectbox [role="option"][aria-selected="true"] {
         background-color: rgba(102, 126, 234, 0.3) !important;
+        font-weight: 500 !important;
+    }
+    
+    /* Ensure no extra containers create splits */
+    .stSelectbox > div {
+        position: relative !important;
+    }
+    
+    .stSelectbox button {
+        display: none !important;
     }
     
     /* Number input specific styling */
