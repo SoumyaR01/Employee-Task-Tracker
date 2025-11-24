@@ -2359,7 +2359,6 @@ def show_submit_report():
     </p>
     """, unsafe_allow_html=True)
    
-    st.markdown("---")
     excel_path = config.get('excel_file_path', EXCEL_FILE_PATH)
     # Initialize session state for task count if not exists
     if 'num_tasks' not in st.session_state:
@@ -2372,7 +2371,6 @@ def show_submit_report():
     emp_id = st.session_state.get("emp_id", "")
     name = st.session_state.get("emp_name", "")
    
-    st.markdown("---")
     st.subheader("📋 Today's Tasks")
     st.info("💡 Record all tasks you worked on today. Multiple entries are allowed before submission.")
    
