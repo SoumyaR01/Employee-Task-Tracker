@@ -2536,6 +2536,14 @@ def show_submit_report():
         if st.session_state.get("submitting_report", False):
             st.warning("⏳ Report submission in progress. Please wait...")
             return
+            
+        # Check for rapid double-clicks (cooldown)
+        import time
+        current_time = time.time()
+        last_time = st.session_state.get("last_submission_time", 0)
+        if current_time - last_time < 5:  # 5 seconds cooldown
+            st.warning("⚠️ You just submitted a report. Please wait a moment before submitting again.")
+            return
         
         # Set flag to prevent duplicate clicks
         st.session_state.submitting_report = True
@@ -2616,6 +2624,8 @@ def show_submit_report():
                     st.balloons()
                     # Clear submission flag
                     st.session_state.submitting_report = False
+                    # Set last submission time for cooldown
+                    st.session_state.last_submission_time = time.time()
                     # Reset task count for next submission
                     st.session_state.num_tasks = 1
                     # Clear form values by clearing session state keys
