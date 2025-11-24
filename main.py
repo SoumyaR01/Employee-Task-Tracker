@@ -95,32 +95,16 @@ def get_base64_image(image_path):
             return base64.b64encode(img_file.read()).decode()
     except:
         return None
-# Custom CSS (dark/black background with full responsive design)
+# Custom CSS (dark/black background)
 st.markdown("""
 <style>
-    /* ============================================
-       BASE STYLES - Mobile First Approach
-       ============================================ */
-    
-    /* Root variables for consistency */
-    :root {
-        --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        --dark-gradient: linear-gradient(180deg, rgba(20,20,20,0.6) 0%, rgba(30,30,30,0.6) 100%);
-        --sidebar-gradient: linear-gradient(180deg, #4c5bd4 0%, #6b4bb8 100%);
-        --text-light: #e6eef2;
-        --bg-dark: #0f1113;
-        --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-    
     /* Background styling */
     .stApp {
-        background: #000000;
+        background: #000000; /* black */
         background-attachment: fixed;
-        color: var(--text-light);
-        min-height: 100vh;
+        color: #e6eef2; /* light default text color for readability */
     }
-    
-    /* Subtle pattern overlay */
+    /* Subtle pattern overlay (very light) */
     .stApp::before {
         content: "";
         position: fixed;
@@ -130,418 +114,123 @@ st.markdown("""
         height: 100%;
         pointer-events: none;
         z-index: 0;
-        opacity: 0.03;
     }
-    
-    /* Main content area - Mobile first */
+    /* Main content area */
     .main > div {
-        padding: 0.5rem;
+        padding: 1rem;
         position: relative;
         z-index: 1;
-        max-width: 100%;
-        overflow-x: hidden;
     }
-    
-    /* Block container - Responsive padding */
+    /* Block container styling (dark) */
     .block-container {
-        padding: 1rem 0.75rem;
+        padding: 2rem 1rem;
         background: rgba(10, 10, 10, 0.75);
-        border-radius: 12px;
+        border-radius: 15px;
         backdrop-filter: blur(6px);
-        box-shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.6);
-        color: var(--text-light);
-        max-width: 100%;
-        margin: 0 auto;
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.6);
+        color: #e6eef2; /* ensure text inside blocks is light */
     }
-    
-    /* ============================================
-       METRIC CARDS - Fully Responsive
-       ============================================ */
+    /* Metric cards */
     .metric-card {
-        background: var(--primary-gradient);
-        padding: clamp(1rem, 3vw, 1.5rem);
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 20px;
         border-radius: 10px;
         color: white !important;
         text-align: center;
-        margin: 0.75rem 0;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-        transition: var(--transition-smooth);
-        width: 100%;
-        box-sizing: border-box;
+        margin: 10px 0;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        transition: transform 0.25s ease;
     }
-    
     .metric-card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        transform: translateY(-4px);
     }
-    
     .metric-value {
-        font-size: clamp(1.5rem, 5vw, 2.5rem);
+        font-size: 2.5rem;
         font-weight: bold;
-        line-height: 1.2;
-        margin-bottom: 0.25rem;
     }
-    
     .metric-label {
-        font-size: clamp(0.875rem, 2.5vw, 1rem);
+        font-size: 1rem;
         opacity: 0.95;
-        line-height: 1.4;
     }
-    
-    /* ============================================
-       FILTER CONTAINER - Mobile Optimized
-       ============================================ */
+    /* Filter container (dark) */
     .filter-container {
-        background: var(--dark-gradient);
-        padding: clamp(0.75rem, 3vw, 1.25rem);
+        background: linear-gradient(180deg, rgba(20,20,20,0.6) 0%, rgba(30,30,30,0.6) 100%);
+        padding: 20px;
         border-radius: 10px;
-        margin-bottom: 1rem;
+        margin-bottom: 20px;
         box-shadow: 0 2px 10px rgba(0,0,0,0.6);
-        color: var(--text-light);
-        width: 100%;
-        box-sizing: border-box;
+        color: #e6eef2;
     }
-    
-    /* ============================================
-       BUTTONS - Touch Friendly
-       ============================================ */
+    /* Button styling */
     .stButton > button {
         width: 100%;
-        border-radius: 8px;
-        min-height: 44px;
-        height: auto;
-        padding: 0.75rem 1rem;
+        border-radius: 6px;
+        height: 3rem;
         font-weight: 600;
-        font-size: clamp(0.875rem, 2vw, 1rem);
-        background: var(--primary-gradient);
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white !important;
         border: none;
-        transition: var(--transition-smooth);
-        cursor: pointer;
-        touch-action: manipulation;
+        transition: all 0.2s ease;
     }
-    
     .stButton > button:hover {
         transform: translateY(-2px);
-        box-shadow: 0 6px 18px rgba(102, 126, 234, 0.25);
+        box-shadow: 0 6px 18px rgba(102, 126, 234, 0.18);
     }
-    
-    .stButton > button:active {
-        transform: translateY(0);
-    }
-    
-    /* ============================================
-       SIDEBAR - Responsive Width
-       ============================================ */
+    /* Sidebar styling */
     [data-testid="stSidebar"] {
-        background: var(--sidebar-gradient);
-        min-width: 250px;
+        background: linear-gradient(180deg, #4c5bd4 0%, #6b4bb8 100%);
     }
-    
     [data-testid="stSidebar"] * {
         color: white !important;
     }
-    
-    [data-testid="stSidebar"] > div:first-child {
-        padding: 1rem 0.5rem;
-    }
-    
-    /* ============================================
-       INPUT FIELDS - Mobile Optimized
-       ============================================ */
+    /* Input fields (dark theme) */
     .stTextInput > div > div > input,
     .stTextArea > div > div > textarea,
-    .stSelectbox > div > div > select,
-    .stNumberInput > div > div > input {
+    .stSelectbox > div > div > select {
         border-radius: 8px;
         border: 1px solid rgba(255,255,255,0.12);
         transition: border-color 0.3s ease;
-        background: var(--bg-dark);
-        color: var(--text-light);
-        font-size: clamp(0.875rem, 2vw, 1rem);
-        padding: 0.625rem 0.75rem;
-        width: 100%;
-        box-sizing: border-box;
+        background: #0f1113;
+        color: #e6eef2;
     }
-    
     .stTextInput > div > div > input:focus,
     .stTextArea > div > div > textarea:focus,
-    .stSelectbox > div > div > select:focus,
-    .stNumberInput > div > div > input:focus {
+    .stSelectbox > div > div > select:focus {
         border-color: #667eea;
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        outline: none;
+        box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.06);
     }
-    
-    /* ============================================
-       LOGO CONTAINER - Responsive Sizing
-       ============================================ */
+    /* Logo container styling */
     .logo-container {
         background: transparent;
-        padding: clamp(1rem, 3vw, 1.5rem);
+        padding: 20px;
         border-radius: 15px;
         box-shadow: none;
-        margin-bottom: 1rem;
+        margin-bottom: 20px;
         text-align: center;
-        width: 100%;
     }
-    
+    /* Constrain logo image size so it doesn't take the entire viewport */
     .logo-container img {
-        max-width: min(480px, 90vw);
+        max-width: 480px;
         width: 100%;
         height: auto;
         display: inline-block;
     }
-    
-    /* ============================================
-       EXPANDER - Better UX
-       ============================================ */
+    /* Expander styling */
     .streamlit-expanderHeader {
         background: linear-gradient(135deg, #1e293b 0%, #111827 100%);
         border-radius: 8px;
         font-weight: 600;
-        color: var(--text-light) !important;
-        padding: 0.75rem 1rem;
-        transition: var(--transition-smooth);
+        color: #e6eef2 !important;
     }
-    
-    .streamlit-expanderHeader:hover {
-        background: linear-gradient(135deg, #2d3b52 0%, #1f2937 100%);
-    }
-    
-    /* ============================================
-       DATAFRAME / TABLE - Horizontal Scroll
-       ============================================ */
-    .stDataFrame {
-        width: 100%;
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-    }
-    
-    .stDataFrame > div {
-        max-width: 100%;
-    }
-    
-    /* ============================================
-       COLUMNS - Better Spacing
-       ============================================ */
-    [data-testid="column"] {
-        padding: 0 0.25rem;
-    }
-    
-    /* ============================================
-       HEADINGS - Responsive Typography
-       ============================================ */
-    h1 {
-        font-size: clamp(1.5rem, 5vw, 2.5rem) !important;
-        line-height: 1.2 !important;
-        margin-bottom: 1rem !important;
-    }
-    
-    h2 {
-        font-size: clamp(1.25rem, 4vw, 2rem) !important;
-        line-height: 1.3 !important;
-        margin-bottom: 0.875rem !important;
-    }
-    
-    h3 {
-        font-size: clamp(1.1rem, 3.5vw, 1.5rem) !important;
-        line-height: 1.4 !important;
-        margin-bottom: 0.75rem !important;
-    }
-    
-    /* ============================================
-       MOBILE PORTRAIT - Extra Small Devices
-       < 480px (Small Phones)
-       ============================================ */
-    @media (max-width: 479px) {
+    @media (max-width: 768px) {
         .main > div {
-            padding: 0.25rem;
+            padding: 0.5rem;
         }
-        
+        .metric-value {
+            font-size: 1.8rem;
+        }
         .block-container {
-            padding: 0.75rem 0.5rem;
-            border-radius: 8px;
-        }
-        
-        .metric-card {
-            padding: 0.875rem;
-            margin: 0.5rem 0;
-        }
-        
-        .filter-container {
-            padding: 0.75rem;
-        }
-        
-        .stButton > button {
-            min-height: 48px;
-            padding: 0.875rem 1rem;
-            font-size: 0.9375rem;
-        }
-        
-        .logo-container img {
-            max-width: 95vw;
-        }
-        
-        [data-testid="stSidebar"] {
-            min-width: 200px;
-        }
-        
-        /* Stack columns on very small screens */
-        [data-testid="column"] {
-            width: 100% !important;
-            padding: 0.25rem 0;
-        }
-    }
-    
-    /* ============================================
-       MOBILE LANDSCAPE / SMALL TABLET
-       480px - 767px
-       ============================================ */
-    @media (min-width: 480px) and (max-width: 767px) {
-        .main > div {
-            padding: 0.75rem;
-        }
-        
-        .block-container {
-            padding: 1.25rem 1rem;
-        }
-        
-        .metric-card {
-            padding: 1.125rem;
-        }
-        
-        .filter-container {
-            padding: 1rem;
-        }
-        
-        .logo-container img {
-            max-width: 420px;
-        }
-    }
-    
-    /* ============================================
-       TABLET PORTRAIT
-       768px - 1023px
-       ============================================ */
-    @media (min-width: 768px) and (max-width: 1023px) {
-        .main > div {
-            padding: 1rem;
-        }
-        
-        .block-container {
-            padding: 1.5rem 1.25rem;
-            max-width: 1200px;
-        }
-        
-        .metric-card {
-            padding: 1.25rem;
-        }
-        
-        .filter-container {
-            padding: 1.125rem;
-        }
-        
-        .logo-container img {
-            max-width: 450px;
-        }
-        
-        [data-testid="stSidebar"] {
-            min-width: 280px;
-        }
-        
-        /* Better column spacing */
-        [data-testid="column"] {
-            padding: 0 0.5rem;
-        }
-    }
-    
-    /* ============================================
-       DESKTOP / LARGE SCREENS
-       >= 1024px
-       ============================================ */
-    @media (min-width: 1024px) {
-        .main > div {
-            padding: 1.5rem;
-        }
-        
-        .block-container {
-            padding: 2rem 1.5rem;
-            max-width: 1400px;
-        }
-        
-        .metric-card {
-            padding: 1.5rem;
-        }
-        
-        .filter-container {
-            padding: 1.25rem;
-        }
-        
-        .logo-container img {
-            max-width: 480px;
-        }
-        
-        [data-testid="stSidebar"] {
-            min-width: 300px;
-        }
-        
-        /* Optimal column spacing */
-        [data-testid="column"] {
-            padding: 0 0.75rem;
-        }
-        
-        /* Hover effects only on larger screens */
-        .metric-card:hover {
-            transform: translateY(-4px);
-        }
-    }
-    
-    /* ============================================
-       EXTRA LARGE SCREENS
-       >= 1440px (Full HD and above)
-       ============================================ */
-    @media (min-width: 1440px) {
-        .block-container {
-            max-width: 1600px;
-            padding: 2.5rem 2rem;
-        }
-        
-        .main > div {
-            padding: 2rem;
-        }
-    }
-    
-    /* ============================================
-       ACCESSIBILITY - Reduced Motion
-       ============================================ */
-    @media (prefers-reduced-motion: reduce) {
-        * {
-            animation-duration: 0.01ms !important;
-            animation-iteration-count: 1 !important;
-            transition-duration: 0.01ms !important;
-        }
-        
-        .metric-card:hover,
-        .stButton > button:hover {
-            transform: none;
-        }
-    }
-    
-    /* ============================================
-       PRINT STYLES
-       ============================================ */
-    @media print {
-        .stApp::before,
-        [data-testid="stSidebar"],
-        .stButton {
-            display: none !important;
-        }
-        
-        .block-container {
-            box-shadow: none;
-            background: white;
-            color: black;
+            padding: 1rem 0.5rem;
         }
     }
 </style>
