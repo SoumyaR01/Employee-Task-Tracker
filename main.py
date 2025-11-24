@@ -2131,13 +2131,17 @@ def show_login_page():
                 else:
                     success, name, role = verify_login(emp_id, password)
                     if success:
-                        st.session_state.logged_in = True
-                        st.session_state.emp_id = emp_id.upper()
-                        st.session_state.emp_name = name
-                        st.session_state.emp_role = role
-                        st.success("✅ Logged in successfully!")
-                        time.sleep(1)
-                        st.rerun()
+                        # Strict role validation: block admin from employee portal
+                        if role and str(role).lower() == "admin":
+                            st.error("Admin accounts cannot log in from the Employee portal.")
+                        else:
+                            st.session_state.logged_in = True
+                            st.session_state.emp_id = emp_id.upper()
+                            st.session_state.emp_name = name
+                            st.session_state.emp_role = role or "employee"
+                            st.success("✅ Logged in successfully!")
+                            time.sleep(1)
+                            st.rerun()
                     else:
                         st.error("Invalid Office ID or Password")
             
@@ -2840,7 +2844,7 @@ def _fallback_chat_answer(query: str) -> str:
     return "Please specify: overall stats or a specific employee (name/ID)."
 
 def show_chatbot_panel():
-    #st.markdown("### 💬 Employee Chatbot")
+    st.markdown("### 💬 Employee Chatbot")
     st.caption("Ask about performance, attendance status/ratio, daily check-ins, or work mode.")
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
@@ -2909,7 +2913,7 @@ def show_admin_dashboard():
         st.title("📊 Staff Attendance Dashboard")
         show_admin_attendance_dashboard()
     elif admin_page == "💬 Chatbot":
-        st.title("🧠 Smart Employee Bot")
+        st.title("💬 Employee Chatbot")
         show_chatbot_panel()
 
     elif admin_page == "👤 Employee Management":
