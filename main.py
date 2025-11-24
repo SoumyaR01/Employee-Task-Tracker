@@ -1870,29 +1870,12 @@ def show_submit_report():
     if 'num_tasks' not in st.session_state:
         st.session_state.num_tasks = 1
    
-    st.subheader("👨‍💻 Employee Information")
-   
-    col1, col2 = st.columns(2)
-   
-    with col1:
-        date = st.date_input("Date*", value=datetime.now().date())
-        work_mode = st.selectbox(
-            "Work Mode*",
-            ["", "PTF", "Remote"],
-            help="Select your work mode"
-        )
-   
-    with col2:
-        emp_id = st.text_input(
-            "Employee ID*",
-            placeholder="Enter your employee ID",
-            help="Required field"
-        )
-        name = st.text_input(
-            "Name*",
-            placeholder="Enter your full name",
-            help="Required field"
-        )
+    # Employee Information section removed per request
+    # Initialize required variables to preserve downstream logic
+    date = datetime.now().date()
+    work_mode = ""
+    emp_id = st.session_state.get("emp_id", "")
+    name = st.session_state.get("emp_name", "")
    
     st.markdown("---")
     st.subheader("📋 Today's Tasks")
