@@ -2460,6 +2460,14 @@ def show_submit_report():
     submitted = st.button("✅ Submit Daily Report", use_container_width=True)
    
     if submitted:
+        # Prevent duplicate submissions - check if already submitting
+        if st.session_state.get("submitting_report", False):
+            st.warning("⏳ Report submission in progress. Please wait...")
+            return
+        
+        # Set flag to prevent duplicate clicks
+        st.session_state.submitting_report = True
+        
         # Validate employee information
         employee_fields = {
             "Date": date,
@@ -3550,7 +3558,7 @@ def main():
                     type="primary"
                 )
         
-        st.markdown("</div>", unsafe_allow_html=True)
+        # Closing tag display removed per request
         
         if submitted:
             # Check if already checked in today
@@ -3582,13 +3590,12 @@ def main():
                         append_attendance(st.session_state.emp_id, code, notes or "", client_time=device_time)
                         
                         # Show modern success notification
-                        success_html = f"""
+                        success_html = """
                         <div style="background: linear-gradient(135deg, #10b981, #059669); border-radius: 12px; 
                                     padding: 18px 24px; margin: 20px 0; box-shadow: 0 8px 24px rgba(16, 185, 129, 0.2);">
                             <div style="color: white; font-weight: 700; font-size: 1.05rem; margin-bottom: 6px;">
-                                ✓ Check-in Successful! You've been marked as {code}
+                                Check-in Successful! You’ve been marked as Work in Office
                             </div>
-                            {f'<div style="color: rgba(255, 255, 255, 0.9); font-size: 0.9rem;">Check-in time: <strong>{device_time}</strong></div>' if device_time else ''}
                         </div>
                         """
                         st.markdown(success_html, unsafe_allow_html=True)
