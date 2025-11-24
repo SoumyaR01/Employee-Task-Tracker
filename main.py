@@ -265,28 +265,82 @@ st.markdown("""
         box-sizing: border-box;
     }
     
-    /* Selectbox specific styling for better visibility */
+    /* ============================================
+       SELECTBOX - Clean Modern Input Style
+       ============================================ */
+    
+    /* Main selectbox container - clean input box appearance */
+    .stSelectbox > div > div {
+        position: relative;
+    }
+    
     .stSelectbox > div > div > div {
         background-color: #1a1d23 !important;
         border: 1.5px solid rgba(255,255,255,0.25) !important;
+        border-radius: 8px !important;
+        padding: 0.625rem 2.5rem 0.625rem 0.75rem !important;
+        color: var(--text-light) !important;
+        font-size: clamp(0.875rem, 2vw, 1rem) !important;
+        transition: all 0.3s ease !important;
+        cursor: pointer;
+        min-height: 44px;
+        display: flex;
+        align-items: center;
     }
     
+    /* Hover state */
     .stSelectbox > div > div > div:hover {
         border-color: rgba(102, 126, 234, 0.5) !important;
+        background-color: #1f2329 !important;
     }
     
-    /* Selectbox dropdown menu */
+    /* Focus state */
+    .stSelectbox > div > div > div:focus,
+    .stSelectbox > div > div > div:focus-within {
+        border-color: #667eea !important;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15) !important;
+        outline: none !important;
+    }
+    
+    /* Dropdown arrow - positioned on the right inside the box */
+    .stSelectbox svg {
+        position: absolute !important;
+        right: 0.75rem !important;
+        top: 50% !important;
+        transform: translateY(-50%) !important;
+        width: 1rem !important;
+        height: 1rem !important;
+        color: rgba(230, 238, 242, 0.7) !important;
+        pointer-events: none !important;
+    }
+    
+    /* Remove the split appearance - hide the separate arrow button */
+    .stSelectbox button {
+        display: none !important;
+    }
+    
+    /* Dropdown menu styling */
     .stSelectbox ul {
         background-color: #1a1d23 !important;
-        border: 1px solid rgba(255,255,255,0.2) !important;
+        border: 1.5px solid rgba(255,255,255,0.25) !important;
+        border-radius: 8px !important;
+        margin-top: 4px !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
     }
     
     .stSelectbox li {
         color: var(--text-light) !important;
+        padding: 0.625rem 0.75rem !important;
+        transition: background-color 0.2s ease !important;
     }
     
     .stSelectbox li:hover {
         background-color: rgba(102, 126, 234, 0.2) !important;
+    }
+    
+    /* Selected item in dropdown */
+    .stSelectbox li[aria-selected="true"] {
+        background-color: rgba(102, 126, 234, 0.3) !important;
     }
     
     /* Number input specific styling */
@@ -294,12 +348,12 @@ st.markdown("""
         background: #1a1d23 !important;
         border: 1.5px solid rgba(255,255,255,0.25) !important;
         color: var(--text-light) !important;
+        min-height: 44px;
     }
     
+    /* Focus states for all inputs */
     .stTextInput > div > div > input:focus,
     .stTextArea > div > div > textarea:focus,
-    .stSelectbox > div > div > select:focus,
-    .stSelectbox > div > div > div:focus,
     .stNumberInput > div > div > input:focus {
         border-color: #667eea !important;
         box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15) !important;
@@ -3337,7 +3391,7 @@ def main():
     # Employee Dashboard (non-admin users)
     # Sidebar navigation (only shown when logged in)
     with st.sidebar:
-        st.title("📊 Progress Tracker")
+        st.markdown("<h2 style='font-size: 1.5rem; font-weight: 600; margin: 0; padding: 0;'>📊 Progress Tracker</h2>", unsafe_allow_html=True)
         st.success(f"👋 {st.session_state.emp_name}")
         st.caption(f"ID: {st.session_state.emp_id}")
         st.markdown("---")
