@@ -2367,7 +2367,33 @@ def show_submit_report():
     # Employee Information section removed per request
     # Initialize required variables to preserve downstream logic
     date = datetime.now().date()
+    
+    # Get work mode - try session state first, then fetch from attendance
     work_mode = st.session_state.get("work_mode", "")
+    if not work_mode:
+        # Fetch from attendance records for today
+        try:
+            from attendance_store import load_attendance
+            records = load_attendance()
+            today = datetime.now().date()
+            
+            # Find the most recent check-in for this employee today
+            for record in reversed(records):  # Start from most recent
+                if record.get("emp_id") == st.session_state.get("emp_id", ""):
+                    try:
+                        record_timestamp = record.get("timestamp")
+                        if record_timestamp:
+                            record_date = datetime.fromisoformat(record_timestamp.replace('Z', '+00:00')).date()
+                            if record_date == today:
+                                work_mode = record.get("status", "")
+                                # Store in session for consistency
+                                st.session_state.work_mode = work_mode
+                                break
+                    except:
+                        pass
+        except Exception:
+            pass
+    
     emp_id = st.session_state.get("emp_id", "")
     name = st.session_state.get("emp_name", "")
    
@@ -2508,7 +2534,7 @@ def show_submit_report():
                     availability = st.session_state.get(f"availability_{i}", "")
                     task_data_list.append({
                         'Date': date.strftime("%Y-%m-%d"),
-                        'Work Mode': st.session_state.get("work_mode", ""),
+                        'Work Mode': work_mode,
                         'Emp Id': emp_id,
                         'Name': name,
                         'Project Name': project_name,
