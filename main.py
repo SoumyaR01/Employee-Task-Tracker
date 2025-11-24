@@ -3588,12 +3588,9 @@ def main():
                         <div style="background: linear-gradient(135deg, #10b981, #059669); border-radius: 12px; 
                                     padding: 18px 24px; margin: 20px 0; box-shadow: 0 8px 24px rgba(16, 185, 129, 0.2);">
                             <div style="color: white; font-weight: 700; font-size: 1.05rem; margin-bottom: 6px;">
-                                ✓ Check-in Successful!
+                                ✓ Check-in Successful! You've been marked as {status_choice}
                             </div>
-                            <div style="color: rgba(255, 255, 255, 0.9); font-size: 0.95rem;">
-                                You've been marked as <strong>{status_choice}</strong>
-                                {f"<br>Check-in time: <strong>{device_time}</strong>" if device_time else ""}
-                            </div>
+                            {f'<div style="color: rgba(255, 255, 255, 0.9); font-size: 0.9rem;">Check-in time: <strong>{device_time}</strong></div>' if device_time else ''}
                         </div>
                         """
                         st.markdown(success_html, unsafe_allow_html=True)
