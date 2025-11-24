@@ -2478,10 +2478,13 @@ def show_submit_report():
         missing_employee_fields = [field for field, value in employee_fields.items() if not value]
        
         if missing_employee_fields:
+            st.session_state.submitting_report = False  # Clear flag on validation error
             st.error(f"❌ Please fill in all employee information: {', '.join(missing_employee_fields)}")
         elif st.session_state.num_tasks == 0:
+            st.session_state.submitting_report = False  # Clear flag on validation error
             st.error("❌ Please add at least one task to your report.")
         elif not plan_for_next_day:
+            st.session_state.submitting_report = False  # Clear flag on validation error
             st.error("❌ Please fill in your plan for next day.")
         else:
             # Collect all task data from session_state (widget values are stored there with keys)
@@ -2526,8 +2529,10 @@ def show_submit_report():
                 for row in task_data_list:
                     row['Employee Performance (%)'] = performance
             if invalid_tasks:
+                st.session_state.submitting_report = False  # Clear flag on validation error
                 st.error(f"❌ Please fill in all required fields for task(s): {', '.join(map(str, invalid_tasks))}")
             elif not task_data_list:
+                st.session_state.submitting_report = False  # Clear flag on validation error
                 st.error("❌ No valid tasks to submit. Please add at least one complete task.")
             else:
                 # Append all tasks to Excel file
@@ -2537,6 +2542,8 @@ def show_submit_report():
                 if success:
                     st.success(f"✅ Your daily work progress report has been submitted successfully! ({len(task_data_list)} task(s) recorded)")
                     st.balloons()
+                    # Clear submission flag
+                    st.session_state.submitting_report = False
                     # Reset task count for next submission
                     st.session_state.num_tasks = 1
                     # Clear form values by clearing session state keys
@@ -2548,6 +2555,7 @@ def show_submit_report():
                     time.sleep(2)
                     st.rerun()
                 else:
+                    st.session_state.submitting_report = False  # Clear flag on error
                     st.error("❌ Failed to save report. Please try again or contact administrator.")
 
 #==================== LOGIN & SIGNUP PAGES ====================
