@@ -2080,45 +2080,37 @@ def show_data_table(df):
     
     # Column Filters Section
     st.markdown("### 🔍 Column Filters")
-    col_filter_header, col_clear = st.columns([4, 1])
-    with col_filter_header:
-        st.caption("Filter by specific column values (filters work together)")
-    with col_clear:
-        if st.button("❌ Clear Filters", use_container_width=True):
-            # Clear all filter keys from session state
-            for key in list(st.session_state.keys()):
-                if key.startswith("filter_"):
-                    del st.session_state[key]
-            st.rerun()
+    st.caption("Filter by specific column values (filters work together)")
     
-    # Create filters section (Always visible)
-    # Get all columns
-    columns = display_df.columns.tolist()
+    # Create expandable filters section
+    with st.expander("📊 Show/Hide Column Filters", expanded=False):
+        # Get all columns
+        columns = display_df.columns.tolist()
         
-    # Create filters in a grid layout (3 columns per row)
-    num_cols = 3
-    for i in range(0, len(columns), num_cols):
-        cols = st.columns(num_cols)
-        for j, col_name in enumerate(columns[i:i+num_cols]):
-            with cols[j]:
-                # Get unique values for this column (including blanks/NaN)
-                unique_vals = display_df[col_name].dropna().astype(str).unique().tolist()
-                unique_vals = sorted([v for v in unique_vals if v.strip() != ''])
-                
-                # Add "All" option at the beginning
-                filter_options = ["All"] + unique_vals
-                
-                # Create selectbox for this column
-                selected = st.selectbox(
-                    f"🔹 {col_name}",
-                    options=filter_options,
-                    key=f"filter_{col_name}",
-                    help=f"Filter by {col_name}"
-                )
-                
-                # Apply filter if not "All"
-                if selected != "All":
-                    display_df = display_df[display_df[col_name].astype(str) == selected]
+        # Create filters in a grid layout (3 columns per row)
+        num_cols = 3
+        for i in range(0, len(columns), num_cols):
+            cols = st.columns(num_cols)
+            for j, col_name in enumerate(columns[i:i+num_cols]):
+                with cols[j]:
+                    # Get unique values for this column (including blanks/NaN)
+                    unique_vals = display_df[col_name].dropna().astype(str).unique().tolist()
+                    unique_vals = sorted([v for v in unique_vals if v.strip() != ''])
+                    
+                    # Add "All" option at the beginning
+                    filter_options = ["All"] + unique_vals
+                    
+                    # Create selectbox for this column
+                    selected = st.selectbox(
+                        f"🔹 {col_name}",
+                        options=filter_options,
+                        key=f"filter_{col_name}",
+                        help=f"Filter by {col_name}"
+                    )
+                    
+                    # Apply filter if not "All"
+                    if selected != "All":
+                        display_df = display_df[display_df[col_name].astype(str) == selected]
     
     # Show filter results count
     if len(display_df) < len(df):
