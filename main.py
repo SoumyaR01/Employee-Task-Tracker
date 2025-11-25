@@ -3684,7 +3684,7 @@ def main():
                         <div style="background: linear-gradient(135deg, #10b981, #059669); border-radius: 12px; 
                                     padding: 18px 24px; margin: 20px 0; box-shadow: 0 8px 24px rgba(16, 185, 129, 0.2);">
                             <div style="color: white; font-weight: 700; font-size: 1.05rem; margin-bottom: 6px;">
-                                Check-in Successful! You’ve been marked as Work in Office
+                                Check-in Successful!
                             </div>
                         </div>
                         """
