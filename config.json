@@ -9,6 +9,33 @@
         4,
         5
     ],
-    "admin_email": "",
-    "employee_emails": []
+    "admin_email": "admin@iitmpravartak.net",
+    "employee_emails": [
+        "soumya.r@iitmpravartak.net"
+    ],
+    "jira": {
+        "enabled": true,
+        "url": "https://soumyaranjanbhanja8-1764576360141.atlassian.net",
+        "email": "soumyaranjanbhanja8@gmail.com",
+        "default_project": "SCRUM",
+        "default_issue_type": "Task",
+        "auto_create_on_submit": true,
+        "status_mappings": {
+            "Not Started": "To Do",
+            "In Progress": "In Progress",
+            "Completed": "Done",
+            "On Hold": "On Hold",
+            "Blocked": "Blocked",
+            "Testing": "In Review",
+            "Deployed": "Done"
+        },
+        "priority_mappings": {
+            "Low": "Low",
+            "Medium": "Medium",
+            "High": "High",
+            "Critical": "Highest"
+        },
+        "sync_enabled": false
+    },
+    "excel_file_path": "D:\\Employee Track Report\\task_tracker.xlsx"
 }
