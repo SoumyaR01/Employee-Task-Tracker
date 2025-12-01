@@ -16,11 +16,91 @@ except ImportError:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
+class JiraIntegration:
+    """
+    Handles all Jira API operations for the Employee Progress Tracker
+    """
+    
+    def __init__(self, jira_url: str = None, email: str = None, api_token: str = None):
+        """
+        Initialize Jira integration
+        
+        Args:
+            jira_url: Jira instance URL (e.g., https://your-domain.atlassian.net)
+            email: User email for authentication
+            api_token: API token from Jira account settings
+        """
+        if not JIRA_AVAILABLE:
+            raise ImportError("jira library not installed. Run: pip install jira")
+        
+        # Try to get credentials from multiple sources:
+        # 1. Function parameters (highest priority)
+        # 2. Session state (for Streamlit Cloud)
+        # 3. Config file
+        # 4. Environment variables (lowest priority)
+        
+        # Helper function to get from session state
+        def get_from_session(key):
+            try:
+                import streamlit as st
+                return st.session_state.get(key, '')
+            except:
+                return ''
+        
+        # Helper function to get from config file
+        def get_from_config(key):
+            try:
+                config_path = os.path.join(os.path.dirname(__file__), 'config.json')
+                if os.path.exists(config_path):
+                    with open(config_path, 'r') as f:
+                        config = json.load(f)
+                        return config.get('jira', {}).get(key, '')
+            except:
+                pass
+            return ''
+        
+        # Get URL (priority: param > session > config > env)
+        self.jira_url = (jira_url or 
+                        get_from_session('jira_url') or 
+                        get_from_config('url') or 
+                        os.getenv('JIRA_URL', ''))
+        
+        # Get email (priority: param > session > config > env)
+        self.email = (email or 
+                     get_from_session('jira_email') or 
+                     get_from_config('email') or 
+                     os.getenv('JIRA_EMAIL', ''))
+        
+        # Get API token (priority: param > session > config > env)
+        self.api_token = (api_token or 
+                         get_from_session('jira_api_token') or 
+                         get_from_config('api_token') or 
+                         os.getenv('JIRA_API_TOKEN', ''))
+        
+        self.jira_client = None
+        self._is_connected = False
+        
+        # Default status mappings (can be customized)
+        self.status_mappings = {
+            'Not Started': 'To Do',
+            'In Progress': 'In Progress',
+            'Completed': 'Done',
+            'On Hold': 'On Hold',
+            'Blocked': 'Blocked',
+            'Testing': 'In Review',
+            'Deployed': 'Done'
+        }
+    
+    def connect(self) -> Tuple[bool, str]:
+        """
+        Establish connection to Jira
+        
         Returns:
             Tuple of (success: bool, message: str)
         """
         if not self.jira_url or not self.email or not self.api_token:
-            return False, "Missing Jira credentials. Please configure JIRA_URL, JIRA_EMAIL, and JIRA_API_TOKEN."
+            return False, "Missing Jira credentials. Please configure in Settings."
         
         try:
             self.jira_client = JIRA(
@@ -456,7 +536,7 @@ logger = logging.getLogger(__name__)
 
 def quick_connect() -> Optional[JiraIntegration]:
     """
-    Quick connect to Jira using environment variables
+    Quick connect to Jira using environment variables or config
     
     Returns:
         JiraIntegration instance if successful, None otherwise
