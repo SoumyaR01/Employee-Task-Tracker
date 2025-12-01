@@ -3363,8 +3363,10 @@ def show_admin_settings():
 
     if JIRA_UI_AVAILABLE:
         st.markdown("---")
-        # Pass save_config callback to persist Jira settings
-        show_jira_settings_panel(config, save_callback=save_config)
+        # Get updated config from settings panel
+        config = show_jira_settings_panel(config)
+        # Save the updated config
+        save_config(config)
 
 def render_full_performance_dashboard():
     config = load_config()
