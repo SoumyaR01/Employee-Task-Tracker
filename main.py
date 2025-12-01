@@ -3351,6 +3351,37 @@ def show_admin_settings():
             help="List of employee email addresses for notifications"
         )
         
+        st.markdown("---")
+        st.markdown("**🔗 Jira Credentials**")
+        st.caption("Enter your Jira credentials here instead of using .env file")
+        
+        jira_creds = config.get('jira_credentials', {})
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            jira_url = st.text_input(
+                "Jira URL",
+                value=jira_creds.get('url', ''),
+                placeholder="https://your-domain.atlassian.net",
+                help="Your Jira instance URL"
+            )
+            jira_email = st.text_input(
+                "Jira Email",
+                value=jira_creds.get('email', ''),
+                placeholder="your.email@company.com",
+                help="Email for Jira authentication"
+            )
+        
+        with col2:
+            jira_api_token = st.text_input(
+                "Jira API Token",
+                value=jira_creds.get('api_token', ''),
+                type="password",
+                placeholder="Your Jira API token",
+                help="Get from https://id.atlassian.com/manage-profile/security/api-tokens"
+            )
+            st.info("💡 API tokens are stored securely in config.json")
+        
         if st.form_submit_button("Save Settings", use_container_width=True):
             config['excel_file_path'] = excel_path
             config['reminder_time'] = reminder_time.strftime('%H:%M')
@@ -3358,6 +3389,12 @@ def show_admin_settings():
             config['employee_emails'] = [
                 email.strip() for email in employee_emails_text.split('\n') if email.strip()
             ]
+            # Save Jira credentials
+            config['jira_credentials'] = {
+                'url': jira_url.strip(),
+                'email': jira_email.strip(),
+                'api_token': jira_api_token.strip()
+            }
             save_config(config)
             st.success("✅ Settings saved successfully!")
 
