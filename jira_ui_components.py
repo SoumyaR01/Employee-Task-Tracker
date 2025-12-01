@@ -1,8 +1,16 @@
+"""
+Jira UI Components for Streamlit Integration
+
+This module provides ready-to-use UI components for Jira integration
+in the Employee Progress Tracker Streamlit app.
+"""
+
 import streamlit as st
 import pandas as pd
 from datetime import datetime
 import json
 from pathlib import Path
+import os
 
 try:
     from jira_integration import JiraIntegration
@@ -11,13 +19,12 @@ except ImportError:
     JIRA_AVAILABLE = False
 
 
-def show_jira_settings_panel(config, save_callback=None):
+def show_jira_settings_panel(config):
     """
     Display Jira configuration panel in admin settings
     
     Args:
         config: Current configuration dictionary
-        save_callback: Optional function to save configuration to disk
         
     Returns:
         Updated configuration dictionary
@@ -45,6 +52,140 @@ def show_jira_settings_panel(config, save_callback=None):
         
         with col2:
             jira_email = st.text_input(
+                "Jira Email",
+                value=jira_config.get('email', ''),
+                placeholder="your.email@company.com",
+                help="Email associated with your Jira account"
+            )
+        
+        # API Token Input (NEW - for Streamlit Cloud compatibility)
+        st.markdown("---")
+        st.markdown("### 🔑 API Token")
+        
+        # Get current token from session state or config
+        current_token = st.session_state.get('jira_api_token', jira_config.get('api_token', ''))
+        
+        # Show masked token if exists
+        if current_token:
+            st.success("✅ API Token is configured")
+            show_token = st.checkbox("Show API Token", value=False, key="show_jira_token")
+            if show_token:
+                st.code(current_token, language=None)
+        
+        api_token = st.text_input(
+            "Jira API Token",
+            value="" if not current_token else "●" * 40,  # Masked display
+            type="password",
+            placeholder="Paste your API token here",
+            help="Generate at: https://id.atlassian.com/manage-profile/security/api-tokens",
+            key="jira_api_token_input"
+        )
+        
+        st.caption("""
+        **How to get your API token:**
+        1. Go to https://id.atlassian.com/manage-profile/security/api-tokens
+        2. Click "Create API token"
+        3. Copy and paste it here
+        4. Token will be stored securely in session state
+        """)
+        
+        st.markdown("---")
+        st.markdown("### Project Settings")
+        
+        col3, col4 = st.columns(2)
+        with col3:
+            default_project = st.text_input(
+                "Default Project Key",
+                value=jira_config.get('default_project', ''),
+                placeholder="PROJ",
+                help="Default Jira project key for new issues"
+            )
+        
+        with col4:
+            default_issue_type = st.selectbox(
+                "Default Issue Type",
+                options=["Task", "Story", "Bug", "Epic"],
+                index=["Task", "Story", "Bug", "Epic"].index(
+                    jira_config.get('default_issue_type', 'Task')
+                ) if jira_config.get('default_issue_type', 'Task') in ["Task", "Story", "Bug", "Epic"] else 0
+            )
+        
+        st.markdown("---")
+        st.markdown("### Automation Settings")
+        
+        col5, col6 = st.columns(2)
+        with col5:
+            auto_create = st.checkbox(
+                "Auto-create Jira issues on task submission",
+                value=jira_config.get('auto_create_on_submit', False),
+                help="Automatically create Jira issues when employees submit tasks"
+            )
+        
+        with col6:
+            jira_enabled = st.checkbox(
+                "Enable Jira Integration",
+                value=jira_config.get('enabled', False),
+                help="Master switch for Jira integration"
+            )
+        
+        st.markdown("---")
+        st.markdown("### Status Mappings")
+        st.caption("Map internal statuses to Jira workflow states")
+        
+        status_mappings = jira_config.get('status_mappings', {
+            "Not Started": "To Do",
+            "In Progress": "In Progress",
+            "Completed": "Done",
+            "On Hold": "On Hold",
+            "Blocked": "Blocked"
+        })
+        
+        # Display status mappings
+        for internal_status, jira_status in status_mappings.items():
+            cols = st.columns([1, 1])
+            with cols[0]:
+                st.text(internal_status)
+            with cols[1]:
+                status_mappings[internal_status] = st.text_input(
+                    f"Maps to",
+                    value=jira_status,
+                    key=f"status_map_{internal_status}",
+                    label_visibility="collapsed"
+                )
+        
+        submitted = st.form_submit_button("💾 Save Jira Settings", use_container_width=True)
+        
+        if submitted:
+            # Handle API token - only update if not masked
+            final_token = current_token
+            if api_token and api_token != "●" * 40:
+                final_token = api_token
+                # Store in session state
+                st.session_state.jira_api_token = final_token
+            
+            # Update Jira config
+            config['jira'] = {
+                'enabled': jira_enabled,
+                'url': jira_url,
+                'email': jira_email,
+                'api_token': final_token,  # Store token in config
+                'default_project': default_project,
+                'default_issue_type': default_issue_type,
+                'auto_create_on_submit': auto_create,
+                'status_mappings': status_mappings,
+                'priority_mappings': jira_config.get('priority_mappings', {
+                    "Low": "Low",
+                    "Medium": "Medium",
+                    "High": "High",
+                    "Critical": "Highest"
+                }),
+                'sync_enabled': jira_config.get('sync_enabled', False)
+            }
+            
+            st.success("✅ Jira settings saved successfully!")
+            return config
+    
+    return config
 
 
 def show_jira_connection_test():
@@ -75,7 +216,7 @@ def show_jira_connection_test():
                         st.info("No projects found or no access")
                 else:
                     st.error(f"❌ {message}")
-                    st.info("Please check your credentials in `.env` file")
+                    st.info("Please check your credentials in settings or `.env` file")
                     
             except Exception as e:
                 st.error(f"❌ Connection test failed: {str(e)}")
@@ -136,7 +277,6 @@ def show_jira_sync_panel(config, excel_file_path=None, read_excel_data_func=None
                     df = read_excel_data_func(excel_file_path)
                 else:
                     # Fallback to direct pandas read
-                    import os
                     if not os.path.exists(excel_file_path):
                         st.error(f"Excel file not found: {excel_file_path}")
                         return
@@ -209,7 +349,6 @@ def show_jira_sync_panel(config, excel_file_path=None, read_excel_data_func=None
                         
             except Exception as e:
                 st.error(f"❌ Sync failed: {str(e)}")
-
 
 
 def show_jira_dashboard_tab():
