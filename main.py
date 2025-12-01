@@ -14,6 +14,14 @@ from openpyxl import load_workbook
 import io
 import zipfile
 from openpyxl.styles import PatternFill
+
+# Load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # dotenv not installed, will use system environment variables
+
 try:
     from EmployeeChatBot import ChatBot as LLMChatBot
 except Exception:
@@ -22,6 +30,28 @@ import sys
 
 # Add current directory to path for local imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# Import Jira integration
+try:
+    from jira_integration import JiraIntegration, quick_connect, create_task_issue
+    JIRA_INTEGRATION_AVAILABLE = True
+except ImportError:
+    JIRA_INTEGRATION_AVAILABLE = False
+    JiraIntegration = None
+
+# Import Jira UI components
+try:
+    from jira_ui_components import (
+        show_jira_settings_panel,
+        show_jira_connection_test,
+        show_jira_sync_panel,
+        show_jira_dashboard_tab,
+        add_jira_create_checkbox,
+        create_jira_issue_from_task
+    )
+    JIRA_UI_AVAILABLE = True
+except ImportError:
+    JIRA_UI_AVAILABLE = False
 
 try:
     from attendance_store import append_attendance, check_already_checked_in_today
@@ -2259,6 +2289,23 @@ def show_settings():
             st.success("✅ Settings saved successfully!")
             time.sleep(1)
             st.rerun()
+    
+    # Jira Integration Settings
+    if JIRA_UI_AVAILABLE:
+        st.markdown("---")
+        config = show_jira_settings_panel(config)
+        show_jira_connection_test()
+        
+        # Pass parameters to avoid circular import
+        excel_path = config.get('excel_file_path', EXCEL_FILE_PATH)
+        show_jira_sync_panel(config, excel_file_path=excel_path, read_excel_data_func=read_excel_data)
+        
+        # Save updated config if changed
+        save_config(config)
+    else:
+        st.markdown("---")
+        st.info("💡 Jira integration available - install jira library to enable")
+
     # Connection test
     st.markdown("---")
     st.subheader("🔌 Test Connection & Diagnostics")
@@ -3312,7 +3359,12 @@ def show_admin_settings():
                 email.strip() for email in employee_emails_text.split('\n') if email.strip()
             ]
             save_config(config)
-    st.success("✅ Settings saved successfully!")
+            st.success("✅ Settings saved successfully!")
+
+    if JIRA_UI_AVAILABLE:
+        st.markdown("---")
+        # Pass save_config callback to persist Jira settings
+        show_jira_settings_panel(config, save_callback=save_config)
 
 def render_full_performance_dashboard():
     config = load_config()
@@ -3454,7 +3506,8 @@ def show_admin_dashboard():
             "💬 Chatbot",
             "👤 Employee Management",
             "⚙️ Settings",
-            "📧 Reminders"
+            "📧 Reminders",
+            "🔗 Jira Management"  # Added Jira menu option
         ]
 
         admin_page = st.radio(
@@ -3519,6 +3572,32 @@ To enable automated reminders:
                         st.success("✅ All employees have submitted their reports today!")
                 else:
                     st.error("Failed to load data")
+    
+    elif admin_page == "🔗 Jira Management":
+        st.title("🔗 Jira Integration Management")
+        
+        if JIRA_UI_AVAILABLE:
+            config = load_config()
+            jira_config = config.get('jira', {})
+            
+            if not jira_config.get('enabled', False):
+                ###st.warning("⚠️ Jira integration is currently disabled.")
+                st.info("Enable Jira integration in **⚙️ Settings** to use these features.")
+            
+            # Connection Test
+            show_jira_connection_test()
+            
+            # Bulk Sync Operations
+            st.markdown("---")
+            excel_path = config.get('excel_file_path', EXCEL_FILE_PATH)
+            show_jira_sync_panel(config, excel_file_path=excel_path, read_excel_data_func=read_excel_data)
+            
+            # Jira Issues Dashboard
+            st.markdown("---")
+            show_jira_dashboard_tab()
+        else:
+            st.error("❌ Jira integration not available")
+            st.info("Install the Jira library: `pip install jira>=3.5.0`")
 
 # Main App
 def main():
