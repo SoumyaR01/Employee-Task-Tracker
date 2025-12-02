@@ -1880,47 +1880,58 @@ def show_employee_dashboard(df):
             key="export_individual_emp"
         )
 
+
         # Excel export with real cell fills based on Availability/Status
-        export_df_xlsx = emp_df.copy()
-        if 'Date' in export_df_xlsx.columns:
-            export_df_xlsx['Date'] = export_df_xlsx['Date'].astype(str)
-        status_col_name = None
-        for candidate in ['Availability', 'Status']:
-            if candidate in export_df_xlsx.columns:
-                status_col_name = candidate
-                break
-        if status_col_name is None:
-            status_col_name = 'Status'
-            export_df_xlsx[status_col_name] = 'Unknown'
-        xbuf = io.BytesIO()
-        with pd.ExcelWriter(xbuf, engine='openpyxl') as writer:
-            export_df_xlsx.to_excel(writer, index=False, sheet_name='Data')
-            ws = writer.book['Data']
-            status_col_idx = list(export_df_xlsx.columns).index(status_col_name) + 1
-            green = PatternFill(start_color='FF00B050', end_color='FF00B050', fill_type='solid')
-            yellow = PatternFill(start_color='FFFFFF00', end_color='FFFFFF00', fill_type='solid')
-            red = PatternFill(start_color='FFFF0000', end_color='FFFF0000', fill_type='solid')
-            gray = PatternFill(start_color='FFD9D9D9', end_color='FFD9D9D9', fill_type='solid')
-            for r in range(2, len(export_df_xlsx) + 2):
-                cell = ws.cell(row=r, column=status_col_idx)
-                val = str(cell.value).strip() if cell.value is not None else 'Unknown'
-                if val == 'Underutilized':
-                    cell.fill = green
-                elif val == 'Partially Busy':
-                    cell.fill = yellow
-                elif val == 'Fully Busy':
-                    cell.fill = red
-                else:
-                    cell.fill = gray
-        xbuf.seek(0)
-        st.download_button(
-            label=f"📗 Export Excel (colored {status_col_name})",
-            data=xbuf,
-            file_name=f"{selected_employee}_performance_report_{datetime.now().strftime('%Y%m%d')}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True,
-            key="export_individual_emp_xlsx"
-        )
+        try:
+            export_df_xlsx = emp_df.copy()
+            if 'Date' in export_df_xlsx.columns:
+                export_df_xlsx['Date'] = export_df_xlsx['Date'].astype(str)
+            
+            # Skip Excel export if no data
+            if export_df_xlsx.empty:
+                st.info("No data available for Excel export")
+            else:
+                status_col_name = None
+                for candidate in ['Availability', 'Status']:
+                    if candidate in export_df_xlsx.columns:
+                        status_col_name = candidate
+                        break
+                if status_col_name is None:
+                    status_col_name = 'Status'
+                    export_df_xlsx[status_col_name] = 'Unknown'
+                
+                xbuf = io.BytesIO()
+                with pd.ExcelWriter(xbuf, engine='openpyxl') as writer:
+                    export_df_xlsx.to_excel(writer, index=False, sheet_name='Data')
+                    ws = writer.book['Data']
+                    status_col_idx = list(export_df_xlsx.columns).index(status_col_name) + 1
+                    green = PatternFill(start_color='FF00B050', end_color='FF00B050', fill_type='solid')
+                    yellow = PatternFill(start_color='FFFFFF00', end_color='FFFFFF00', fill_type='solid')
+                    red = PatternFill(start_color='FFFF0000', end_color='FFFF0000', fill_type='solid')
+                    gray = PatternFill(start_color='FFD9D9D9', end_color='FFD9D9D9', fill_type='solid')
+                    for r in range(2, len(export_df_xlsx) + 2):
+                        cell = ws.cell(row=r, column=status_col_idx)
+                        val = str(cell.value).strip() if cell.value is not None else 'Unknown'
+                        if val == 'Underutilized':
+                            cell.fill = green
+                        elif val == 'Partially Busy':
+                            cell.fill = yellow
+                        elif val == 'Fully Busy':
+                            cell.fill = red
+                        else:
+                            cell.fill = gray
+                xbuf.seek(0)
+                st.download_button(
+                    label=f"📗 Export Excel (colored {status_col_name})",
+                    data=xbuf,
+                    file_name=f"{selected_employee}_performance_report_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True,
+                    key="export_individual_emp_xlsx"
+                )
+        except Exception as e:
+            st.warning(f"Excel export unavailable: {str(e)}")
+
     metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
     with metric_col1:
         st.metric("Total Tasks", total_tasks)
@@ -2199,43 +2210,6 @@ def show_data_table(df):
         status_col_name = None
         for candidate in ['Availability', 'Status']:
             if candidate in df_export_xlsx.columns:
-                status_col_name = candidate
-                break
-        if status_col_name is None:
-            status_col_name = 'Status'
-            df_export_xlsx[status_col_name] = 'Unknown'
-        xbuf = io.BytesIO()
-        with pd.ExcelWriter(xbuf, engine='openpyxl') as writer:
-            df_export_xlsx.to_excel(writer, index=False, sheet_name='Data')
-            ws = writer.book['Data']
-            status_col_idx = list(df_export_xlsx.columns).index(status_col_name) + 1
-            green = PatternFill(start_color='FF00B050', end_color='FF00B050', fill_type='solid')
-            yellow = PatternFill(start_color='FFFFFF00', end_color='FFFFFF00', fill_type='solid')
-            red = PatternFill(start_color='FFFF0000', end_color='FFFF0000', fill_type='solid')
-            gray = PatternFill(start_color='FFD9D9D9', end_color='FFD9D9D9', fill_type='solid')
-            for r in range(2, len(df_export_xlsx) + 2):
-                cell = ws.cell(row=r, column=status_col_idx)
-                val = str(cell.value).strip() if cell.value is not None else 'Unknown'
-                if val == 'Underutilized':
-                    cell.fill = green
-                elif val == 'Partially Busy':
-                    cell.fill = yellow
-                elif val == 'Fully Busy':
-                    cell.fill = red
-                else:
-                    cell.fill = gray
-        xbuf.seek(0)
-        st.download_button(
-            label=f"📗 Download Excel (colored {status_col_name})",
-            data=xbuf,
-            file_name=f"employee_progress_{datetime.now().strftime('%Y%m%d')}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-
-#Settings Page
-def show_settings():
-    """Display settings page"""
-    st.title("⚙️ Settings")
     config = load_config()
     with st.form("settings_form"):
         st.subheader("Excel File Configuration")
