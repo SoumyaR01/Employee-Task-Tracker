@@ -2210,6 +2210,48 @@ def show_data_table(df):
         status_col_name = None
         for candidate in ['Availability', 'Status']:
             if candidate in df_export_xlsx.columns:
+                status_col_name = candidate
+                break
+        if status_col_name is None:
+            status_col_name = 'Status'
+            df_export_xlsx[status_col_name] = 'Unknown'
+        
+        try:
+            xbuf = io.BytesIO()
+            with pd.ExcelWriter(xbuf, engine='openpyxl') as writer:
+                df_export_xlsx.to_excel(writer, index=False, sheet_name='Data')
+                ws = writer.book['Data']
+                status_col_idx = list(df_export_xlsx.columns).index(status_col_name) + 1
+                green = PatternFill(start_color='FF00B050', end_color='FF00B050', fill_type='solid')
+                yellow = PatternFill(start_color='FFFFFF00', end_color='FFFFFF00', fill_type='solid')
+                red = PatternFill(start_color='FFFF0000', end_color='FFFF0000', fill_type='solid')
+                gray = PatternFill(start_color='FFD9D9D9', end_color='FFD9D9D9', fill_type='solid')
+                for r in range(2, len(df_export_xlsx) + 2):
+                    cell = ws.cell(row=r, column=status_col_idx)
+                    val = str(cell.value).lower() if cell.value else ''
+                    if 'fully busy' in val or 'wfo' in val:
+                        cell.fill = red
+                    elif 'partially busy' in val or 'wfh' in val:
+                        cell.fill = yellow
+                    elif 'underutilized' in val:
+                        cell.fill = green
+                    else:
+                        cell.fill = gray
+            xbuf.seek(0)
+            st.download_button(
+                label="📥 Download Data as Excel (with color codes)",
+                data=xbuf,
+                file_name=f"employee_progress_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+        except Exception as e:
+            # If Excel export fails, just skip it
+            st.warning(f"Excel export unavailable: {str(e)}")
+
+#Settings Page
+def show_settings():
+    """Display settings page"""
+    st.title("⚙️ Settings")
     config = load_config()
     with st.form("settings_form"):
         st.subheader("Excel File Configuration")
