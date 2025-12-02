@@ -3844,8 +3844,48 @@ def show_import_reports():
         
         st.markdown("---")
         
-        # Recent Submissions Table
-        show_data_table(df)
+        # Simplified Recent Submissions Table (without column filters)
+        st.subheader("📋 Recent Submissions")
+        
+        # Display options
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            search = st.text_input("🔎 Search", placeholder="Search in any column...", key="import_search")
+        with col2:
+            rows_to_show = st.number_input("Rows", min_value=10, max_value=1000, value=50, step=10, key="import_rows")
+        
+        # Apply search
+        display_df = df.copy()
+        if search:
+            mask = display_df.astype(str).apply(
+                lambda x: x.str.contains(search, case=False, na=False)
+            ).any(axis=1)
+            display_df = display_df[mask]
+        
+        # Show results count
+        if len(display_df) < len(df):
+            st.info(f"📊 Showing {len(display_df)} of {len(df)} total records (filtered by search)")
+        
+        # Display table
+        if not display_df.empty:
+            st.dataframe(
+                display_df.head(rows_to_show),
+                use_container_width=True,
+                height=400
+            )
+        else:
+            st.warning("No records match the search term")
+        
+        # Download button for table data
+        if not display_df.empty:
+            csv_bytes = display_df.to_csv(index=False).encode('utf-8-sig')
+            st.download_button(
+                label="📥 Download Table Data as CSV",
+                data=csv_bytes,
+                file_name=f"import_table_data_{datetime.now().strftime('%Y%m%d')}.csv",
+                mime="text/csv",
+                key="import_table_download"
+            )
         
         st.markdown("---")
         
@@ -3959,26 +3999,6 @@ def show_import_reports():
                         )
     else:
         st.info("👆 Upload a CSV or XLSX file to begin comprehensive analysis")
-        st.markdown("""
-        ### Expected File Format
-        
-        Your file should contain at least one of these employee identifier columns:
-        - `Name`, `Employee Name`, `emp_id`, or `Employee ID`
-        
-        **Recommended columns for full analysis:**
-        - Employee Performance (%)
-        - Task Status
-        - Date
-        - Project Name
-        - Task Priority
-        
-        **Example CSV:**
-        ```csv
-        Name,Employee Performance (%),Task Status,Date,Project
-        John Doe,95,Completed,2025-12-01,Project Alpha
-        Jane Smith,87,In Progress,2025-12-01,Project Beta
-        ```
-        """)
 
 
 def show_admin_dashboard():
