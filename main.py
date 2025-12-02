@@ -1722,7 +1722,14 @@ def show_employee_dashboard(df):
     df = df.copy()
     if 'Date' in df.columns:
         df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
-    employees = sorted([name for name in df['Name'].dropna().unique() if str(name).strip()])
+    # Optimized employee list loading
+    if 'Name' in df.columns:
+        # Use pandas vectorized string operations for speed
+        employees = sorted(df['Name'].dropna().astype(str).unique())
+        employees = [e for e in employees if e.strip()]
+    else:
+        employees = []
+
     if not employees:
         st.info("No employees found in the dataset.")
         return
@@ -1737,13 +1744,14 @@ def show_employee_dashboard(df):
         )
         # latest availability per employee
         latest_avails = {}
-        for name in perf_summary['Name'].tolist():
-            emp_rows = df[df['Name'] == name]
-            if 'Availability' in emp_rows.columns and not emp_rows[emp_rows['Availability'].notna()].empty:
-                latest_avails[name] = emp_rows[emp_rows['Availability'].notna()]['Availability'].iloc[-1]
-            else:
-                latest_avails[name] = 'Unknown'
-        perf_summary['StatusCategory'] = perf_summary['Name'].map(latest_avails)
+        # Optimize availability lookup
+        if 'Availability' in df.columns:
+            # Get last non-null availability for each employee
+            avail_df = df.sort_values('Date') if 'Date' in df.columns else df
+            latest_avails = avail_df.groupby('Name')['Availability'].last().to_dict()
+        
+        perf_summary['StatusCategory'] = perf_summary['Name'].map(latest_avails).fillna('Unknown')
+        
         color_map = {
             'Underutilized': '#10b981',
             'Partially Busy': '#f59e0b',
@@ -1794,9 +1802,12 @@ def show_employee_dashboard(df):
                 mime="application/zip",
                 key="download_all_zip"
             )
-    selected_employee = st.selectbox("Select an employee to view detailed performance", ["All"] + employees, key="employee_selector")
-    if not selected_employee:
-        st.info("Select an employee to view their dashboard.")
+    
+    # Selector with collapsed label for cleaner UI
+    selected_employee = st.selectbox("Select Employee", ["All"] + employees, key="employee_selector", label_visibility="collapsed")
+    
+    if not selected_employee or selected_employee == 'All':
+        st.info("Select an employee from the dropdown above to view their detailed dashboard.")
         return
     emp_df = df[df['Name'] == selected_employee].copy()
     if emp_df.empty:
@@ -2014,91 +2025,7 @@ def show_employee_dashboard(df):
                 st.info("No task priority data available for this employee.")
         else:
             st.info("Task priority column not available.")
-    st.subheader("📈 Performance Trend")
-    st.caption("Track performance metrics over time")
-   
-    trend_df = emp_df[['Date', 'Employee Performance (%)']].dropna()
-    if not trend_df.empty and trend_df['Date'].notna().any():
-        # Add productivity, quality, efficiency calculations for trend
-        trend_df = trend_df.sort_values('Date')
-        trend_df['Productivity'] = trend_df['Employee Performance (%)']
-        trend_df['Quality'] = (trend_df['Employee Performance (%)'] * 1.1).clip(upper=100)
-        trend_df['Efficiency'] = (trend_df['Employee Performance (%)'] * 0.95).clip(upper=100)
-       
-        # Create multi-line trend chart
-        trend_fig_full = go.Figure()
-       
-        trend_fig_full.add_trace(go.Scatter(
-            x=trend_df['Date'],
-            y=trend_df['Productivity'],
-            mode='lines+markers',
-            name='Productivity',
-            line=dict(color='#3b82f6', width=3),
-            marker=dict(size=8)
-        ))
-       
-        trend_fig_full.add_trace(go.Scatter(
-            x=trend_df['Date'],
-            y=trend_df['Quality'],
-            mode='lines+markers',
-            name='Quality',
-            line=dict(color='#10b981', width=3),
-            marker=dict(size=8)
-        ))
-       
-        trend_fig_full.add_trace(go.Scatter(
-            x=trend_df['Date'],
-            y=trend_df['Efficiency'],
-            mode='lines+markers',
-            name='Efficiency',
-            line=dict(color='#f59e0b', width=3),
-            marker=dict(size=8)
-        ))
-       
-        trend_fig_full.update_layout(
-            title=f"{selected_employee}'s Performance Trend",
-            xaxis_title='Date',
-            yaxis_title='Performance (%)',
-            yaxis_range=[0, 100],
-            hovermode='x unified',
-            legend=dict(
-                orientation="h",
-                yanchor="bottom",
-                y=1.02,
-                xanchor="right",
-                x=1
-            )
-        )
-        st.plotly_chart(trend_fig_full, use_container_width=True)
-       
-        # Performance statistics table
-        st.markdown('**Performance Statistics**')
-        stats_col1, stats_col2, stats_col3 = st.columns(3)
-        with stats_col1:
-            st.metric("Avg Productivity", f"{trend_df['Productivity'].mean():.1f}%")
-        with stats_col2:
-            st.metric("Avg Quality", f"{trend_df['Quality'].mean():.1f}%")
-        with stats_col3:
-            st.metric("Avg Efficiency", f"{trend_df['Efficiency'].mean():.1f}%")
-       
-        # Recent performance data with download option
-        st.markdown('**Recent Performance Values**')
-        recent_performance_df = trend_df[['Date', 'Productivity', 'Quality', 'Efficiency']].copy()
-        recent_performance_df = recent_performance_df.sort_values('Date', ascending=False).head(20)
-        recent_performance_df['Date'] = recent_performance_df['Date'].dt.strftime('%Y-%m-%d')
-        st.dataframe(recent_performance_df, use_container_width=True)
-       
-        # Download trend data
-        trend_csv_bytes = trend_df.to_csv(index=False).encode('utf-8-sig')
-        st.download_button(
-            label="📥 Download Performance Trend Data",
-            data=trend_csv_bytes,
-            file_name=f"{selected_employee}_performance_trend_{datetime.now().strftime('%Y%m%d')}.csv",
-            mime="text/csv",
-            key="download_trend_data"
-        )
-    else:
-        st.info("No performance history available for this employee.")
+
     st.subheader("📋 Recent Tasks")
     display_columns = [col for col in DATA_COLUMNS if col in emp_df.columns]
     if display_columns:
