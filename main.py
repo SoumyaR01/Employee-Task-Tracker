@@ -1725,9 +1725,8 @@ def show_employee_dashboard(df):
     # Optimized employee list loading
     if 'Name' in df.columns:
         # Use pandas vectorized string operations for speed
-        # Ensure we use the full dataframe for the list, not a filtered view if passed
-        employees = sorted(df['Name'].dropna().astype(str).str.strip().unique())
-        employees = [e for e in employees if e]
+        employees = sorted(df['Name'].dropna().astype(str).unique())
+        employees = [e for e in employees if e.strip()]
     else:
         employees = []
 
