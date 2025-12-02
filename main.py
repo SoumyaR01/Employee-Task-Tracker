@@ -2036,8 +2036,11 @@ def show_employee_dashboard(df):
                 return ""
             return "background-color: #ffcccb; color: #000000; font-weight: bold; border-left: 3px solid #ff4444"
        
-        styled_df = display_df.style.map(highlight_support, subset=['Support Request'])
-        st.dataframe(styled_df, use_container_width=True, height=320)
+        if 'Support Request' in display_df.columns:
+            styled_df = display_df.style.map(highlight_support, subset=['Support Request'])
+            st.dataframe(styled_df, use_container_width=True, height=320)
+        else:
+            st.dataframe(display_df, use_container_width=True, height=320)
     else:
         st.info("No detailed task records to display.")
 def show_data_table(df):
