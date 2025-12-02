@@ -213,6 +213,11 @@ def calculate_employee_metrics(df: pd.DataFrame) -> pd.DataFrame:
             emp_metric['Avg Performance (%)'] = round(emp_df[perf_col].mean(), 2)
             emp_metric['Max Performance (%)'] = round(emp_df[perf_col].max(), 2)
             emp_metric['Min Performance (%)'] = round(emp_df[perf_col].min(), 2)
+        else:
+            # Add default values if performance column doesn't exist
+            emp_metric['Avg Performance (%)'] = 0
+            emp_metric['Max Performance (%)'] = 0
+            emp_metric['Min Performance (%)'] = 0
         
         # Task counts
         status_col = next((col for col in ['Task Status', 'Status'] if col in df.columns), None)
@@ -230,7 +235,13 @@ def calculate_employee_metrics(df: pd.DataFrame) -> pd.DataFrame:
         
         employee_metrics.append(emp_metric)
     
-    return pd.DataFrame(employee_metrics).sort_values('Avg Performance (%)', ascending=False, na_position='last')
+    result_df = pd.DataFrame(employee_metrics)
+    
+    # Only sort by performance if the column exists and has valid data
+    if 'Avg Performance (%)' in result_df.columns and result_df['Avg Performance (%)'].notna().any():
+        return result_df.sort_values('Avg Performance (%)', ascending=False, na_position='last')
+    else:
+        return result_df
 
 
 def calculate_resource_utilization(df: pd.DataFrame) -> Dict[str, Any]:
