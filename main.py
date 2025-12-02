@@ -1678,7 +1678,7 @@ def show_charts(df):
     # Weekly trend
     st.subheader("📊 Weekly Submission Trend")
     if 'Date' in df.columns:
-        df['Date'] = pd.to_datetime(df['Date'])
+        df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
         daily_counts = df.groupby(df['Date'].dt.date).size().reset_index(name='count')
         fig = px.line(
             daily_counts,
@@ -3891,11 +3891,6 @@ def show_import_reports():
         
         # Filters
         filtered_df = show_filters(df)
-        
-        st.markdown("---")
-        
-        # Charts
-        show_charts(filtered_df if filtered_df is not None and not filtered_df.empty else df)
         
         st.markdown("---")
         
