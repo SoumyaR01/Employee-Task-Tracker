@@ -110,7 +110,9 @@ def normalize_column_names(df: pd.DataFrame) -> pd.DataFrame:
     
     # Apply mapping (case-insensitive)
     for col in df.columns:
-        col_lower = col.lower().strip()
+        # Convert column to string to handle numeric or other types
+        col_str = str(col)
+        col_lower = col_str.lower().strip()
         if col_lower in column_mapping:
             df.rename(columns={col: column_mapping[col_lower]}, inplace=True)
     
