@@ -3758,6 +3758,10 @@ def show_import_reports():
         # Normalize column names
         df = normalize_column_names(df)
         
+        # Standardize Employee Names to Title Case to remove duplicates
+        if 'Name' in df.columns:
+            df['Name'] = df['Name'].astype(str).str.strip().str.title()
+        
         # Validate data
         is_valid, validation_error = validate_report_data(df)
         
