@@ -24,7 +24,24 @@ def parse_uploaded_file(uploaded_file) -> Tuple[Optional[pd.DataFrame], Optional
         file_extension = uploaded_file.name.split('.')[-1].lower()
         
         if file_extension == 'csv':
-            df = pd.read_csv(uploaded_file)
+            # Try multiple encodings for CSV files
+            encodings = ['utf-8', 'latin-1', 'cp1252', 'iso-8859-1']
+            df = None
+            last_error = None
+            
+            for encoding in encodings:
+                try:
+                    uploaded_file.seek(0)  # Reset file pointer
+                    df = pd.read_csv(uploaded_file, encoding=encoding)
+                    logger.info(f"Successfully read CSV with {encoding} encoding")
+                    break
+                except (UnicodeDecodeError, Exception) as e:
+                    last_error = e
+                    continue
+            
+            if df is None:
+                return None, f"Could not read CSV file with any supported encoding. Last error: {str(last_error)}"
+                
         elif file_extension in ['xlsx', 'xls']:
             df = pd.read_excel(uploaded_file)
         else:
