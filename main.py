@@ -3777,7 +3777,7 @@ def show_individual_performance(df: pd.DataFrame):
 
 
 def show_import_reports():
-    """Main UI for Import Reports admin page"""
+    """Main UI for Import Reports admin page - Power BI style dashboard"""
     st.subheader("📊 Import Performance Reports")
     
     if not REPORT_IMPORT_AVAILABLE:
@@ -3787,8 +3787,6 @@ def show_import_reports():
     # Initialize session state for imported data
     if 'imported_data' not in st.session_state:
         st.session_state.imported_data = None
-    if 'import_view' not in st.session_state:
-        st.session_state.import_view = 'overall'
     
     # File upload section
     st.markdown("#### 📤 Upload Report File")
@@ -3824,36 +3822,164 @@ def show_import_reports():
         
         # Store in session state
         st.session_state.imported_data = df
-        st.success(f"✅ Successfully loaded {len(df)} records from {uploaded_file.name}")
-        
-        # Show data preview
-        with st.expander("📋 Data Preview (First 10 rows)"):
-            st.dataframe(df.head(10), use_container_width=True)
+        st.success(f"✅ Successfully loaded **{len(df)} records** from {uploaded_file.name}")
     
     # Display analysis if data is loaded
     if st.session_state.imported_data is not None:
+        df = st.session_state.imported_data
+        
         st.markdown("---")
         
-        # View selection tabs
-        tab1, tab2 = st.tabs(["📊 Overall Summary", "👤 Individual Performance"])
+        # ALWAYS VISIBLE DATA PREVIEW
+        st.markdown("### 📋 Data Preview (First 10 Rows)")
+        st.dataframe(df.head(10), use_container_width=True, height=300)
         
-        with tab1:
-            show_overall_summary(st.session_state.imported_data)
+        st.markdown("---")
+        
+        # FULL PERFORMANCE DASHBOARD INTEGRATION
+        st.markdown("## 📊 Performance Analytics Dashboard")
+        
+        # Use the existing show_metrics function
+        show_metrics(df)
+        
+        st.markdown("---")
+        
+        # Recent Submissions Table
+        show_data_table(df)
+        
+        st.markdown("---")
+        
+        # Filters
+        filtered_df = show_filters(df)
+        
+        st.markdown("---")
+        
+        # Charts
+        show_charts(filtered_df if filtered_df is not None and not filtered_df.empty else df)
+        
+        st.markdown("---")
+        
+        # Employee Dashboard with Individual Downloads
+        show_employee_dashboard(filtered_df if filtered_df is not None and not filtered_df.empty else df)
+        
+        st.markdown("---")
+        
+        # ADDITIONAL: Resource Utilization Summary from import logic
+        st.markdown("### 💼 Resource Utilization Summary")
+        
+        try:
+            overall_metrics = calculate_overall_metrics(df)
+            resource_metrics = calculate_resource_utilization(df)
             
-            # Export option
-            st.markdown("---")
-            csv = st.session_state.imported_data.to_csv(index=False).encode('utf-8-sig')
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.markdown("**Performance Distribution**")
+                perf_dist = resource_metrics.get('performance_distribution', {})
+                st.markdown(f"🟢 Excellent (≥90%): **{perf_dist.get('excellent', 0)}** ({perf_dist.get('excellent_pct', 0)}%)")
+                st.markdown(f"🟡 Good (70-89%): **{perf_dist.get('good', 0)}** ({perf_dist.get('good_pct', 0)}%)")
+                st.markdown(f"🔴 Needs Improvement (<70%): **{perf_dist.get('needs_improvement', 0)}** ({perf_dist.get('needs_improvement_pct', 0)}%)")
+            
+            with col2:
+                st.markdown("**Productivity Metrics**")
+                productivity = resource_metrics.get('productivity', {})
+                st.markdown(f"✅ Completion Rate: **{productivity.get('completion_rate', 0)}%**")
+                st.markdown(f"⏳ In Progress: **{productivity.get('in_progress_rate', 0)}%**")
+                st.markdown(f"📊 Total Tasks: **{overall_metrics.get('total_tasks', 0)}**")
+            
+            with col3:
+                st.markdown("**Workload Balance**")
+                workload = resource_metrics.get('workload', {})
+                utilization = resource_metrics.get('overall_utilization', 0)
+                st.markdown(f"📈 Overall Utilization: **{utilization}%**")
+                st.markdown(f"📌 Avg Tasks/Employee: **{workload.get('avg_tasks_per_employee', 0)}**")
+                st.markdown(f"⚖️ Balance: **{workload.get('workload_balance', 'Unknown')}**")
+            
+            # Date range if available
+            if overall_metrics.get('date_range_start') and overall_metrics.get('date_range_end'):
+                st.info(f"📅 **Report Period:** {overall_metrics['date_range_start']} to {overall_metrics['date_range_end']}")
+        
+        except Exception as e:
+            st.warning(f"Could not calculate resource utilization metrics: {str(e)}")
+        
+        st.markdown("---")
+        
+        # DOWNLOAD OPTIONS
+        st.markdown("### 📥 Download Options")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            # Download full processed data
+            csv_full = df.to_csv(index=False).encode('utf-8-sig')
             st.download_button(
-                "📥 Download Processed Data (CSV)",
-                data=csv,
-                file_name=f"processed_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                mime="text/csv"
+                "📥 Download Full Dataset (CSV)",
+                data=csv_full,
+                file_name=f"full_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                mime="text/csv",
+                use_container_width=True
             )
         
-        with tab2:
-            show_individual_performance(st.session_state.imported_data)
+        with col2:
+            # Download filtered data
+            if filtered_df is not None and not filtered_df.empty:
+                csv_filtered = filtered_df.to_csv(index=False).encode('utf-8-sig')
+                st.download_button(
+                    "📥 Download Filtered Data (CSV)",
+                    data=csv_filtered,
+                    file_name=f"filtered_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                    mime="text/csv",
+                    use_container_width=True
+                )
+            else:
+                st.info("Apply filters to download filtered data")
+        
+        with col3:
+            # Download individual employee reports (ZIP)
+            if 'Name' in df.columns:
+                employees = [name for name in df['Name'].dropna().unique() if str(name).strip()]
+                if employees:
+                    if st.button("📦 Download All Employee Reports (ZIP)", use_container_width=True):
+                        buf = io.BytesIO()
+                        with zipfile.ZipFile(buf, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+                            for name in employees:
+                                emp_rows = df[df['Name'] == name].copy()
+                                if 'Date' in emp_rows.columns:
+                                    emp_rows['Date'] = emp_rows['Date'].astype(str)
+                                csv_bytes = emp_rows.to_csv(index=False).encode('utf-8-sig')
+                                safe_name = re.sub(r"[^A-Za-z0-9_\- ]+", "", str(name)).strip() or "employee"
+                                zf.writestr(f"{safe_name}_performance_report.csv", csv_bytes)
+                        buf.seek(0)
+                        st.download_button(
+                            label="⬇️ Click to Download ZIP",
+                            data=buf,
+                            file_name=f"all_employee_reports_{datetime.now().strftime('%Y%m%d')}.zip",
+                            mime="application/zip",
+                            key="download_employee_zip"
+                        )
     else:
-        st.info("👆 Upload a CSV or XLSX file to begin analysis")
+        st.info("👆 Upload a CSV or XLSX file to begin comprehensive analysis")
+        st.markdown("""
+        ### Expected File Format
+        
+        Your file should contain at least one of these employee identifier columns:
+        - `Name`, `Employee Name`, `emp_id`, or `Employee ID`
+        
+        **Recommended columns for full analysis:**
+        - Employee Performance (%)
+        - Task Status
+        - Date
+        - Project Name
+        - Task Priority
+        
+        **Example CSV:**
+        ```csv
+        Name,Employee Performance (%),Task Status,Date,Project
+        John Doe,95,Completed,2025-12-01,Project Alpha
+        Jane Smith,87,In Progress,2025-12-01,Project Beta
+        ```
+        """)
+
 
 def show_admin_dashboard():
     """Main admin dashboard"""
