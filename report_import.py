@@ -226,18 +226,10 @@ def calculate_employee_metrics(df: pd.DataFrame) -> pd.DataFrame:
         # Performance
         perf_col = next((col for col in ['Employee Performance (%)', 'Performance'] if col in df.columns), None)
         if perf_col:
-            # Ensure numeric conversion
             emp_df[perf_col] = pd.to_numeric(emp_df[perf_col], errors='coerce')
-            # Calculate metrics across ALL records for this employee
-            valid_perf = emp_df[perf_col].dropna()
-            if not valid_perf.empty:
-                emp_metric['Avg Performance (%)'] = round(valid_perf.mean(), 2)
-                emp_metric['Max Performance (%)'] = round(valid_perf.max(), 2)
-                emp_metric['Min Performance (%)'] = round(valid_perf.min(), 2)
-            else:
-                emp_metric['Avg Performance (%)'] = 0
-                emp_metric['Max Performance (%)'] = 0
-                emp_metric['Min Performance (%)'] = 0
+            emp_metric['Avg Performance (%)'] = round(emp_df[perf_col].mean(), 2)
+            emp_metric['Max Performance (%)'] = round(emp_df[perf_col].max(), 2)
+            emp_metric['Min Performance (%)'] = round(emp_df[perf_col].min(), 2)
         else:
             # Add default values if performance column doesn't exist
             emp_metric['Avg Performance (%)'] = 0
