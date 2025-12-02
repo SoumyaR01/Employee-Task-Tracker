@@ -3937,7 +3937,7 @@ To enable automated reminders:
                     st.error("Failed to load data")
     
     elif admin_page == "📊 Import Reports":
-        st.title("📊 Import Performance Reports")
+        #st.title("📊 Import Performance Reports")
         show_import_reports()
     
     elif admin_page == "🔗 Jira Management":
