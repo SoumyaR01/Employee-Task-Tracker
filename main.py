@@ -1592,8 +1592,9 @@ def show_filters(df):
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         if 'Name' in df.columns:
-            unique_vals = [x for x in df['Name'].unique() if pd.notna(x)]
-            employees = ['All'] + sorted(unique_vals, key=lambda x: (0, x) if isinstance(x, (int, float)) else (1, str(x)))
+            # Use standardized unique values
+            unique_vals = sorted(df['Name'].dropna().astype(str).str.strip().unique())
+            employees = ['All'] + [e for e in unique_vals if e]
         else:
             employees = ['All']
         selected_employee = st.selectbox("Employee", employees)
