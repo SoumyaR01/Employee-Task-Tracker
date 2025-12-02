@@ -111,6 +111,22 @@ except ImportError:
             return False
         except Exception:
             return False
+
+# Import report import module for CSV/XLSX analysis
+try:
+    from report_import import (
+        parse_uploaded_file,
+        validate_report_data,
+        normalize_column_names,
+        calculate_overall_metrics,
+        calculate_employee_metrics,
+        calculate_resource_utilization,
+        get_performance_tier
+    )
+    REPORT_IMPORT_AVAILABLE = True
+except ImportError:
+    REPORT_IMPORT_AVAILABLE = False
+
 st.set_page_config(
     page_title="Employee Progress Tracker",
     page_icon="📊",
@@ -3495,6 +3511,350 @@ def show_chatbot_panel():
                 reply = _fallback_chat_answer(user_q)
         st.session_state.chat_history.append({"role": "assistant", "content": reply})
         st.chat_message("assistant").write(reply)
+
+# ==================== IMPORT REPORTS FUNCTIONS ====================
+
+def show_overall_summary(df: pd.DataFrame):
+    """Display overall performance summary for imported data"""
+    st.markdown("### 📊 Overall Performance Summary")
+    
+    # Calculate metrics
+    overall_metrics = calculate_overall_metrics(df)
+    resource_metrics = calculate_resource_utilization(df)
+    
+    # Top-level metrics cards
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric(
+            "Total Employees",
+            overall_metrics.get('total_employees', 0),
+            help="Number of unique employees in the report"
+        )
+    
+    with col2:
+        avg_perf = overall_metrics.get('avg_performance', 0)
+        st.metric(
+            "Average Performance",
+            f"{avg_perf}%",
+            help="Mean performance score across all employees"
+        )
+    
+    with col3:
+        completion_rate = overall_metrics.get('completion_rate', 0)
+        st.metric(
+            "Task Completion Rate",
+            f"{completion_rate}%",
+            help="Percentage of completed tasks"
+        )
+    
+    with col4:
+        utilization = resource_metrics.get('overall_utilization', 0)
+        st.metric(
+            "Resource Utilization",
+            f"{utilization}%",
+            help="Overall efficiency score based on performance and productivity"
+        )
+    
+    st.markdown("---")
+    
+    # Performance distribution
+    st.markdown("#### 📈 Performance Distribution")
+    
+    perf_dist = resource_metrics.get('performance_distribution', {})
+    
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        # Performance distribution pie chart
+        if perf_dist.get('excellent', 0) + perf_dist.get('good', 0) + perf_dist.get('needs_improvement', 0) > 0:
+            labels = ['Excellent (≥90%)', 'Good (70-89%)', 'Needs Improvement (<70%)']
+            values = [perf_dist.get('excellent', 0), perf_dist.get('good', 0), perf_dist.get('needs_improvement', 0)]
+            colors = ['#10b981', '#f59e0b', '#ef4444']
+            
+            fig = go.Figure(data=[go.Pie(
+                labels=labels,
+                values=values,
+                marker=dict(colors=colors),
+                hole=0.4,
+                textinfo='label+percent',
+                textposition='auto'
+            )])
+            fig.update_layout(
+                title="Performance Categories",
+                height=350,
+                showlegend=True,
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                font=dict(color='white')
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("No performance data available for distribution chart")
+    
+    with col2:
+        # Performance statistics
+        st.markdown("**Performance Stats**")
+        st.markdown(f"🟢 **Excellent:** {perf_dist.get('excellent', 0)} ({perf_dist.get('excellent_pct', 0)}%)")
+        st.markdown(f"🟡 **Good:** {perf_dist.get('good', 0)} ({perf_dist.get('good_pct', 0)}%)")
+        st.markdown(f"🔴 **Needs Improvement:** {perf_dist.get('needs_improvement', 0)} ({perf_dist.get('needs_improvement_pct', 0)}%)")
+        
+        st.markdown("---")
+        st.markdown("**Key Metrics**")
+        st.markdown(f"📊 Min: **{overall_metrics.get('min_performance', 0)}%**")
+        st.markdown(f"📊 Median: **{overall_metrics.get('median_performance', 0)}%**")
+        st.markdown(f"📊 Max: **{overall_metrics.get('max_performance', 0)}%**")
+    
+    st.markdown("---")
+    
+    # Resource utilization details
+    st.markdown("#### 💼 Resource Utilization Analysis")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown("**Productivity Metrics**")
+        productivity = resource_metrics.get('productivity', {})
+        st.markdown(f"✅ Completion Rate: **{productivity.get('completion_rate', 0)}%**")
+        st.markdown(f"⏳ In Progress: **{productivity.get('in_progress_rate', 0)}%**")
+    
+    with col2:
+        st.markdown("**Workload Distribution**")
+        workload = resource_metrics.get('workload', {})
+        st.markdown(f"📌 Avg Tasks/Employee: **{workload.get('avg_tasks_per_employee', 0)}**")
+        st.markdown(f"📊 Balance Status: **{workload.get('workload_balance', 'Unknown')}**")
+    
+    with col3:
+        st.markdown("**Task Summary**")
+        st.markdown(f"📝 Total Tasks: **{overall_metrics.get('total_tasks', 0)}**")
+        st.markdown(f"✔️ Completed: **{overall_metrics.get('completed_tasks', 0)}**")
+    
+    # Date range if available
+    if overall_metrics.get('date_range_start') and overall_metrics.get('date_range_end'):
+        st.markdown("---")
+        st.info(f"📅 **Report Period:** {overall_metrics['date_range_start']} to {overall_metrics['date_range_end']}")
+
+
+def show_individual_performance(df: pd.DataFrame):
+    """Display individual employee performance details"""
+    st.markdown("### 👤 Individual Employee Performance")
+    
+    # Calculate employee metrics
+    emp_metrics_df = calculate_employee_metrics(df)
+    
+    if emp_metrics_df.empty:
+        st.warning("No employee data available for individual analysis")
+        return
+    
+    # Employee selector
+    employee_list = emp_metrics_df['Employee'].tolist()
+    selected_employee = st.selectbox(
+        "Select Employee",
+        employee_list,
+        help="Choose an employee to view detailed performance"
+    )
+    
+    if not selected_employee:
+        st.info("Please select an employee to view their performance details")
+        return
+    
+    # Get selected employee data
+    emp_row = emp_metrics_df[emp_metrics_df['Employee'] == selected_employee].iloc[0]
+    emp_data = df[df[df.columns[df.columns.str.contains('Name|name|emp_id', case=False, regex=True)][0]] == selected_employee]
+    
+    st.markdown("---")
+    
+    # Employee header
+    st.markdown(f"## {selected_employee}")
+    
+    # Metrics cards
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        avg_perf = emp_row.get('Avg Performance (%)', 0)
+        tier = get_performance_tier(avg_perf)
+        tier_color = {
+            'Excellent': '🟢',
+            'Good': '🟡',
+            'Average': '🟠',
+            'Needs Improvement': '🔴',
+            'N/A': '⚪'
+        }.get(tier, '⚪')
+        st.metric("Avg Performance", f"{avg_perf}%")
+        st.caption(f"{tier_color} {tier}")
+    
+    with col2:
+        st.metric("Completion Rate", f"{emp_row.get('Completion Rate (%)', 0)}%")
+    
+    with col3:
+        st.metric("Total Tasks", emp_row.get('Total Tasks', 0))
+    
+    with col4:
+        st.metric("Completed Tasks", emp_row.get('Completed Tasks', 0))
+    
+    st.markdown("---")
+    
+    # Performance details
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        # Performance gauge chart
+        avg_perf = emp_row.get('Avg Performance (%)', 0)
+        
+        fig = go.Figure(go.Indicator(
+            mode="gauge+number+delta",
+            value=avg_perf,
+            domain={'x': [0, 1], 'y': [0, 1]},
+            title={'text': "Performance Score", 'font': {'size': 24, 'color': 'white'}},
+            delta={'reference': df[df.columns[df.columns.str.contains('Performance', case=False, regex=True)][0]].mean() if any(df.columns.str.contains('Performance', case=False, regex=True)) else 0},
+            gauge={
+                'axis': {'range': [None, 100], 'tickwidth': 1, 'tickcolor': "white"},
+                'bar': {'color': "#667eea"},
+                'bgcolor': "rgba(255,255,255,0.1)",
+                'borderwidth': 2,
+                'bordercolor': "white",
+                'steps': [
+                    {'range': [0, 50], 'color': 'rgba(239, 68, 68, 0.3)'},
+                    {'range': [50, 70], 'color': 'rgba(245, 158, 11, 0.3)'},
+                    {'range': [70, 90], 'color': 'rgba(59, 130, 246, 0.3)'},
+                    {'range': [90, 100], 'color': 'rgba(16, 185, 129, 0.3)'}
+                ],
+                'threshold': {
+                    'line': {'color': "red", 'width': 4},
+                    'thickness': 0.75,
+                    'value': 90
+                }
+            }
+        ))
+        
+        fig.update_layout(
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            font={'color': "white", 'family': "Arial"},
+            height=300
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+    
+    with col2:
+        st.markdown("**Performance Range**")
+        st.markdown(f"🔺 **Max:** {emp_row.get('Max Performance (%)', 0)}%")
+        st.markdown(f"📊 **Average:** {emp_row.get('Avg Performance (%)', 0)}%")
+        st.markdown(f"🔻 **Min:** {emp_row.get('Min Performance (%)', 0)}%")
+        
+        st.markdown("---")
+        
+        st.markdown("**Task Summary**")
+        st.markdown(f"📝 **Submissions:** {emp_row.get('Submissions', 0)}")
+        st.markdown(f"✅ **Completed:** {emp_row.get('Completed Tasks', 0)}")
+        st.markdown(f"📊 **Total:** {emp_row.get('Total Tasks', 0)}")
+    
+    st.markdown("---")
+    
+    # Detailed task history table
+    st.markdown("#### 📋 Detailed Task History")
+    
+    if not emp_data.empty:
+        # Select relevant columns to display
+        display_cols = []
+        for col in ['Date', 'Task Status', 'Employee Performance (%)', 'Task Description', 'Project', 'Hours']:
+            if col in emp_data.columns:
+                display_cols.append(col)
+        
+        if display_cols:
+            st.dataframe(
+                emp_data[display_cols].sort_values(
+                    by=display_cols[0] if display_cols[0] in emp_data.columns else display_cols[0],
+                    ascending=False
+                ),
+                use_container_width=True,
+                hide_index=True
+            )
+        else:
+            st.dataframe(emp_data, use_container_width=True, hide_index=True)
+    else:
+        st.info("No detailed task history available")
+
+
+def show_import_reports():
+    """Main UI for Import Reports admin page"""
+    st.subheader("📊 Import Performance Reports")
+    
+    if not REPORT_IMPORT_AVAILABLE:
+        st.error("❌ Report import module not available. Please check that report_import.py exists.")
+        return
+    
+    # Initialize session state for imported data
+    if 'imported_data' not in st.session_state:
+        st.session_state.imported_data = None
+    if 'import_view' not in st.session_state:
+        st.session_state.import_view = 'overall'
+    
+    # File upload section
+    st.markdown("#### 📤 Upload Report File")
+    st.markdown("Drag and drop your CSV or XLSX performance report file below:")
+    
+    uploaded_file = st.file_uploader(
+        "Choose a file",
+        type=['csv', 'xlsx', 'xls'],
+        help="Upload CSV or Excel file with employee performance data",
+        label_visibility="collapsed"
+    )
+    
+    if uploaded_file is not None:
+        # Parse the file
+        with st.spinner("Processing file..."):
+            df, error = parse_uploaded_file(uploaded_file)
+        
+        if error:
+            st.error(f"❌ {error}")
+            st.session_state.imported_data = None
+            return
+        
+        # Normalize column names
+        df = normalize_column_names(df)
+        
+        # Validate data
+        is_valid, validation_error = validate_report_data(df)
+        
+        if not is_valid:
+            st.error(f"❌ {validation_error}")
+            st.session_state.imported_data = None
+            return
+        
+        # Store in session state
+        st.session_state.imported_data = df
+        st.success(f"✅ Successfully loaded {len(df)} records from {uploaded_file.name}")
+        
+        # Show data preview
+        with st.expander("📋 Data Preview (First 10 rows)"):
+            st.dataframe(df.head(10), use_container_width=True)
+    
+    # Display analysis if data is loaded
+    if st.session_state.imported_data is not None:
+        st.markdown("---")
+        
+        # View selection tabs
+        tab1, tab2 = st.tabs(["📊 Overall Summary", "👤 Individual Performance"])
+        
+        with tab1:
+            show_overall_summary(st.session_state.imported_data)
+            
+            # Export option
+            st.markdown("---")
+            csv = st.session_state.imported_data.to_csv(index=False).encode('utf-8-sig')
+            st.download_button(
+                "📥 Download Processed Data (CSV)",
+                data=csv,
+                file_name=f"processed_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                mime="text/csv"
+            )
+        
+        with tab2:
+            show_individual_performance(st.session_state.imported_data)
+    else:
+        st.info("👆 Upload a CSV or XLSX file to begin analysis")
+
 def show_admin_dashboard():
     """Main admin dashboard"""
     # Sidebar navigation for admin
@@ -3509,6 +3869,7 @@ def show_admin_dashboard():
             "👤 Employee Management",
             "⚙️ Settings",
             "📧 Reminders",
+            "📊 Import Reports",  # New import reports feature
             "🔗 Jira Management"  # Added Jira menu option
         ]
 
@@ -3574,6 +3935,10 @@ To enable automated reminders:
                         st.success("✅ All employees have submitted their reports today!")
                 else:
                     st.error("Failed to load data")
+    
+    elif admin_page == "📊 Import Reports":
+        st.title("📊 Import Performance Reports")
+        show_import_reports()
     
     elif admin_page == "🔗 Jira Management":
         st.title("🔗 Jira Integration Management")
