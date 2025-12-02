@@ -1628,7 +1628,7 @@ def show_filters(df):
     # Apply filters
     filtered_df = df.copy()
     if 'Date' in filtered_df.columns:
-        filtered_df['Date'] = pd.to_datetime(filtered_df['Date'])
+        filtered_df['Date'] = pd.to_datetime(filtered_df['Date'], errors='coerce')
         filtered_df = filtered_df[
             (filtered_df['Date'].dt.date >= start_date) &
             (filtered_df['Date'].dt.date <= end_date)
