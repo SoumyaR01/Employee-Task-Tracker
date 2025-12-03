@@ -1337,6 +1337,11 @@ def update_dashboard_sheets(excel_path: str, full_df: pd.DataFrame) -> None:
 
 
 # Helper Functions
+def get_dataframe_hash(df):
+    """Create hash of dataframe for caching purposes"""
+    import hashlib
+    return hashlib.md5(pd.util.hash_pandas_object(df).values).hexdigest()
+
 def load_config():
     """Load configuration from file"""
     if Path(CONFIG_FILE).exists():
@@ -1714,6 +1719,102 @@ def format_availability_for_csv(availability):
         return "⚪ Unknown"
     except Exception:
         return "⚪ Unknown"
+
+def calculate_task_performance(row):
+    """
+    Calculate performance for a single task based on Priority and Status.
+    Returns a percentage value (0-100).
+    """
+    # Priority-based base scores
+    priority_scores = {
+        'Critical': 100,
+        'High': 75,
+        'Medium': 50,
+        'Low': 25
+    }
+    
+    # Get priority (case-insensitive)
+    priority = str(row.get('Task Priority', 'Medium')).strip().title()
+    base_score = priority_scores.get(priority, 50)
+    
+    # Get status (case-insensitive)
+    status = str(row.get('Task Status', '')).lower().strip()
+    
+    # Status multipliers
+    if any(keyword in status for keyword in ['complet', 'done', 'finish', 'closed']):
+        multiplier = 1.0  # 100% of base score
+    elif any(keyword in status for keyword in ['progress', 'ongoing', 'working', 'active', 'started']):
+        multiplier = 0.65  # 65% of base score
+    else:
+        multiplier = 0.30  # 30% of base score (assigned but not started)
+    
+    return round(base_score * multiplier, 2)
+
+
+def calculate_performance_from_priority(emp_df):
+    """
+    Calculate performance metrics based on Task Priority and Status.
+    Priority weights: Critical=100, High=75, Medium=50, Low=25
+    Completed tasks get full weight, in-progress get 50%, pending get workload score
+    """
+    if emp_df.empty:
+        return 0.0, 0.0
+    
+    # Priority-based scoring
+    priority_weights = {
+        'Critical': 100,
+        'High': 75,
+        'Medium': 50,
+        'Low': 25
+    }
+    
+    total_weighted_score = 0
+    total_possible_score = 0
+    task_count_by_status = {'completed': 0, 'in_progress': 0, 'pending': 0}
+    
+    for _, row in emp_df.iterrows():
+        # Get priority weight (case-insensitive matching)
+        priority = str(row.get('Task Priority', 'Medium')).strip().title()
+        weight = priority_weights.get(priority, 50)  # Default to Medium if unknown
+        
+        # Get status with flexible matching (case-insensitive)
+        status = str(row.get('Task Status', '')).lower().strip()
+        
+        # More flexible status detection
+        if any(keyword in status for keyword in ['complet', 'done', 'finish', 'closed']):
+            multiplier = 1.0  # Full credit
+            task_count_by_status['completed'] += 1
+        elif any(keyword in status for keyword in ['progress', 'ongoing', 'working', 'active', 'started']):
+            multiplier = 0.5  # Half credit
+            task_count_by_status['in_progress'] += 1
+        else:
+            # For pending tasks, give some base credit based on priority
+            # This shows workload/task importance even if not started
+            multiplier = 0.3  # 30% base credit for assigned work
+            task_count_by_status['pending'] += 1
+        
+        total_weighted_score += weight * multiplier
+        total_possible_score += weight
+    
+    # Calculate percentage
+    if total_possible_score > 0:
+        avg_performance = round((total_weighted_score / total_possible_score) * 100, 2)
+    else:
+        avg_performance = 0.0
+    
+    # If no tasks are completed or in progress, show workload-based score
+    if task_count_by_status['completed'] == 0 and task_count_by_status['in_progress'] == 0:
+        # Show 30-40% to indicate task assignment without actual progress
+        avg_performance = max(avg_performance, 30.0)  # Minimum 30% for having tasks assigned
+    
+    # Latest performance is the same as average for priority-based calc
+    latest_perf = avg_performance
+    
+    # Debug info (optional - can be shown to user)
+    st.caption(f"📊 Status breakdown: {task_count_by_status['completed']} completed, {task_count_by_status['in_progress']} in progress, {task_count_by_status['pending']} pending")
+    
+    return avg_performance, latest_perf
+
 def show_employee_dashboard(df):
     """Interactive dashboard for selected employee using performance metrics."""
     if df is None or df.empty or 'Name' not in df.columns:
@@ -1723,11 +1824,19 @@ def show_employee_dashboard(df):
     df = df.copy()
     if 'Date' in df.columns:
         df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
+    
+    # Cached employee list generation for performance
+    @st.cache_data(ttl=3600)
+    def get_unique_employees(df_hash, name_series_values):
+        """Cache employee list - expensive for large datasets"""
+        unique_names = pd.Series(name_series_values).dropna().unique()
+        return sorted([str(name).strip() for name in unique_names if str(name).strip()])
+    
     # Optimized employee list loading
     if 'Name' in df.columns:
-        # Use pandas vectorized string operations for speed
-        employees = sorted(df['Name'].dropna().astype(str).unique())
-        employees = [e for e in employees if e.strip()]
+        # Use cached function for performance
+        df_hash = get_dataframe_hash(df[['Name']])
+        employees = get_unique_employees(df_hash, df['Name'].values.tolist())
     else:
         employees = []
 
@@ -1736,46 +1845,50 @@ def show_employee_dashboard(df):
         return
     st.subheader("👨‍💻 Employee Performance Explorer")
     st.caption("Analyze and track employee performance metrics")
-    # Per-employee average performance chart
-    try:
-        perf_summary = (
-            df.groupby('Name')['Employee Performance (%)']
-            .mean()
-            .reset_index(name='AvgPerformance')
-        )
-        # latest availability per employee
-        latest_avails = {}
-        # Optimize availability lookup
-        if 'Availability' in df.columns:
-            # Get last non-null availability for each employee
-            avail_df = df.sort_values('Date') if 'Date' in df.columns else df
-            latest_avails = avail_df.groupby('Name')['Availability'].last().to_dict()
-        
-        perf_summary['StatusCategory'] = perf_summary['Name'].map(latest_avails).fillna('Unknown')
-        
-        color_map = {
-            'Underutilized': '#10b981',
-            'Partially Busy': '#f59e0b',
-            'Fully Busy': '#ef4444',
-            'Unknown': '#6b7280'
-        }
-        # Use StatusCategory for colors
-        perf_summary = perf_summary.sort_values('AvgPerformance', ascending=False)
-        if not perf_summary.empty:
-            fig_perf = px.bar(
-                perf_summary,
-                x='Name',
-                y='AvgPerformance',
-                color='StatusCategory',
-                color_discrete_map=color_map,
-                labels={'Name': 'Employee', 'AvgPerformance': 'Avg Performance (%)'},
-                title='Average Performance by Employee'
+    
+    # Lazy-load expensive performance chart (collapsed by default for better performance)
+    with st.expander("📊 Show Performance Overview Chart", expanded=False):
+        # Per-employee average performance chart
+        try:
+            perf_summary = (
+                df.groupby('Name')['Employee Performance (%)']
+                .mean()
+                .reset_index(name='AvgPerformance')
             )
-            fig_perf.update_layout(yaxis_range=[0, 100], showlegend=True, height=320)
-            st.plotly_chart(fig_perf, use_container_width=True)
-    except Exception:
-        # don't break dashboard if chart fails
-        pass
+            # latest availability per employee
+            latest_avails = {}
+            # Optimize availability lookup
+            if 'Availability' in df.columns:
+                # Get last non-null availability for each employee
+                avail_df = df.sort_values('Date') if 'Date' in df.columns else df
+                latest_avails = avail_df.groupby('Name')['Availability'].last().to_dict()
+            
+            perf_summary['StatusCategory'] = perf_summary['Name'].map(latest_avails).fillna('Unknown')
+            
+            color_map = {
+                'Underutilized': '#10b981',
+                'Partially Busy': '#f59e0b',
+                'Fully Busy': '#ef4444',
+                'Unknown': '#6b7280'
+            }
+            # Use StatusCategory for colors
+            perf_summary = perf_summary.sort_values('AvgPerformance', ascending=False)
+            if not perf_summary.empty:
+                fig_perf = px.bar(
+                    perf_summary,
+                    x='Name',
+                    y='AvgPerformance',
+                    color='StatusCategory',
+                    color_discrete_map=color_map,
+                    labels={'Name': 'Employee', 'AvgPerformance': 'Avg Performance (%)'},
+                    title='Average Performance by Employee'
+                )
+                fig_perf.update_layout(yaxis_range=[0, 100], showlegend=True, height=320)
+                st.plotly_chart(fig_perf, use_container_width=True)
+        except Exception:
+            # don't break dashboard if chart fails
+            pass
+    
     # Export All Employees (create ZIP of per-employee CSVs)
     exp_col1, exp_col2 = st.columns([5, 1])
     with exp_col2:
@@ -1810,15 +1923,40 @@ def show_employee_dashboard(df):
     if not selected_employee or selected_employee == 'All':
         st.info("Select an employee from the dropdown above to view their detailed dashboard.")
         return
-    emp_df = df[df['Name'] == selected_employee].copy()
+    
+    # Case-insensitive employee filtering to handle any name format variations
+    emp_df = df[df['Name'].str.strip().str.lower() == selected_employee.strip().lower()].copy()
     if emp_df.empty:
-        st.warning("No records found for the selected employee.")
+        st.warning(f"No records found for '{selected_employee}' in the selected date range. Try adjusting the filters or date range.")
         return
+    
+    # Debug info - show how many records found
+    st.caption(f"Found {len(emp_df)} record(s) for {selected_employee} in the filtered date range")
+    
     total_tasks = len(emp_df)
-    completed_tasks = int((emp_df.get('Task Status') == 'Completed').sum()) if 'Task Status' in emp_df.columns else 0
+    # Improved completed tasks detection - check multiple status variations
+    if 'Task Status' in emp_df.columns:
+        completed_tasks = int(
+            emp_df['Task Status'].astype(str).str.lower().str.contains('complet', na=False).sum()
+        )
+    else:
+        completed_tasks = 0
     pending_tasks = max(total_tasks - completed_tasks, 0)
-    avg_performance = round(emp_df['Employee Performance (%)'].mean(), 2)
-    latest_perf = round(emp_df.sort_values('Date')['Employee Performance (%)'].iloc[-1], 2) if not emp_df['Employee Performance (%)'].empty else 0
+    
+    # Robust performance calculation with Task Priority-based scoring
+    if 'Employee Performance (%)' in emp_df.columns:
+        perf_values = emp_df['Employee Performance (%)'].dropna()
+        if len(perf_values) > 0:
+            # Use existing performance data
+            avg_performance = round(perf_values.mean(), 2)
+            latest_perf = round(emp_df.sort_values('Date')['Employee Performance (%)'].dropna().iloc[-1], 2) if len(perf_values) > 0 else 0
+        else:
+            # Calculate based on Task Priority if performance column is empty
+            avg_performance, latest_perf = calculate_performance_from_priority(emp_df)
+    else:
+        # Calculate based on Task Priority if performance column doesn't exist
+        avg_performance, latest_perf = calculate_performance_from_priority(emp_df)
+    
     last_update = emp_df['Date'].dropna().max().date().isoformat() if 'Date' in emp_df.columns and not emp_df['Date'].dropna().empty else "N/A"
    
     # Calculate additional metrics for professional display
@@ -2027,23 +2165,35 @@ def show_employee_dashboard(df):
         else:
             st.info("Task priority column not available.")
 
-    st.subheader("📋 Recent Tasks")
-    display_columns = [col for col in DATA_COLUMNS if col in emp_df.columns]
-    if display_columns:
-        display_df = emp_df.sort_values('Date', ascending=False)[display_columns]
-       
-        def highlight_support(val):
-            if pd.isna(val) or str(val).strip() == "":
-                return ""
-            return "background-color: #ffcccb; color: #000000; font-weight: bold; border-left: 3px solid #ff4444"
-       
-        if 'Support Request' in display_df.columns:
-            styled_df = display_df.style.map(highlight_support, subset=['Support Request'])
-            st.dataframe(styled_df, use_container_width=True, height=320)
-        else:
-            st.dataframe(display_df, use_container_width=True, height=320)
+    # Detailed table
+    st.subheader("📋 Detailed Task Records")
+    
+    # Select columns to display - EXCLUDE Effort (in hours) as per user request
+    display_cols = ['Date', 'Project Name', 'Task Title', 'Task Priority', 'Task Status', 'Employee Performance (%)']
+    available_cols = [col for col in display_cols if col in emp_df.columns]
+    
+    if available_cols:
+        # Create display dataframe
+        display_df_emp = emp_df[available_cols].copy()
+        
+        # Format Date column if present
+        if 'Date' in display_df_emp.columns:
+            display_df_emp['Date'] = display_df_emp['Date'].dt.strftime('%Y-%m-%d').fillna('N/A')
+        
+        st.dataframe(display_df_emp, use_container_width=True, height=320)
+        
+        # Download button for individual employee data
+        employee_csv = emp_df.to_csv(index=False).encode('utf-8-sig')
+        st.download_button(
+            label=f"📥 Download {selected_employee}'s Full Report",
+            data=employee_csv,
+            file_name=f"{selected_employee}_detailed_report_{datetime.now().strftime('%Y%m%d')}.csv",
+            mime="text/csv",
+            key="download_individual_employee"
+        )
     else:
         st.info("No detailed task records to display.")
+
 def show_data_table(df):
     """Display data table with column filters"""
     st.subheader("📋 Recent Submissions")
@@ -3735,8 +3885,16 @@ def show_import_reports():
     if 'imported_data' not in st.session_state:
         st.session_state.imported_data = None
     
-    # File upload section
-    st.markdown("#### 📤 Upload Report File")
+    # Header with Refresh button
+    col_header1, col_header2 = st.columns([4, 1])
+    with col_header1:
+        st.markdown("#### 📤 Upload Report File")
+    with col_header2:
+        if st.button("🔄 Refresh", use_container_width=True, help="Clear all imported data"):
+            st.session_state.imported_data = None
+            st.success("✅ Import data cleared!")
+            st.rerun()
+    
     st.markdown("Drag and drop your CSV or XLSX performance report file below:")
     
     uploaded_file = st.file_uploader(
@@ -3746,15 +3904,20 @@ def show_import_reports():
         label_visibility="collapsed"
     )
     
-    if uploaded_file is not None:
+    # Cached file processing for performance
+    @st.cache_data(ttl=3600, show_spinner="Processing file...")
+    def process_uploaded_file_cached(file_bytes, file_name):
+        """Cache expensive file parsing and normalization"""
+        import io
+        # Recreate file-like object from bytes
+        file_obj = io.BytesIO(file_bytes)
+        file_obj.name = file_name
+        
         # Parse the file
-        with st.spinner("Processing file..."):
-            df, error = parse_uploaded_file(uploaded_file)
+        df, error = parse_uploaded_file(file_obj)
         
         if error:
-            st.error(f"❌ {error}")
-            st.session_state.imported_data = None
-            return
+            return None, error
         
         # Normalize column names
         df = normalize_column_names(df)
@@ -3767,12 +3930,34 @@ def show_import_reports():
         is_valid, validation_error = validate_report_data(df)
         
         if not is_valid:
-            st.error(f"❌ {validation_error}")
+            return None, validation_error
+        
+        return df, None
+    
+    if uploaded_file is not None:
+        # Get file bytes for caching
+        file_bytes = uploaded_file.getvalue()
+        file_name = uploaded_file.name
+        
+        # Use cached processing
+        df, error = process_uploaded_file_cached(file_bytes, file_name)
+        # Use cached processing
+        df, error = process_uploaded_file_cached(file_bytes, file_name)
+        
+        if error:
+            st.error(f"❌ {error}")
             st.session_state.imported_data = None
             return
         
         # Store in session state
         st.session_state.imported_data = df
+        
+        # Calculate Employee Performance (%) if missing
+        if 'Employee Performance (%)' not in df.columns or df['Employee Performance (%)'].isna().all():
+            st.info("📊 Calculating Employee Performance (%) based on Task Priority and Status...")
+            df['Employee Performance (%)'] = df.apply(calculate_task_performance, axis=1)
+            st.session_state.imported_data = df
+        
         st.success(f"✅ Successfully loaded **{len(df)} records** from {uploaded_file.name}")
     
     # Display analysis if data is loaded
@@ -3840,22 +4025,27 @@ def show_import_reports():
         
         st.markdown("---")
         
-        # Filters
-        filtered_df = show_filters(df)
-        
-        st.markdown("---")
-        
-        # Employee Dashboard with Individual Downloads
-        show_employee_dashboard(filtered_df if filtered_df is not None and not filtered_df.empty else df)
+        # Employee Performance Explorer - now with full unfiltered data
+        show_employee_dashboard(df)
         
         st.markdown("---")
         
         # ADDITIONAL: Resource Utilization Summary from import logic
         st.markdown("### 💼 Resource Utilization Summary")
         
+        # Cached resource metrics calculation
+        @st.cache_data(ttl=1800)
+        def calculate_resource_metrics_cached(df_hash, df_json):
+            """Cache expensive resource calculations"""
+            df_temp = pd.read_json(df_json)
+            overall_metrics = calculate_overall_metrics(df_temp)
+            resource_metrics = calculate_resource_utilization(df_temp)
+            return overall_metrics, resource_metrics
+        
         try:
-            overall_metrics = calculate_overall_metrics(df)
-            resource_metrics = calculate_resource_utilization(df)
+            df_hash = get_dataframe_hash(df)
+            df_json = df.to_json()
+            overall_metrics, resource_metrics = calculate_resource_metrics_cached(df_hash, df_json)
             
             col1, col2, col3 = st.columns(3)
             
@@ -3907,18 +4097,15 @@ def show_import_reports():
             )
         
         with col2:
-            # Download filtered data
-            if filtered_df is not None and not filtered_df.empty:
-                csv_filtered = filtered_df.to_csv(index=False).encode('utf-8-sig')
-                st.download_button(
-                    "📥 Download Filtered Data (CSV)",
-                    data=csv_filtered,
-                    file_name=f"filtered_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                    mime="text/csv",
-                    use_container_width=True
-                )
-            else:
-                st.info("Apply filters to download filtered data")
+            # Download current data (no filters, so same as full)
+            csv_current = df.to_csv(index=False).encode('utf-8-sig')
+            st.download_button(
+                "📥 Download Current Data (CSV)",
+                data=csv_current,
+                file_name=f"current_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
         
         with col3:
             # Download individual employee reports (ZIP)
