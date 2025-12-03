@@ -3795,48 +3795,8 @@ def show_import_reports():
         
         st.markdown("---")
         
-        # Simplified Recent Submissions Table (without column filters)
-        st.subheader("📋 Recent Submissions")
-        
-        # Display options
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            search = st.text_input("🔎 Search", placeholder="Search in any column...", key="import_search")
-        with col2:
-            rows_to_show = st.number_input("Rows", min_value=10, max_value=1000, value=50, step=10, key="import_rows")
-        
-        # Apply search
-        display_df = df.copy()
-        if search:
-            mask = display_df.astype(str).apply(
-                lambda x: x.str.contains(search, case=False, na=False)
-            ).any(axis=1)
-            display_df = display_df[mask]
-        
-        # Show results count
-        if len(display_df) < len(df):
-            st.info(f"📊 Showing {len(display_df)} of {len(df)} total records (filtered by search)")
-        
-        # Display table
-        if not display_df.empty:
-            st.dataframe(
-                display_df.head(rows_to_show),
-                use_container_width=True,
-                height=400
-            )
-        else:
-            st.warning("No records match the search term")
-        
-        # Download button for table data
-        if not display_df.empty:
-            csv_bytes = display_df.to_csv(index=False).encode('utf-8-sig')
-            st.download_button(
-                label="📥 Download Table Data as CSV",
-                data=csv_bytes,
-                file_name=f"import_table_data_{datetime.now().strftime('%Y%m%d')}.csv",
-                mime="text/csv",
-                key="import_table_download"
-            )
+        # Use the same data table as Performance Dashboard
+        show_data_table(df)
         
         st.markdown("---")
         
@@ -3845,48 +3805,13 @@ def show_import_reports():
         
         st.markdown("---")
         
-        # Employee Dashboard with Individual Downloads
-        show_employee_dashboard(filtered_df if filtered_df is not None and not filtered_df.empty else df)
+        # Charts (same as Performance Dashboard)
+        show_charts(filtered_df if filtered_df is not None and not filtered_df.empty else df)
         
         st.markdown("---")
         
-        # ADDITIONAL: Resource Utilization Summary from import logic
-        st.markdown("### 💼 Resource Utilization Summary")
-        
-        try:
-            overall_metrics = calculate_overall_metrics(df)
-            resource_metrics = calculate_resource_utilization(df)
-            
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                st.markdown("**Performance Distribution**")
-                perf_dist = resource_metrics.get('performance_distribution', {})
-                st.markdown(f"🟢 Excellent (≥90%): **{perf_dist.get('excellent', 0)}** ({perf_dist.get('excellent_pct', 0)}%)")
-                st.markdown(f"🟡 Good (70-89%): **{perf_dist.get('good', 0)}** ({perf_dist.get('good_pct', 0)}%)")
-                st.markdown(f"🔴 Needs Improvement (<70%): **{perf_dist.get('needs_improvement', 0)}** ({perf_dist.get('needs_improvement_pct', 0)}%)")
-            
-            with col2:
-                st.markdown("**Productivity Metrics**")
-                productivity = resource_metrics.get('productivity', {})
-                st.markdown(f"✅ Completion Rate: **{productivity.get('completion_rate', 0)}%**")
-                st.markdown(f"⏳ In Progress: **{productivity.get('in_progress_rate', 0)}%**")
-                st.markdown(f"📊 Total Tasks: **{overall_metrics.get('total_tasks', 0)}**")
-            
-            with col3:
-                st.markdown("**Workload Balance**")
-                workload = resource_metrics.get('workload', {})
-                utilization = resource_metrics.get('overall_utilization', 0)
-                st.markdown(f"📈 Overall Utilization: **{utilization}%**")
-                st.markdown(f"📌 Avg Tasks/Employee: **{workload.get('avg_tasks_per_employee', 0)}**")
-                st.markdown(f"⚖️ Balance: **{workload.get('workload_balance', 'Unknown')}**")
-            
-            # Date range if available
-            if overall_metrics.get('date_range_start') and overall_metrics.get('date_range_end'):
-                st.info(f"📅 **Report Period:** {overall_metrics['date_range_start']} to {overall_metrics['date_range_end']}")
-        
-        except Exception as e:
-            st.warning(f"Could not calculate resource utilization metrics: {str(e)}")
+        # Employee Dashboard with Individual Downloads
+        show_employee_dashboard(filtered_df if filtered_df is not None and not filtered_df.empty else df)
         
         st.markdown("---")
         
