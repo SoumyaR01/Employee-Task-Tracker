@@ -141,32 +141,83 @@ def get_base64_image(image_path):
             return base64.b64encode(img_file.read()).decode()
     except:
         return None
-# Custom CSS (dark/black background with full responsive design)
+# Custom CSS - Enhanced Modern UI/UX Design
 st.markdown("""
 <style>
     /* ============================================
-       BASE STYLES - Mobile First Approach
+       ENHANCED DESIGN TOKENS & VARIABLES
        ============================================ */
-    
-    /* Root variables for consistency */
     :root {
+        /* Primary Colors & Gradients */
         --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        --dark-gradient: linear-gradient(180deg, rgba(20,20,20,0.6) 0%, rgba(30,30,30,0.6) 100%);
-        --sidebar-gradient: linear-gradient(180deg, #4c5bd4 0%, #6b4bb8 100%);
+        --secondary-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        --success-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        --warning-gradient: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+        --danger-gradient: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+        
+        /* Background Gradients */
+        --dark-gradient: linear-gradient(180deg, rgba(15,15,20,0.95) 0%, rgba(25,25,35,0.95) 100%);
+        --sidebar-gradient: linear-gradient(180deg, #5b68e5 0%, #7c4dbd 100%);
+        --card-gradient: linear-gradient(135deg, rgba(102, 126, 234, 0.08), rgba(118, 75, 162, 0.08));
+        
+        /* Accent Colors */
+        --accent-blue: #667eea;
+        --accent-purple: #764ba2;
+        --accent-pink: #f093fb;
+        --accent-cyan: #00f2fe;
+        --accent-orange: #fee140;
+        
+        /* Text Colors */
         --text-light: #e6eef2;
-        --bg-dark: #0f1113;
+        --text-muted: #9ca3af;
+        --text-dim: rgba(230, 238, 242, 0.7);
+        
+        /* Background Colors */
+        --bg-dark: #0a0a0f;
+        --bg-card: rgba(20, 20, 30, 0.7);
+        --bg-input: #1a1d23;
+        --bg-hover: #1f2329;
+        
+        /* Border & Shadow */
+        --border-light: rgba(255, 255, 255, 0.1);
+        --border-medium: rgba(255, 255, 255, 0.2);
+        --border-focus: rgba(102, 126, 234, 0.5);
+        --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+        --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
+        --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
+        --shadow-glow: 0 0 20px rgba(102, 126, 234, 0.3);
+        
+        /* Transitions */
         --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        --transition-bounce: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        --transition-fast: all 0.15s ease;
+        
+        /* Spacing Scale */
+        --space-xs: 0.25rem;
+        --space-sm: 0.5rem;
+        --space-md: 1rem;
+        --space-lg: 1.5rem;
+        --space-xl: 2rem;
+        
+        /* Border Radius */
+        --radius-sm: 6px;
+        --radius-md: 10px;
+        --radius-lg: 16px;
+        --radius-xl: 20px;
     }
     
-    /* Background styling */
+    /* ============================================
+       BASE & BACKGROUND STYLES
+       ============================================ */
     .stApp {
-        background: #000000;
+        background: radial-gradient(ellipse at top, #0f0f17 0%, #000000 100%);
         background-attachment: fixed;
         color: var(--text-light);
         min-height: 100vh;
+        position: relative;
     }
     
-    /* Subtle pattern overlay */
+    /* Animated gradient overlay */
     .stApp::before {
         content: "";
         position: fixed;
@@ -174,12 +225,28 @@ st.markdown("""
         left: 0;
         width: 100%;
         height: 100%;
+        background: radial-gradient(circle at 30% 20%, rgba(102, 126, 234, 0.08) 0%, transparent 50%),
+                    radial-gradient(circle at 70% 80%, rgba(118, 75, 162, 0.08) 0%, transparent 50%);
         pointer-events: none;
         z-index: 0;
-        opacity: 0.03;
+        animation: gradientShift 15s ease infinite;
     }
     
-    /* Main content area - Mobile first */
+    @keyframes gradientShift {
+        0%, 100% { opacity: 0.5; }
+        50% { opacity: 0.8; }
+    }
+    
+    /* Fade-in animation for main content */
+    .main {
+        animation: fadeIn 0.5s ease-in;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
     .main > div {
         padding: 0.5rem;
         position: relative;
@@ -188,100 +255,172 @@ st.markdown("""
         overflow-x: hidden;
     }
     
-    /* Block container - Responsive padding */
+    /* Enhanced block container with glassmorphism */
     .block-container {
         padding: 1rem 0.75rem;
-        background: rgba(10, 10, 10, 0.75);
-        border-radius: 12px;
-        backdrop-filter: blur(6px);
-        box-shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.6);
+        background: var(--bg-card);
+        border-radius: var(--radius-lg);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid var(--border-light);
+        box-shadow: var(--shadow-md);
         color: var(--text-light);
         max-width: 100%;
         margin: 0 auto;
     }
     
     /* ============================================
-       METRIC CARDS - Fully Responsive
+       ENHANCED METRIC CARDS
        ============================================ */
     .metric-card {
         background: var(--primary-gradient);
         padding: clamp(1rem, 3vw, 1.5rem);
-        border-radius: 10px;
+        border-radius: var(--radius-md);
         color: white !important;
         text-align: center;
         margin: 0.75rem 0;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        box-shadow: var(--shadow-md);
         transition: var(--transition-smooth);
         width: 100%;
         box-sizing: border-box;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .metric-card::before {
+        content: "";
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+        opacity: 0;
+        transition: var(--transition-smooth);
+    }
+    
+    .metric-card:hover::before {
+        opacity: 1;
+        animation: shimmer 2s infinite;
+    }
+    
+    @keyframes shimmer {
+        0% { transform: translate(-50%, -50%); }
+        50% { transform: translate(0%, 0%); }
+        100% { transform: translate(-50%, -50%); }
     }
     
     .metric-card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        transform: translateY(-5px) scale(1.02);
+        box-shadow: 0 12px 28px rgba(102, 126, 234, 0.5), var(--shadow-glow);
     }
     
     .metric-value {
-        font-size: clamp(1.5rem, 5vw, 2.5rem);
-        font-weight: bold;
-        line-height: 1.2;
-        margin-bottom: 0.25rem;
+        font-size: clamp(1.75rem, 5vw, 2.75rem);
+        font-weight: 800;
+        line-height: 1.1;
+        margin-bottom: 0.35rem;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.2);
     }
     
     .metric-label {
-        font-size: clamp(0.875rem, 2.5vw, 1rem);
+        font-size: clamp(0.875rem, 2.5vw, 1.05rem);
         opacity: 0.95;
         line-height: 1.4;
+        font-weight: 500;
+        letter-spacing: 0.3px;
     }
     
     /* ============================================
-       FILTER CONTAINER - Mobile Optimized
+       ENHANCED FILTER CONTAINER
        ============================================ */
     .filter-container {
-        background: var(--dark-gradient);
+        background: var(--card-gradient);
+        backdrop-filter: blur(10px);
         padding: clamp(0.75rem, 3vw, 1.25rem);
-        border-radius: 10px;
+        border-radius: var(--radius-md);
         margin-bottom: 1rem;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.6);
+        box-shadow: var(--shadow-sm);
+        border: 1px solid var(--border-light);
         color: var(--text-light);
         width: 100%;
         box-sizing: border-box;
+        transition: var(--transition-smooth);
+    }
+    
+    .filter-container:hover {
+        border-color: var(--border-medium);
+        box-shadow: var(--shadow-md);
     }
     
     /* ============================================
-       BUTTONS - Touch Friendly
+       ENHANCED BUTTONS
        ============================================ */
     .stButton > button {
         width: 100%;
-        border-radius: 8px;
-        min-height: 44px;
+        border-radius: var(--radius-md);
+        min-height: 48px;
         height: auto;
-        padding: 0.75rem 1rem;
+        padding: 0.875rem 1.25rem;
         font-weight: 600;
-        font-size: clamp(0.875rem, 2vw, 1rem);
+        font-size: clamp(0.9rem, 2vw, 1.05rem);
         background: var(--primary-gradient);
         color: white !important;
         border: none;
         transition: var(--transition-smooth);
         cursor: pointer;
         touch-action: manipulation;
+        box-shadow: var(--shadow-sm);
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .stButton > button::before {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 0;
+        height: 0;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.3);
+        transform: translate(-50%, -50%);
+        transition: width 0.5s, height 0.5s;
+    }
+    
+    .stButton > button:hover::before {
+        width: 300px;
+        height: 300px;
     }
     
     .stButton > button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 18px rgba(102, 126, 234, 0.25);
+        transform: translateY(-3px);
+        box-shadow: 0 8px 24px rgba(102, 126, 234, 0.35);
     }
     
     .stButton > button:active {
-        transform: translateY(0);
+        transform: translateY(-1px);
+        box-shadow: var(--shadow-sm);
     }
     
     /* ============================================
-       SIDEBAR - Responsive Width
+       ENHANCED SIDEBAR
        ============================================ */
     [data-testid="stSidebar"] {
         background: var(--sidebar-gradient);
         min-width: 250px;
+        box-shadow: 4px 0 20px rgba(0, 0, 0, 0.3);
+    }
+    
+    [data-testid="stSidebar"]::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 100%;
+        background: linear-gradient(180deg, rgba(255,255,255,0.05) 0%, transparent 100%);
+        pointer-events: none;
     }
     
     [data-testid="stSidebar"] * {
@@ -292,89 +431,125 @@ st.markdown("""
         padding: 1rem 0.5rem;
     }
     
-    /* ============================================
-       INPUT FIELDS - Mobile Optimized
-       ============================================ */
-    .stTextInput > div > div > input,
-    .stTextArea > div > div > textarea,
-    .stSelectbox > div > div > select,
-    .stSelectbox > div > div > div,
-    .stNumberInput > div > div > input {
-        border-radius: 8px;
-        border: 1px solid rgba(255,255,255,0.2) !important;
-        transition: border-color 0.3s ease;
-        background: var(--bg-dark) !important;
-        color: var(--text-light) !important;
-        font-size: clamp(0.875rem, 2vw, 1rem);
-        padding: 0.625rem 0.75rem;
-        width: 100%;
-        box-sizing: border-box;
+    /* Enhanced sidebar radio buttons */
+    [data-testid="stSidebar"] .stRadio > div {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: var(--radius-md);
+        padding: 0.5rem;
+    }
+    
+    [data-testid="stSidebar"] .stRadio label {
+        padding: 0.65rem 1rem;
+        border-radius: var(--radius-sm);
+        transition: var(--transition-fast);
+    }
+    
+    [data-testid="stSidebar"] .stRadio label:hover {
+        background: rgba(255, 255, 255, 0.1);
     }
     
     /* ============================================
-       SELECTBOX - Clean Single Input Box (No Split)
+       ENHANCED INPUT FIELDS
        ============================================ */
+    .stTextInput > div > div > input,
+    .stTextArea > div > div > textarea,
+    .stNumberInput > div > div > input {
+        border-radius: var(--radius-md);
+        border: 1.5px solid var(--border-medium) !important;
+        transition: var(--transition-smooth);
+        background: var(--bg-input) !important;
+        color: var(--text-light) !important;
+        font-size: clamp(0.9rem, 2vw, 1.05rem);
+        padding: 0.75rem 1rem;
+        width: 100%;
+        box-sizing: border-box;
+        box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
     
-    /* Hide the default button/split container that causes the broken layout */
+    .stTextArea > div > div > textarea {
+        min-height: 100px;
+    }
+    
+    /* Enhanced focus states */
+    .stTextInput > div > div > input:focus,
+    .stTextArea > div > div > textarea:focus,
+    .stNumberInput > div > div > input:focus {
+        border-color: var(--accent-blue) !important;
+        box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.15), 
+                    inset 0 2px 4px rgba(0, 0, 0, 0.2) !important;
+        outline: none;
+        background: var(--bg-hover) !important;
+    }
+    
+    /* Placeholder styling */
+    .stTextInput > div > div > input::placeholder,
+    .stTextArea > div > div > textarea::placeholder {
+        color: var(--text-muted);
+        opacity: 0.7;
+    }
+    
+    /* ============================================
+       ENHANCED SELECTBOX
+       ============================================ */
     .stSelectbox > div:first-child > div:first-child {
         display: grid !important;
         grid-template-columns: 1fr !important;
         gap: 0 !important;
     }
     
-    /* Main selectbox input - single clean box */
     .stSelectbox [data-baseweb="select"] {
-        background-color: #1a1d23 !important;
-        border: 1.5px solid rgba(255,255,255,0.25) !important;
-        border-radius: 8px !important;
-        min-height: 44px !important;
-        transition: all 0.3s ease !important;
+        background: var(--bg-input) !important;
+        border: 1.5px solid var(--border-medium) !important;
+        border-radius: var(--radius-md) !important;
+        min-height: 48px !important;
+        transition: var(--transition-smooth) !important;
+        box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
     }
     
-    /* Container for the selected value */
     .stSelectbox [data-baseweb="select"] > div {
         background-color: transparent !important;
         border: none !important;
-        padding: 0.625rem 2.5rem 0.625rem 0.75rem !important;
+        padding: 0.75rem 2.75rem 0.75rem 1rem !important;
         color: var(--text-light) !important;
-        font-size: clamp(0.875rem, 2vw, 1rem) !important;
-        min-height: 44px !important;
+        font-size: clamp(0.9rem, 2vw, 1.05rem) !important;
+        min-height: 48px !important;
         display: flex !important;
         align-items: center !important;
     }
     
-    /* Hide the separate dropdown button container completely */
     .stSelectbox [data-baseweb="select"] + div {
         display: none !important;
     }
     
-    /* Selectbox arrow icon - positioned inside the box on the right */
     .stSelectbox [data-baseweb="select"] svg {
         position: absolute !important;
-        right: 0.75rem !important;
+        right: 1rem !important;
         top: 50% !important;
         transform: translateY(-50%) !important;
-        width: 1.2rem !important;
-        height: 1.2rem !important;
-        color: rgba(230, 238, 242, 0.7) !important;
+        width: 1.25rem !important;
+        height: 1.25rem !important;
+        color: var(--text-dim) !important;
         pointer-events: none !important;
+        transition: var(--transition-fast) !important;
     }
     
-    /* Hover state for the entire selectbox */
     .stSelectbox [data-baseweb="select"]:hover {
-        border-color: rgba(102, 126, 234, 0.5) !important;
-        background-color: #1f2329 !important;
+        border-color: var(--border-focus) !important;
+        background: var(--bg-hover) !important;
         cursor: pointer !important;
     }
     
-    /* Focus state */
+    .stSelectbox [data-baseweb="select"]:hover svg {
+        color: var(--accent-blue) !important;
+    }
+    
     .stSelectbox [data-baseweb="select"]:focus-within {
-        border-color: #667eea !important;
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15) !important;
+        border-color: var(--accent-blue) !important;
+        box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.15), 
+                    inset 0 2px 4px rgba(0, 0, 0, 0.2) !important;
         outline: none !important;
     }
     
-    /* Input element inside selectbox */
     .stSelectbox input {
         background-color: transparent !important;
         border: none !important;
@@ -383,35 +558,36 @@ st.markdown("""
         cursor: pointer !important;
     }
     
-    /* Dropdown menu */
+    /* Enhanced dropdown menu */
     .stSelectbox [role="listbox"] {
-        background-color: #1a1d23 !important;
-        border: 1.5px solid rgba(255,255,255,0.25) !important;
-        border-radius: 8px !important;
-        margin-top: 4px !important;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5) !important;
-        padding: 0.25rem 0 !important;
+        background: var(--bg-input) !important;
+        border: 1.5px solid var(--border-medium) !important;
+        border-radius: var(--radius-md) !important;
+        margin-top: 6px !important;
+        box-shadow: var(--shadow-lg) !important;
+        padding: 0.5rem 0 !important;
+        backdrop-filter: blur(10px);
     }
     
-    /* Dropdown menu items */
     .stSelectbox [role="option"] {
         color: var(--text-light) !important;
-        padding: 0.625rem 0.75rem !important;
-        transition: background-color 0.2s ease !important;
+        padding: 0.75rem 1rem !important;
+        transition: var(--transition-fast) !important;
         cursor: pointer !important;
+        margin: 0 0.5rem !important;
+        border-radius: var(--radius-sm) !important;
     }
     
     .stSelectbox [role="option"]:hover {
-        background-color: rgba(102, 126, 234, 0.2) !important;
+        background-color: rgba(102, 126, 234, 0.25) !important;
     }
     
-    /* Selected item in dropdown */
     .stSelectbox [role="option"][aria-selected="true"] {
-        background-color: rgba(102, 126, 234, 0.3) !important;
-        font-weight: 500 !important;
+        background: var(--primary-gradient) !important;
+        font-weight: 600 !important;
+        box-shadow: var(--shadow-sm);
     }
     
-    /* Ensure no extra containers create splits */
     .stSelectbox > div {
         position: relative !important;
     }
@@ -420,7 +596,6 @@ st.markdown("""
         display: none !important;
     }
     
-    /* Additional aggressive overrides for selectbox single-box appearance */
     .stSelectbox > div > div > div {
         background: transparent !important;
         border: none !important;
@@ -432,136 +607,274 @@ st.markdown("""
         max-width: 100% !important;
     }
     
-    /* Force all nested divs inside selectbox to be transparent */
     .stSelectbox [data-baseweb="select"] * {
         border: none !important;
     }
     
-    /* Prevent any flex-based splitting */
     .stSelectbox > div:first-child {
         display: flex !important;
         flex-direction: column !important;
     }
     
-    /* Additional targeting for inner containers */
     .stSelectbox div[class*="css"] {
         max-width: 100% !important;
     }
     
-    /* Override any grid that might cause splits */
     .stSelectbox > div > div:first-child {
         display: block !important;
         width: 100% !important;
     }
     
-    /* Number input specific styling */
-    .stNumberInput > div > div > input {
-        background: #1a1d23 !important;
-        border: 1.5px solid rgba(255,255,255,0.25) !important;
-        color: var(--text-light) !important;
-        min-height: 44px;
-    }
-    
-    /* Focus states for all inputs */
-    .stTextInput > div > div > input:focus,
-    .stTextArea > div > div > textarea:focus,
-    .stNumberInput > div > div > input:focus {
-        border-color: #667eea !important;
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15) !important;
-        outline: none;
-    }
-    
-    /* Label styling for better readability */
+    /* ============================================
+       ENHANCED LABELS
+       ============================================ */
     .stTextInput label,
     .stTextArea label,
     .stSelectbox label,
-    .stNumberInput label {
+    .stNumberInput label,
+    .stDateInput label,
+    .stTimeInput label {
         color: var(--text-light) !important;
-        font-weight: 500;
-        font-size: clamp(0.875rem, 2vw, 0.95rem);
-        margin-bottom: 0.5rem;
-    }
-    
-    /* ============================================
-       LOGO CONTAINER - Responsive Sizing
-       ============================================ */
-    .logo-container {
-        background: transparent;
-        padding: clamp(1rem, 3vw, 1.5rem);
-        border-radius: 15px;
-        box-shadow: none;
-        margin-bottom: 1rem;
-        text-align: center;
-        width: 100%;
-    }
-    
-    .logo-container img {
-        max-width: min(480px, 90vw);
-        width: 100%;
-        height: auto;
-        display: inline-block;
-    }
-    
-    /* ============================================
-       EXPANDER - Better UX
-       ============================================ */
-    .streamlit-expanderHeader {
-        background: linear-gradient(135deg, #1e293b 0%, #111827 100%);
-        border-radius: 8px;
         font-weight: 600;
-        color: var(--text-light) !important;
-        padding: 0.75rem 1rem;
-        transition: var(--transition-smooth);
-    }
-    
-    .streamlit-expanderHeader:hover {
-        background: linear-gradient(135deg, #2d3b52 0%, #1f2937 100%);
+        font-size: clamp(0.9rem, 2vw, 1rem);
+        margin-bottom: 0.5rem;
+        letter-spacing: 0.3px;
     }
     
     /* ============================================
-       DATAFRAME / TABLE - Horizontal Scroll
+       ENHANCED TABLES & DATAFRAMES
        ============================================ */
     .stDataFrame {
         width: 100%;
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
+        border-radius: var(--radius-md);
     }
     
     .stDataFrame > div {
         max-width: 100%;
+        border-radius: var(--radius-md);
+        overflow: hidden;
+    }
+    
+    /* Table styling */
+    .stDataFrame table {
+        border-collapse: separate !important;
+        border-spacing: 0 !important;
+    }
+    
+    .stDataFrame thead tr {
+        background: var(--primary-gradient) !important;
+    }
+    
+    .stDataFrame thead th {
+        color: white !important;
+        font-weight: 700 !important;
+        padding: 1rem !important;
+        border: none !important;
+        text-transform: uppercase;
+        font-size: 0.875rem;
+        letter-spacing: 0.5px;
+    }
+    
+    .stDataFrame tbody tr {
+        transition: var(--transition-fast);
+        border-bottom: 1px solid var(--border-light) !important;
+    }
+    
+    .stDataFrame tbody tr:nth-child(even) {
+        background: rgba(102, 126, 234, 0.03) !important;
+    }
+    
+    .stDataFrame tbody tr:hover {
+        background: rgba(102, 126, 234, 0.1) !important;
+        transform: scale(1.01);
+    }
+    
+    .stDataFrame tbody td {
+        padding: 0.875rem 1rem !important;
+        color: var(--text-light) !important;
+        border: none !important;
     }
     
     /* ============================================
-       COLUMNS - Better Spacing
+       ENHANCED EXPANDERS
+       ============================================ */
+    .streamlit-expanderHeader {
+        background: var(--card-gradient) !important;
+        backdrop-filter: blur(10px);
+        border: 1px solid var(--border-light) !important;
+        border-radius: var(--radius-md) !important;
+        font-weight: 600;
+        color: var(--text-light) !important;
+        padding: 1rem 1.25rem !important;
+        transition: var(--transition-smooth);
+        box-shadow: var(--shadow-sm);
+    }
+    
+    .streamlit-expanderHeader:hover {
+        background: linear-gradient(135deg, rgba(102, 126, 234, 0.15), rgba(118, 75, 162, 0.15)) !important;
+        border-color: var(--border-medium) !important;
+        box-shadow: var(--shadow-md);
+        transform: translateX(4px);
+    }
+    
+    .streamlit-expanderContent {
+        background: var(--bg-card);
+        border: 1px solid var(--border-light);
+        border-top: none;
+        border-radius: 0 0 var(--radius-md) var(--radius-md);
+        padding: 1rem;
+    }
+    
+    /* ============================================
+       LOADING & PROGRESS INDICATORS
+       ============================================ */
+    .stProgress > div > div {
+        background: var(--primary-gradient) !important;
+        border-radius: var(--radius-sm);
+    }
+    
+    .stProgress > div {
+        background: var(--bg-input) !important;
+        border-radius: var(--radius-sm);
+    }
+    
+    .stSpinner > div {
+        border-color: var(--accent-blue) transparent transparent transparent !important;
+    }
+    
+    /* ============================================
+       ENHANCED ALERTS & NOTIFICATIONS
+       ============================================ */
+    .stAlert {
+        border-radius: var(--radius-md) !important;
+        border: none !important;
+        box-shadow: var(--shadow-md) !important;
+        backdrop-filter: blur(8px);
+    }
+    
+    .stSuccess {
+        background: linear-gradient(135deg, rgba(76, 175, 80, 0.15), rgba(129, 199, 132, 0.15)) !important;
+        border-left: 4px solid #4caf50 !important;
+    }
+    
+    .stWarning {
+        background: linear-gradient(135deg, rgba(255, 152, 0, 0.15), rgba(255, 183, 77, 0.15)) !important;
+        border-left: 4px solid #ff9800 !important;
+    }
+    
+    .stError {
+        background: linear-gradient(135deg, rgba(244, 67, 54, 0.15), rgba(239, 83, 80, 0.15)) !important;
+        border-left: 4px solid #f44336 !important;
+    }
+    
+    .stInfo {
+        background: linear-gradient(135deg, rgba(33, 150, 243, 0.15), rgba(66, 165, 245, 0.15)) !important;
+        border-left: 4px solid #2196f3 !important;
+    }
+    
+    /* ============================================
+       FILE UPLOADER
+       ============================================ */
+    .stFileUploader {
+        background: var(--card-gradient);
+        border: 2px dashed var(--border-medium);
+        border-radius: var(--radius-md);
+        padding: 2rem;
+        transition: var(--transition-smooth);
+    }
+    
+    .stFileUploader:hover {
+        border-color: var(--accent-blue);
+        background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+    }
+    
+    /* ============================================
+       ENHANCED METRICS (st.metric)
+       ============================================ */
+    [data-testid="stMetricValue"] {
+        font-size: clamp(1.5rem, 4vw, 2.25rem) !important;
+        font-weight: 700 !important;
+        color: var(--text-light) !important;
+    }
+    
+    [data-testid="stMetricLabel"] {
+        color: var(--text-muted) !important;
+        font-weight: 500 !important;
+        font-size: clamp(0.875rem, 2vw, 1rem) !important;
+    }
+    
+    [data-testid="stMetricDelta"] {
+        font-weight: 600 !important;
+    }
+    
+    /* ============================================
+       COLUMN SPACING
        ============================================ */
     [data-testid="column"] {
-        padding: 0 0.25rem;
+        padding: 0 var(--space-sm);
     }
     
     /* ============================================
-       HEADINGS - Responsive Typography
+       ENHANCED TYPOGRAPHY
        ============================================ */
     h1 {
-        font-size: clamp(1.5rem, 5vw, 2.5rem) !important;
+        font-size: clamp(1.75rem, 5vw, 2.75rem) !important;
+        font-weight: 800 !important;
         line-height: 1.2 !important;
-        margin-bottom: 1rem !important;
+        margin-bottom: 1.25rem !important;
+        background: var(--primary-gradient);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
     }
     
     h2 {
-        font-size: clamp(1.25rem, 4vw, 2rem) !important;
+        font-size: clamp(1.4rem, 4vw, 2.2rem) !important;
+        font-weight: 700 !important;
         line-height: 1.3 !important;
-        margin-bottom: 0.875rem !important;
+        margin-bottom: 1rem !important;
+        color: var(--text-light) !important;
     }
     
     h3 {
-        font-size: clamp(1.1rem, 3.5vw, 1.5rem) !important;
+        font-size: clamp(1.2rem, 3.5vw, 1.75rem) !important;
+        font-weight: 600 !important;
         line-height: 1.4 !important;
-        margin-bottom: 0.75rem !important;
+        margin-bottom: 0.875rem !important;
+        color: var(--text-light) !important;
+    }
+    
+    p {
+        line-height: 1.6 !important;
+        color: var(--text-dim) !important;
     }
     
     /* ============================================
-       MOBILE PORTRAIT - Extra Small Devices
-       < 480px (Small Phones)
+       CHECKBOX & RADIO STYLING
+       ============================================ */
+    .stCheckbox label {
+        color: var(--text-light) !important;
+        transition: var(--transition-fast);
+    }
+    
+    .stCheckbox:hover label {
+        color: var(--accent-blue) !important;
+    }
+    
+    .stRadio label {
+        transition: var(--transition-fast);
+        padding: 0.5rem 0.75rem !important;
+        border-radius: var(--radius-sm) !important;
+    }
+    
+    .stRadio label:hover {
+        background: rgba(102, 126, 234, 0.1) !important;
+    }
+    
+    /* ============================================
+       RESPONSIVE BREAKPOINTS
        ============================================ */
     @media (max-width: 479px) {
         .main > div {
@@ -569,44 +882,35 @@ st.markdown("""
         }
         
         .block-container {
-            padding: 0.75rem 0.5rem;
-            border-radius: 8px;
+            padding: 1rem 0.625rem;
+            border-radius: var(--radius-md);
         }
         
         .metric-card {
-            padding: 0.875rem;
+            padding: 1rem;
             margin: 0.5rem 0;
         }
         
         .filter-container {
-            padding: 0.75rem;
+            padding: 0.875rem;
         }
         
         .stButton > button {
-            min-height: 48px;
-            padding: 0.875rem 1rem;
-            font-size: 0.9375rem;
-        }
-        
-        .logo-container img {
-            max-width: 95vw;
+            min-height: 50px;
+            padding: 1rem 1.125rem;
+            font-size: 1rem;
         }
         
         [data-testid="stSidebar"] {
             min-width: 200px;
         }
         
-        /* Stack columns on very small screens */
         [data-testid="column"] {
             width: 100% !important;
-            padding: 0.25rem 0;
+            padding: var(--space-xs) 0;
         }
     }
     
-    /* ============================================
-       MOBILE LANDSCAPE / SMALL TABLET
-       480px - 767px
-       ============================================ */
     @media (min-width: 480px) and (max-width: 767px) {
         .main > div {
             padding: 0.75rem;
@@ -617,22 +921,14 @@ st.markdown("""
         }
         
         .metric-card {
-            padding: 1.125rem;
+            padding: 1.25rem;
         }
         
         .filter-container {
             padding: 1rem;
         }
-        
-        .logo-container img {
-            max-width: 420px;
-        }
     }
     
-    /* ============================================
-       TABLET PORTRAIT
-       768px - 1023px
-       ============================================ */
     @media (min-width: 768px) and (max-width: 1023px) {
         .main > div {
             padding: 1rem;
@@ -644,31 +940,22 @@ st.markdown("""
         }
         
         .metric-card {
-            padding: 1.25rem;
+            padding: 1.5rem;
         }
         
         .filter-container {
-            padding: 1.125rem;
-        }
-        
-        .logo-container img {
-            max-width: 450px;
+            padding: 1.25rem;
         }
         
         [data-testid="stSidebar"] {
             min-width: 280px;
         }
         
-        /* Better column spacing */
         [data-testid="column"] {
-            padding: 0 0.5rem;
+            padding: 0 var(--space-sm);
         }
     }
     
-    /* ============================================
-       DESKTOP / LARGE SCREENS
-       >= 1024px
-       ============================================ */
     @media (min-width: 1024px) {
         .main > div {
             padding: 1.5rem;
@@ -680,36 +967,26 @@ st.markdown("""
         }
         
         .metric-card {
-            padding: 1.5rem;
+            padding: 1.75rem;
         }
         
         .filter-container {
-            padding: 1.25rem;
-        }
-        
-        .logo-container img {
-            max-width: 480px;
+            padding: 1.5rem;
         }
         
         [data-testid="stSidebar"] {
             min-width: 300px;
         }
         
-        /* Optimal column spacing */
         [data-testid="column"] {
-            padding: 0 0.75rem;
+            padding: 0 var(--space-md);
         }
         
-        /* Hover effects only on larger screens */
         .metric-card:hover {
-            transform: translateY(-4px);
+            transform: translateY(-6px) scale(1.02);
         }
     }
     
-    /* ============================================
-       EXTRA LARGE SCREENS
-       >= 1440px (Full HD and above)
-       ============================================ */
     @media (min-width: 1440px) {
         .block-container {
             max-width: 1600px;
@@ -722,19 +999,28 @@ st.markdown("""
     }
     
     /* ============================================
-       ACCESSIBILITY - Reduced Motion
+       ACCESSIBILITY
        ============================================ */
     @media (prefers-reduced-motion: reduce) {
-        * {
+        *,
+        *::before,
+        *::after {
             animation-duration: 0.01ms !important;
             animation-iteration-count: 1 !important;
             transition-duration: 0.01ms !important;
         }
         
         .metric-card:hover,
-        .stButton > button:hover {
-            transform: none;
+        .stButton > button:hover,
+        .streamlit-expanderHeader:hover {
+            transform: none !important;
         }
+    }
+    
+    /* Focus visible for keyboard navigation */
+    *:focus-visible {
+        outline: 2px solid var(--accent-blue) !important;
+        outline-offset: 2px !important;
     }
     
     /* ============================================
@@ -743,7 +1029,8 @@ st.markdown("""
     @media print {
         .stApp::before,
         [data-testid="stSidebar"],
-        .stButton {
+        .stButton,
+        .stFileUploader {
             display: none !important;
         }
         
@@ -752,6 +1039,40 @@ st.markdown("""
             background: white;
             color: black;
         }
+        
+        .metric-card {
+            background: #f5f5f5;
+            color: black !important;
+        }
+    }
+    
+    /* ============================================
+       SCROLLBAR STYLING
+       ============================================ */
+    ::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+    }
+    
+    ::-webkit-scrollbar-track {
+        background: var(--bg-dark);
+        border-radius: var(--radius-sm);
+    }
+    
+    ::-webkit-scrollbar-thumb {
+        background: var(--primary-gradient);
+        border-radius: var(--radius-sm);
+        border: 2px solid var(--bg-dark);
+    }
+    
+    ::-webkit-scrollbar-thumb:hover {
+        background: linear-gradient(135deg, #7c8ff0 0%, #8a5cb5 100%);
+    }
+    
+    /* Firefox scrollbar */
+    * {
+        scrollbar-width: thin;
+        scrollbar-color: var(--accent-blue) var(--bg-dark);
     }
 </style>
 """, unsafe_allow_html=True)
