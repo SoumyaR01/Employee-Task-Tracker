@@ -448,6 +448,26 @@ st.markdown("""
         background: rgba(255, 255, 255, 0.1);
     }
     
+    /* Mobile-specific admin sidebar enhancements */
+    @media (max-width: 768px) {
+        [data-testid="stSidebar"] {
+            min-width: 100% !important;
+            width: 100% !important;
+        }
+        
+        [data-testid="stSidebar"] .stRadio label {
+            font-size: 0.95rem !important;
+            padding: 0.75rem 1rem !important;
+            min-height: 48px !important;
+            display: flex !important;
+            align-items: center !important;
+        }
+        
+        [data-testid="stSidebar"] h1 {
+            font-size: 1.75rem !important;
+        }
+    }
+    
     /* ============================================
        ENHANCED INPUT FIELDS
        ============================================ */
@@ -2871,7 +2891,7 @@ def show_submit_report():
                font-weight: 700;
                line-height: 1.2;
                padding: 0 1rem;'>
-        📊 Staff Productivity Insight
+          Workforce Performance Summary
     </h1>
     """, unsafe_allow_html=True)
     
@@ -4459,7 +4479,33 @@ def show_admin_dashboard():
     """Main admin dashboard"""
     # Sidebar navigation for admin
     with st.sidebar:
-        st.title("⚙️ Admin Panel")
+        # Fixed: Using dedicated CSS class with multiple white declarations
+        st.markdown("""
+        <style>
+            .admin-header-text {
+                color: white !important;
+                color: #FFFFFF !important;
+                color: rgb(255, 255, 255) !important;
+            }
+        </style>
+        <div style='text-align: center; margin-bottom: 1.5rem;'>
+            <h1 class='admin-header-text' style='
+                font-size: clamp(1.75rem, 5vw, 2.25rem) !important;
+                font-weight: 700 !important;
+                color: white !important;
+                color: #FFFFFF !important;
+                color: rgb(255, 255, 255) !important;
+                margin: 0 !important;
+                padding: 0.75rem 0 !important;
+                letter-spacing: 1px !important;
+                text-rendering: optimizeLegibility !important;
+                -webkit-font-smoothing: antialiased !important;
+                -moz-osx-font-smoothing: grayscale !important;
+            '>
+                ⚙️ Admin Panel
+            </h1>
+        </div>
+        """, unsafe_allow_html=True)
         
         # Admin menu: include pages moved from the employee menu so only admins can access them
         admin_pages = [
