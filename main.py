@@ -423,7 +423,16 @@ st.markdown("""
         pointer-events: none;
     }
     
+    
     [data-testid="stSidebar"] * {
+        color: white !important;
+    }
+    
+    [data-testid="stSidebar"] h1 {
+        color: white !important;
+    }
+    
+    [data-testid="stSidebar"] h1 * {
         color: white !important;
     }
     
@@ -1867,24 +1876,54 @@ def append_to_excel(data_list, excel_path=None):
    
     return False
 def get_missing_reporters(df, today):
-    """Get list of employees who haven't reported today"""
+    """Get list of employees who haven't reported today - FIXED VERSION"""
     if df is None or df.empty:
         return []
+    
     today_str = today.strftime('%Y-%m-%d')
-    # Filter today's submissions (create a copy to avoid modifying original)
+    
+    # Load all employees from employees.json (excluding admins)
+    try:
+        with open('employees.json', 'r') as f:
+            employees_data = json.load(f)
+        
+        all_employees = {}
+        for emp_id, emp_info in employees_data.items():
+            if emp_info.get('role', '').lower() != 'admin':
+                all_employees[emp_info.get('email', '').lower()] = {
+                    'emp_id': emp_id,
+                    'name': emp_info.get('name', ''),
+                    'email': emp_info.get('email', '')
+                }
+    except Exception as e:
+        print(f"Error loading employees: {e}")
+        return []
+    
+    if not all_employees:
+        return []
+    
+    # Get list of employees who submitted today
+    submitted_emails = set()
+    
     if 'Date' in df.columns:
-        # Convert Date column to string for comparison
         df_copy = df.copy()
-        df_copy['Date'] = pd.to_datetime(df_copy['Date']).dt.strftime('%Y-%m-%d')
-        today_submissions = df_copy[df_copy['Date'] == today_str]
-        submitted_employees = today_submissions['Name'].unique().tolist() if 'Name' in today_submissions.columns else []
-    else:
-        submitted_employees = []
-    # Get all employees from config
-    config = load_config()
-    all_employees = config.get('employee_emails', [])
-    # Find missing reporters
-    missing = [emp for emp in all_employees if emp not in submitted_employees]
+        df_copy['Date'] = pd.to_datetime(df_copy['Date'], errors='coerce')
+        df_copy = df_copy.dropna(subset=['Date'])
+        df_copy['Date_str'] = df_copy['Date'].dt.strftime('%Y-%m-%d')
+        
+        today_submissions = df_copy[df_copy['Date_str'] == today_str]
+        
+        # Match by Employee ID (Excel column is 'Emp Id' with space)
+        if 'Emp Id' in today_submissions.columns:
+            submitted_ids = today_submissions['Emp Id'].dropna().astype(str).unique()
+            for emp_email, emp_data in all_employees.items():
+                if str(emp_data['emp_id']).upper() in [str(sid).upper() for sid in submitted_ids]:
+                    submitted_emails.add(emp_email)
+    
+    # Return emails of employees who didn't submit
+    missing = [emp_data['email'] for emp_email, emp_data in all_employees.items() 
+               if emp_email not in submitted_emails]
+    
     return missing
 #Dashboard Functions
 def show_metrics(df):
@@ -4479,30 +4518,18 @@ def show_admin_dashboard():
     """Main admin dashboard"""
     # Sidebar navigation for admin
     with st.sidebar:
-        # Fixed: Using dedicated CSS class with multiple white declarations
+        # Using span element for guaranteed white color
         st.markdown("""
-        <style>
-            .admin-header-text {
-                color: white !important;
-                color: #FFFFFF !important;
-                color: rgb(255, 255, 255) !important;
-            }
-        </style>
         <div style='text-align: center; margin-bottom: 1.5rem;'>
-            <h1 class='admin-header-text' style='
-                font-size: clamp(1.75rem, 5vw, 2.25rem) !important;
-                font-weight: 700 !important;
-                color: white !important;
-                color: #FFFFFF !important;
-                color: rgb(255, 255, 255) !important;
-                margin: 0 !important;
-                padding: 0.75rem 0 !important;
-                letter-spacing: 1px !important;
-                text-rendering: optimizeLegibility !important;
-                -webkit-font-smoothing: antialiased !important;
-                -moz-osx-font-smoothing: grayscale !important;
-            '>
-                ⚙️ Admin Panel
+            <h1 style='margin: 0; padding: 0.75rem 0; font-size: 0;'>
+                <span style='
+                    display: inline-block;
+                    font-size: 2rem;
+                    font-weight: 700;
+                    color: white;
+                    background: none;
+                    letter-spacing: 1px;
+                '>⚙️ Admin Panel</span>
             </h1>
         </div>
         """, unsafe_allow_html=True)
@@ -4572,11 +4599,57 @@ To enable automated reminders:
             with st.spinner("Checking..."):
                 df = read_excel_data(excel_path)
                 if df is not None:
-                    missing = get_missing_reporters(df, datetime.now())
-                    if missing:
-                        st.warning(f"📋 {len(missing)} employees haven't reported today:")
-                        for emp in missing:
-                            st.write(f"- {emp}")
+                    missing_emails = get_missing_reporters(df, datetime.now())
+                    
+                    if missing_emails:
+                        # Load full employee details from employees.json
+                        try:
+                            with open('employees.json', 'r') as f:
+                                employees_data = json.load(f)
+                            
+                            # Build detailed list
+                            missing_details = []
+                            for email in missing_emails:
+                                for emp_id, emp_info in employees_data.items():
+                                    if emp_info.get('email', '').lower() == email.lower():
+                                        missing_details.append({
+                                            'Employee ID': emp_id,
+                                            'Name': emp_info.get('name', ''),
+                                            'Email': emp_info.get('email', ''),
+                                            'Department': emp_info.get('department', ''),
+                                            'Role': emp_info.get('role', '')
+                                        })
+                                        break
+                            
+                            if missing_details:
+                                st.warning(f"📋 {len(missing_details)} employees haven't reported today:")
+                                
+                                # Display as DataFrame
+                                missing_df = pd.DataFrame(missing_details)
+                                st.dataframe(missing_df, use_container_width=True, hide_index=True)
+                                
+                                # Excel Export
+                                from io import BytesIO
+                                today_str = datetime.now().strftime('%Y-%m-%d')
+                                output = BytesIO()
+                                with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                                    missing_df.to_excel(writer, index=False, sheet_name='Missing Reporters')
+                                excel_data = output.getvalue()
+                                
+                                st.download_button(
+                                    label="📥 Download as Excel",
+                                    data=excel_data,
+                                    file_name=f"missing_reporters_{today_str}.xlsx",
+                                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                    use_container_width=True
+                                )
+                            else:
+                                st.success("✅ All employees have submitted their reports today!")
+                        except Exception as e:
+                            st.error(f"Error loading details: {e}")
+                            st.warning(f"📋 {len(missing_emails)} employees haven't reported:")
+                            for email in missing_emails:
+                                st.write(f"• {email}")
                     else:
                         st.success("✅ All employees have submitted their reports today!")
                 else:
