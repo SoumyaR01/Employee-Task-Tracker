@@ -1,0 +1,50 @@
+services:
+  - type: web
+    name: employee-tracker
+    env: docker
+    region: oregon  # Change to your preferred region: oregon, frankfurt, singapore, etc.
+    plan: starter  # Options: free, starter, standard, pro
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /_stcore/health
+    
+    # Environment variables
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false  # Set manually in Render dashboard for security
+      - key: HuggingFaceAPIKey
+        sync: false  # Set manually in Render dashboard for security
+      - key: InputLanguage
+        value: en
+      - key: STREAMLIT_SERVER_PORT
+        value: 8501
+      - key: STREAMLIT_SERVER_ADDRESS
+        value: 0.0.0.0
+      - key: STREAMLIT_SERVER_HEADLESS
+        value: true
+      - key: STREAMLIT_BROWSER_GATHER_USAGE_STATS
+        value: false
+    
+    # Persistent disk for data storage
+    disk:
+      name: employee-tracker-data
+      mountPath: /app/Data
+      sizeGB: 1  # Minimum 1GB, can increase as needed
+    
+    # Auto-deploy settings
+    autoDeploy: true  # Auto-deploy on git push
+    
+    # Build filters (optional - only deploy on specific file changes)
+    # buildFilter:
+    #   paths:
+    #     - "*.py"
+    #     - requirements.txt
+    #     - Dockerfile
+
+# Optional: Add a PostgreSQL database for better data management
+# Uncomment below to add a managed PostgreSQL database
+# databases:
+#   - name: employee-tracker-db
+#     plan: starter  # Free tier available
+#     databaseName: employee_tracker
+#     user: admin
+#     ipAllowList: []  # Empty = allow from anywhere
