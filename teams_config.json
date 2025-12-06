@@ -1,0 +1,8 @@
+{
+    "enabled": true,
+    "webhook_url": "http://localhost:8501",
+    "message_format": "simple",
+    "card_color": "Accent",
+    "include_deadline": true,
+    "app_url": "http://localhost:8501"
+}
