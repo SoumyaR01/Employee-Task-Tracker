@@ -26,6 +26,7 @@ CONFIG_FILE = 'config.json'
 EMAIL_CONFIG_FILE = 'email_config.json'
 WHATSAPP_CONFIG_FILE = 'whatsapp_config.json'
 TELEGRAM_CONFIG_FILE = 'telegram_config.json'
+TEAMS_CONFIG_FILE = 'teams_config.json'
 EXCEL_FILE_PATH = r'D:\Employee Track Report\task_tracker.xlsx'
 
 # ==================== Configuration Management ====================
@@ -583,6 +584,185 @@ def send_reminder_telegram(missing_reporters):
                 logging.warning(f"No Telegram chat ID mapping for {emp} at index {idx}")
 
     logging.info(f"Telegram reminders sent: {sent}")
+
+# ==================== Microsoft Teams Config ====================
+
+def load_teams_config():
+    """Load Microsoft Teams configuration"""
+    if Path(TEAMS_CONFIG_FILE).exists():
+        with open(TEAMS_CONFIG_FILE, 'r') as f:
+            return json.load(f)
+    return {
+        'enabled': False,
+        'webhook_url': '',
+        'message_format': 'adaptive_card',
+        'card_color': 'Accent',
+        'include_deadline': True,
+        'app_url': 'http://localhost:8501'
+    }
+
+def save_teams_config(config):
+    """Save Microsoft Teams configuration"""
+    with open(TEAMS_CONFIG_FILE, 'w') as f:
+        json.dump(config, f, indent=4)
+
+def send_teams_adaptive_card(webhook_url, employee_name, today_str, app_url):
+    """Send Adaptive Card notification via Teams webhook"""
+    try:
+        card = {
+            "type": "message",
+            "attachments": [
+                {
+                    "contentType": "application/vnd.microsoft.card.adaptive",
+                    "content": {
+                        "type": "AdaptiveCard",
+                        "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                        "version": "1.4",
+                        "body": [
+                            {
+                                "type": "Container",
+                                "style": "emphasis",
+                                "items": [
+                                    {
+                                        "type": "ColumnSet",
+                                        "columns": [
+                                            {
+                                                "type": "Column",
+                                                "width": "auto",
+                                                "items": [
+                                                    {
+                                                        "type": "TextBlock",
+                                                        "text": "📊",
+                                                        "size": "ExtraLarge"
+                                                    }
+                                                ]
+                                            },
+                                            {
+                                                "type": "Column",
+                                                "width": "stretch",
+                                                "items": [
+                                                    {
+                                                        "type": "TextBlock",
+                                                        "text": "Daily Progress Report Reminder",
+                                                        "size": "Large",
+                                                        "weight": "Bolder",
+                                                        "wrap": True
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            {
+                                "type": "TextBlock",
+                                "text": f"Hello {employee_name},",
+                                "wrap": True,
+                                "spacing": "Medium"
+                            },
+                            {
+                                "type": "TextBlock",
+                                "text": "You haven't submitted your daily progress report yet.",
+                                "wrap": True
+                            },
+                            {
+                                "type": "FactSet",
+                                "facts": [
+                                    {
+                                        "title": "Date:",
+                                        "value": today_str
+                                    },
+                                    {
+                                        "title": "Deadline:",
+                                        "value": "6:00 PM Today"
+                                    }
+                                ]
+                            },
+                            {
+                                "type": "TextBlock",
+                                "text": "⚠️ Please submit your report before end of day.",
+                                "weight": "Bolder",
+                                "color": "Attention",
+                                "wrap": True
+                            }
+                        ],
+                        "actions": [
+                            {
+                                "type": "Action.OpenUrl",
+                                "title": "Submit Report Now",
+                                "url": app_url,
+                                "style": "positive"
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+        
+        response = requests.post(webhook_url, json=card, timeout=10)
+        if response.status_code == 200:
+            logging.info(f"Teams Adaptive Card sent successfully for {employee_name}")
+            return True
+        else:
+            logging.error(f"Teams webhook failed: {response.status_code} - {response.text}")
+            return False
+    except Exception as e:
+        logging.error(f"Teams Adaptive Card error: {e}")
+        return False
+
+def send_teams_simple_message(webhook_url, message):
+    """Send simple text message via Teams webhook"""
+    try:
+        payload = {
+            "text": message
+        }
+        response = requests.post(webhook_url, json=payload, timeout=10)
+        if response.status_code == 200:
+            logging.info("Teams message sent successfully")
+            return True
+        else:
+            logging.error(f"Teams webhook failed: {response.status_code} - {response.text}")
+            return False
+    except Exception as e:
+        logging.error(f"Teams message error: {e}")
+        return False
+
+def send_reminder_teams(missing_reporters):
+    """Send Teams reminders to missing reporters if enabled"""
+    teams_config = load_teams_config()
+    if not teams_config.get('enabled', False):
+        logging.info("Teams reminders are disabled.")
+        return
+    
+    webhook_url = teams_config.get('webhook_url', '').strip()
+    if not webhook_url:
+        logging.warning("No Teams webhook URL configured. Skipping Teams reminders.")
+        return
+    
+    today_str = datetime.now().strftime('%Y-%m-%d')
+    message_format = teams_config.get('message_format', 'adaptive_card')
+    app_url = teams_config.get('app_url', 'http://localhost:8501')
+    
+    sent = 0
+    for emp_email in missing_reporters:
+        emp_name = emp_email.split('@')[0] if '@' in emp_email else emp_email
+        
+        if message_format == 'adaptive_card':
+            if send_teams_adaptive_card(webhook_url, emp_name, today_str, app_url):
+                sent += 1
+        else:
+            simple_msg = (
+                f"⏰ Reminder: {emp_name}\n\n"
+                f"You haven't submitted your Daily Progress Report for {today_str}.\n"
+                f"Please submit it before 6:00 PM.\n\n"
+                f"Submit here: {app_url}"
+            )
+            if send_teams_simple_message(webhook_url, simple_msg):
+                sent += 1
+        
+        time.sleep(1.5)  # Avoid rate limiting
+    
+    logging.info(f"Teams reminders sent: {sent}")
 
 def schedule_reminders():
     """Schedule daily reminders"""
